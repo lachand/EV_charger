@@ -1,0 +1,49 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configuration de la borne Tuya",
+        "description": "Saisissez les identifiants locaux de la borne.",
+        "data": {
+          "host": "Adresse IP locale",
+          "device_id": "Device ID",
+          "local_key": "Local key",
+          "protocol_version": "Version du protocole"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Impossible de joindre la borne avec ces paramètres.",
+      "unknown": "Erreur inattendue."
+    },
+    "abort": {
+      "already_configured": "Cette borne est déjà configurée."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "voltage_l1": {
+        "name": "Tension L1"
+      },
+      "current_l1": {
+        "name": "Intensité L1"
+      },
+      "power_l1": {
+        "name": "Puissance L1"
+      },
+      "temperature": {
+        "name": "Température"
+      }
+    },
+    "number": {
+      "charge_current": {
+        "name": "Consigne d'intensité"
+      }
+    },
+    "switch": {
+      "charge_session": {
+        "name": "Session de charge"
+      }
+    }
+  }
+}

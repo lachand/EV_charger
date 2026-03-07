@@ -1,0 +1,11 @@
+{
+  "domain": "tuya_ev_charger",
+  "name": "Tuya EV Charger Local",
+  "version": "0.1.0",
+  "documentation": "https://github.com/valentin/EV_charger",
+  "iot_class": "local_polling",
+  "config_flow": true,
+  "requirements": ["tinytuya>=1.16.0"],
+  "codeowners": ["@valentin"],
+  "loggers": ["tinytuya"]
+}
