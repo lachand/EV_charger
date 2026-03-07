@@ -21,6 +21,11 @@
     }
   },
   "entity": {
+    "button": {
+      "reboot_charger": {
+        "name": "Redémarrer la borne"
+      }
+    },
     "sensor": {
       "voltage_l1": {
         "name": "Tension L1"
@@ -33,6 +38,9 @@
       },
       "temperature": {
         "name": "Température"
+      },
+      "work_state": {
+        "name": "Etat courant"
       }
     },
     "number": {

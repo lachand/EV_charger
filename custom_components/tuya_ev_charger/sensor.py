@@ -27,7 +27,7 @@ from .tuya_ev_charger import EVMetrics
 
 @dataclass(frozen=True, kw_only=True)
 class TuyaEVChargerSensorDescription(SensorEntityDescription):
-    value_fn: Callable[[EVMetrics], float]
+    value_fn: Callable[[EVMetrics], float | str]
 
 
 SENSOR_DESCRIPTIONS: tuple[TuyaEVChargerSensorDescription, ...] = (
@@ -67,6 +67,12 @@ SENSOR_DESCRIPTIONS: tuple[TuyaEVChargerSensorDescription, ...] = (
         suggested_display_precision=1,
         value_fn=lambda data: data.temperature,
     ),
+    TuyaEVChargerSensorDescription(
+        key="work_state",
+        translation_key="work_state",
+        icon="mdi:state-machine",
+        value_fn=lambda data: data.raw_status.strip().upper() or "UNKNOWN",
+    ),
 )
 
 
@@ -96,7 +102,7 @@ class TuyaEVChargerSensor(TuyaEVChargerEntity, SensorEntity):
         self._attr_unique_id = f"{runtime_data.client.device_id}_{description.key}"
 
     @property
-    def native_value(self) -> float | None:
+    def native_value(self) -> float | str | None:
         data = self.coordinator.data
         if data is None:
             return None

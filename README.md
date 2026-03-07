@@ -35,7 +35,10 @@ Ce dépôt contient:
   - intensité L1
   - puissance L1
   - température
+  - état courant (`IDLE`, `WORKING`, `SLEEP`, ...)
 - nombre:
   - consigne d'intensité (DP 150)
 - interrupteur:
   - session de charge (DP 140)
+- bouton:
+  - redémarrer la borne (DP 188)

@@ -14,6 +14,7 @@ from .const import (
     DP_DO_CHARGE,
     DP_MAX_CURRENT_CFG,
     DP_METRICS,
+    DP_REBOOT,
     DP_WORK_STATE,
 )
 
@@ -70,6 +71,13 @@ class TuyaEVChargerClient:
 
     async def async_set_charge_enabled(self, enabled: bool) -> bool:
         return await self._async_send_command(DP_DO_CHARGE, enabled)
+
+    async def async_reboot(self) -> bool:
+        # Depending on firmware variants, reboot may accept bool, int, or string payloads.
+        for payload in (True, 1, "1"):
+            if await self._async_send_command(DP_REBOOT, payload):
+                return True
+        return False
 
     async def async_get_metrics(self) -> EVMetrics | None:
         device = self._get_device()

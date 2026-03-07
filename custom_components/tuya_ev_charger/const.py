@@ -16,6 +16,7 @@ SUPPORTED_PROTOCOL_VERSIONS: tuple[str, ...] = ("3.3", "3.4", "3.5")
 DEFAULT_SCAN_INTERVAL = timedelta(seconds=30)
 
 PLATFORMS: tuple[Platform, ...] = (
+    Platform.BUTTON,
     Platform.SENSOR,
     Platform.NUMBER,
     Platform.SWITCH,
@@ -28,3 +29,4 @@ DP_METRICS = "102"
 DP_DO_CHARGE = "140"
 DP_CURRENT_TARGET = "150"
 DP_MAX_CURRENT_CFG = "152"
+DP_REBOOT = "188"
