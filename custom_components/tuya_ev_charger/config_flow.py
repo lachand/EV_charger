@@ -157,7 +157,20 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
         user_input: dict[str, Any] | None = None,
     ) -> FlowResult:
         if user_input is not None:
-            return self.async_create_entry(data=user_input)
+            cleaned_input = dict(user_input)
+            _normalize_optional_entity_value(
+                cleaned_input,
+                CONF_SURPLUS_SENSOR_ENTITY_ID,
+            )
+            _normalize_optional_entity_value(
+                cleaned_input,
+                CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
+            )
+            _normalize_optional_entity_value(
+                cleaned_input,
+                CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
+            )
+            return self.async_create_entry(data=cleaned_input)
 
         options = self._config_entry.options
         current_scan_interval = _option_int(
@@ -263,7 +276,7 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                             CONF_SURPLUS_SENSOR_ENTITY_ID,
                             DEFAULT_SURPLUS_SENSOR_ENTITY_ID,
                         ),
-                    ): _sensor_selector(),
+                    ): _optional_sensor_selector(),
                     vol.Optional(
                         CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
                         default=_option_entity(
@@ -271,7 +284,7 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                             CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
                             DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
                         ),
-                    ): _sensor_selector(),
+                    ): _optional_sensor_selector(),
                     vol.Optional(
                         CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
                         default=_option_entity(
@@ -279,7 +292,7 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                             CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
                             DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
                         ),
-                    ): _sensor_selector(),
+                    ): _optional_sensor_selector(),
                     vol.Required(
                         CONF_SURPLUS_SENSOR_INVERTED,
                         default=_option_bool(
@@ -424,12 +437,14 @@ def _option_entity(
     options: Mapping[str, Any],
     key: str,
     default: str,
-) -> str | None:
+) -> str:
     value = options.get(key, default)
     if value is None:
-        return None
+        return ""
     text = str(value).strip()
-    return text or None
+    if text.lower() == "none":
+        return ""
+    return text
 
 
 def _sensor_selector() -> selector.EntitySelector:
@@ -439,3 +454,19 @@ def _sensor_selector() -> selector.EntitySelector:
             multiple=False,
         )
     )
+
+
+def _optional_sensor_selector() -> vol.Any:
+    return vol.Any(None, _sensor_selector())
+
+
+def _normalize_optional_entity_value(data: dict[str, Any], key: str) -> None:
+    value = data.get(key)
+    if value is None:
+        data[key] = ""
+        return
+    text = str(value).strip()
+    if not text or text.lower() == "none":
+        data[key] = ""
+        return
+    data[key] = text
