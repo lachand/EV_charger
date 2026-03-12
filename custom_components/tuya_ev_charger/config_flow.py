@@ -732,7 +732,7 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(
                         CONF_SURPLUS_MAX_SESSION_END_TIME,
                         default=surplus_max_session_end_time,
-                    ): vol.Match(r"^$|^([01]?\d|2[0-3]):[0-5]\d$"),
+                    ): str,
                     vol.Required(
                         CONF_SURPLUS_DEPARTURE_MODE_ENABLED,
                         default=_option_bool(
@@ -744,7 +744,7 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(
                         CONF_SURPLUS_DEPARTURE_TIME,
                         default=surplus_departure_time,
-                    ): vol.Match(r"^$|^([01]?\d|2[0-3]):[0-5]\d$"),
+                    ): str,
                     vol.Required(
                         CONF_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
                         default=surplus_departure_target_energy_kwh,
