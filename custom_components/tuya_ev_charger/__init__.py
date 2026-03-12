@@ -20,6 +20,7 @@ from .const import (
     PLATFORMS,
 )
 from .coordinator import TuyaEVChargerDataUpdateCoordinator
+from .solar_surplus import SolarSurplusController
 from .tuya_ev_charger import TuyaEVChargerClient
 
 LOGGER = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ LOGGER = logging.getLogger(__name__)
 class TuyaEVChargerRuntimeData:
     client: TuyaEVChargerClient
     coordinator: TuyaEVChargerDataUpdateCoordinator
+    solar_surplus_controller: SolarSurplusController | None = None
 
 
 def _scan_interval_seconds(entry: ConfigEntry) -> int:
@@ -68,6 +70,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ) from err
 
     runtime_data = TuyaEVChargerRuntimeData(client=client, coordinator=coordinator)
+    runtime_data.solar_surplus_controller = SolarSurplusController(
+        hass=hass,
+        entry=entry,
+        client=client,
+        coordinator=coordinator,
+    )
+    await runtime_data.solar_surplus_controller.async_start()
     entry.runtime_data = runtime_data
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
@@ -81,4 +90,7 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    runtime_data: TuyaEVChargerRuntimeData | None = entry.runtime_data
+    if runtime_data is not None and runtime_data.solar_surplus_controller is not None:
+        await runtime_data.solar_surplus_controller.async_shutdown()
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

@@ -14,7 +14,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from . import TuyaEVChargerRuntimeData
 from .const import ALLOWED_CURRENTS
 from .entity import TuyaEVChargerEntity
-from .tuya_ev_charger import EVMetrics
+from .helpers import allowed_currents
 
 CURRENT_SETPOINT_DESCRIPTION = NumberEntityDescription(
     key="charge_current",
@@ -77,24 +77,4 @@ class TuyaEVChargerCurrentNumber(TuyaEVChargerEntity, NumberEntity):
         await self.coordinator.async_request_refresh()
 
     def _allowed_currents(self) -> tuple[int, ...]:
-        data: EVMetrics | None = self.coordinator.data
-        min_current = min(ALLOWED_CURRENTS)
-        max_current = max(ALLOWED_CURRENTS)
-
-        if data is not None and data.max_current_cfg is not None:
-            max_current = min(max_current, data.max_current_cfg)
-
-        if data is not None and data.adjust_current_options:
-            options = tuple(
-                sorted(
-                    {
-                        value
-                        for value in data.adjust_current_options
-                        if min_current <= value <= max_current
-                    }
-                )
-            )
-            if options:
-                return options
-
-        return tuple(range(min_current, max_current + 1))
+        return allowed_currents(self.coordinator.data)

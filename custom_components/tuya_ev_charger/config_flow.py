@@ -16,12 +16,47 @@ from .const import (
     CONF_LOCAL_KEY,
     CONF_PROTOCOL_VERSION,
     CONF_SCAN_INTERVAL,
+    CONF_SURPLUS_ADJUST_COOLDOWN_S,
+    CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
+    CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
+    CONF_SURPLUS_LINE_VOLTAGE,
+    CONF_SURPLUS_MODE,
+    CONF_SURPLUS_MODE_ENABLED,
+    CONF_SURPLUS_SENSOR_ENTITY_ID,
+    CONF_SURPLUS_SENSOR_INVERTED,
+    CONF_SURPLUS_START_DELAY_S,
+    CONF_SURPLUS_START_THRESHOLD_W,
+    CONF_SURPLUS_STOP_DELAY_S,
+    CONF_SURPLUS_STOP_THRESHOLD_W,
+    CONF_SURPLUS_TARGET_OFFSET_W,
+    DEFAULT_SURPLUS_ADJUST_COOLDOWN_S,
+    DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
+    DEFAULT_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
+    DEFAULT_SURPLUS_LINE_VOLTAGE,
+    DEFAULT_SURPLUS_MODE,
+    DEFAULT_SURPLUS_MODE_ENABLED,
+    DEFAULT_SURPLUS_SENSOR_ENTITY_ID,
+    DEFAULT_SURPLUS_SENSOR_INVERTED,
+    DEFAULT_SURPLUS_START_DELAY_S,
+    DEFAULT_SURPLUS_START_THRESHOLD_W,
+    DEFAULT_SURPLUS_STOP_DELAY_S,
+    DEFAULT_SURPLUS_STOP_THRESHOLD_W,
+    DEFAULT_SURPLUS_TARGET_OFFSET_W,
     DEFAULT_NAME,
     DEFAULT_PROTOCOL_VERSION,
     DEFAULT_SCAN_INTERVAL_SECONDS,
     DOMAIN,
+    MAX_SURPLUS_DELAY_S,
+    MAX_SURPLUS_LINE_VOLTAGE,
+    MAX_SURPLUS_TARGET_OFFSET_W,
+    MAX_SURPLUS_THRESHOLD_W,
     MAX_SCAN_INTERVAL_SECONDS,
+    MIN_SURPLUS_DELAY_S,
+    MIN_SURPLUS_LINE_VOLTAGE,
+    MIN_SURPLUS_TARGET_OFFSET_W,
+    MIN_SURPLUS_THRESHOLD_W,
     MIN_SCAN_INTERVAL_SECONDS,
+    SURPLUS_MODES,
     SUPPORTED_PROTOCOL_VERSIONS,
 )
 from .tuya_ev_charger import TuyaEVChargerClient
@@ -117,8 +152,72 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             return self.async_create_entry(data=user_input)
 
-        current_scan_interval = self._config_entry.options.get(
-            CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL_SECONDS
+        options = self._config_entry.options
+        current_scan_interval = _option_int(
+            options,
+            CONF_SCAN_INTERVAL,
+            DEFAULT_SCAN_INTERVAL_SECONDS,
+            MIN_SCAN_INTERVAL_SECONDS,
+            MAX_SCAN_INTERVAL_SECONDS,
+        )
+        surplus_line_voltage = _option_int(
+            options,
+            CONF_SURPLUS_LINE_VOLTAGE,
+            DEFAULT_SURPLUS_LINE_VOLTAGE,
+            MIN_SURPLUS_LINE_VOLTAGE,
+            MAX_SURPLUS_LINE_VOLTAGE,
+        )
+        surplus_start_threshold = _option_int(
+            options,
+            CONF_SURPLUS_START_THRESHOLD_W,
+            DEFAULT_SURPLUS_START_THRESHOLD_W,
+            MIN_SURPLUS_THRESHOLD_W,
+            MAX_SURPLUS_THRESHOLD_W,
+        )
+        surplus_stop_threshold = _option_int(
+            options,
+            CONF_SURPLUS_STOP_THRESHOLD_W,
+            DEFAULT_SURPLUS_STOP_THRESHOLD_W,
+            MIN_SURPLUS_THRESHOLD_W,
+            MAX_SURPLUS_THRESHOLD_W,
+        )
+        if surplus_start_threshold <= surplus_stop_threshold:
+            if surplus_stop_threshold >= MAX_SURPLUS_THRESHOLD_W:
+                surplus_stop_threshold = MAX_SURPLUS_THRESHOLD_W - 1
+            surplus_start_threshold = surplus_stop_threshold + 1
+        surplus_target_offset = _option_int(
+            options,
+            CONF_SURPLUS_TARGET_OFFSET_W,
+            DEFAULT_SURPLUS_TARGET_OFFSET_W,
+            MIN_SURPLUS_TARGET_OFFSET_W,
+            MAX_SURPLUS_TARGET_OFFSET_W,
+        )
+        surplus_start_delay = _option_int(
+            options,
+            CONF_SURPLUS_START_DELAY_S,
+            DEFAULT_SURPLUS_START_DELAY_S,
+            MIN_SURPLUS_DELAY_S,
+            MAX_SURPLUS_DELAY_S,
+        )
+        surplus_stop_delay = _option_int(
+            options,
+            CONF_SURPLUS_STOP_DELAY_S,
+            DEFAULT_SURPLUS_STOP_DELAY_S,
+            MIN_SURPLUS_DELAY_S,
+            MAX_SURPLUS_DELAY_S,
+        )
+        surplus_adjust_cooldown = _option_int(
+            options,
+            CONF_SURPLUS_ADJUST_COOLDOWN_S,
+            DEFAULT_SURPLUS_ADJUST_COOLDOWN_S,
+            MIN_SURPLUS_DELAY_S,
+            MAX_SURPLUS_DELAY_S,
+        )
+        surplus_mode = _option_choice(
+            options,
+            CONF_SURPLUS_MODE,
+            DEFAULT_SURPLUS_MODE,
+            SURPLUS_MODES,
         )
         return self.async_show_form(
             step_id="init",
@@ -130,7 +229,162 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                             min=MIN_SCAN_INTERVAL_SECONDS,
                             max=MAX_SCAN_INTERVAL_SECONDS,
                         ),
-                    )
+                    ),
+                    vol.Required(
+                        CONF_SURPLUS_MODE_ENABLED,
+                        default=_option_bool(
+                            options,
+                            CONF_SURPLUS_MODE_ENABLED,
+                            DEFAULT_SURPLUS_MODE_ENABLED,
+                        ),
+                    ): bool,
+                    vol.Required(
+                        CONF_SURPLUS_MODE,
+                        default=surplus_mode,
+                    ): vol.In(SURPLUS_MODES),
+                    vol.Optional(
+                        CONF_SURPLUS_SENSOR_ENTITY_ID,
+                        default=str(
+                            options.get(
+                                CONF_SURPLUS_SENSOR_ENTITY_ID,
+                                DEFAULT_SURPLUS_SENSOR_ENTITY_ID,
+                            )
+                        ),
+                    ): str,
+                    vol.Optional(
+                        CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
+                        default=str(
+                            options.get(
+                                CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
+                                DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
+                            )
+                        ),
+                    ): str,
+                    vol.Required(
+                        CONF_SURPLUS_SENSOR_INVERTED,
+                        default=_option_bool(
+                            options,
+                            CONF_SURPLUS_SENSOR_INVERTED,
+                            DEFAULT_SURPLUS_SENSOR_INVERTED,
+                        ),
+                    ): bool,
+                    vol.Required(
+                        CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
+                        default=_option_bool(
+                            options,
+                            CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
+                            DEFAULT_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
+                        ),
+                    ): bool,
+                    vol.Required(
+                        CONF_SURPLUS_LINE_VOLTAGE,
+                        default=surplus_line_voltage,
+                    ): vol.All(
+                        vol.Coerce(int),
+                        vol.Range(
+                            min=MIN_SURPLUS_LINE_VOLTAGE,
+                            max=MAX_SURPLUS_LINE_VOLTAGE,
+                        ),
+                    ),
+                    vol.Required(
+                        CONF_SURPLUS_START_THRESHOLD_W,
+                        default=surplus_start_threshold,
+                    ): vol.All(
+                        vol.Coerce(int),
+                        vol.Range(
+                            min=MIN_SURPLUS_THRESHOLD_W,
+                            max=MAX_SURPLUS_THRESHOLD_W,
+                        ),
+                    ),
+                    vol.Required(
+                        CONF_SURPLUS_STOP_THRESHOLD_W,
+                        default=surplus_stop_threshold,
+                    ): vol.All(
+                        vol.Coerce(int),
+                        vol.Range(
+                            min=MIN_SURPLUS_THRESHOLD_W,
+                            max=MAX_SURPLUS_THRESHOLD_W,
+                        ),
+                    ),
+                    vol.Required(
+                        CONF_SURPLUS_TARGET_OFFSET_W,
+                        default=surplus_target_offset,
+                    ): vol.All(
+                        vol.Coerce(int),
+                        vol.Range(
+                            min=MIN_SURPLUS_TARGET_OFFSET_W,
+                            max=MAX_SURPLUS_TARGET_OFFSET_W,
+                        ),
+                    ),
+                    vol.Required(
+                        CONF_SURPLUS_START_DELAY_S,
+                        default=surplus_start_delay,
+                    ): vol.All(
+                        vol.Coerce(int),
+                        vol.Range(
+                            min=MIN_SURPLUS_DELAY_S,
+                            max=MAX_SURPLUS_DELAY_S,
+                        ),
+                    ),
+                    vol.Required(
+                        CONF_SURPLUS_STOP_DELAY_S,
+                        default=surplus_stop_delay,
+                    ): vol.All(
+                        vol.Coerce(int),
+                        vol.Range(
+                            min=MIN_SURPLUS_DELAY_S,
+                            max=MAX_SURPLUS_DELAY_S,
+                        ),
+                    ),
+                    vol.Required(
+                        CONF_SURPLUS_ADJUST_COOLDOWN_S,
+                        default=surplus_adjust_cooldown,
+                    ): vol.All(
+                        vol.Coerce(int),
+                        vol.Range(
+                            min=MIN_SURPLUS_DELAY_S,
+                            max=MAX_SURPLUS_DELAY_S,
+                        ),
+                    ),
                 }
             ),
         )
+
+
+def _option_int(
+    options: Mapping[str, Any],
+    key: str,
+    default: int,
+    minimum: int,
+    maximum: int,
+) -> int:
+    try:
+        value = int(options.get(key, default))
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, min(maximum, value))
+
+
+def _option_bool(options: Mapping[str, Any], key: str, default: bool) -> bool:
+    value = options.get(key, default)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "on", "yes"}:
+            return True
+        if lowered in {"0", "false", "off", "no"}:
+            return False
+    return bool(value)
+
+
+def _option_choice(
+    options: Mapping[str, Any],
+    key: str,
+    default: str,
+    choices: tuple[str, ...],
+) -> str:
+    value = str(options.get(key, default)).strip().lower()
+    if value in choices:
+        return value
+    return default

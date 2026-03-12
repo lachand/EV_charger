@@ -67,6 +67,30 @@ Notes:
 ### Options
 
 - `scan_interval` (secondes): intervalle de rafraîchissement des données.
+- Mode `surplus solaire` (optionnel):
+  - `surplus_mode_enabled`: active la régulation automatique.
+  - `surplus_mode`: `classic` ou `zero_injection`.
+  - `surplus_sensor_entity_id`: capteur puissance réseau (import/export) en W.
+  - `surplus_sensor_inverted`: à activer si ton capteur est inversé.
+  - `surplus_curtailment_sensor_entity_id`: puissance bridée potentielle (W) (optionnel, surtout en `zero_injection`).
+  - `surplus_curtailment_sensor_inverted`: inversion du capteur de puissance bridée.
+  - `surplus_start_threshold_w` / `surplus_stop_threshold_w`: hystérésis démarrage/arrêt.
+  - `surplus_target_offset_w`: delta de consigne (marge en W).
+  - `surplus_start_delay_s` / `surplus_stop_delay_s`: temporisations anti oscillation.
+  - `surplus_adjust_cooldown_s`: délai minimal entre deux changements d'intensité.
+  - `surplus_line_voltage`: tension de référence pour convertir W -> A.
+
+### Configuration Surplus: cas pratiques
+
+1. `surplus_mode = classic` (Shelly / compteur réseau standard)
+   - Utilise `surplus_sensor_entity_id` pour la puissance réseau.
+   - L'intégration reconstruit automatiquement le surplus réel en tenant compte de la puissance EV interne (`power_l1`).
+   - `surplus_curtailment_sensor_entity_id` peut rester vide.
+2. `surplus_mode = zero_injection` (installation qui bride la production)
+   - Garde le même `surplus_sensor_entity_id` réseau.
+   - Ajoute `surplus_curtailment_sensor_entity_id` avec la puissance bridée potentielle (si disponible).
+   - L'intégration additionne le surplus réseau reconstruit et la puissance bridée potentielle pour fixer la consigne EV.
+   - Si tu n'as pas ce capteur, le mode fonctionne mais se comportera proche du mode `classic`.
 
 ### Entités exposées
 
@@ -127,6 +151,30 @@ Notes:
 ### Options
 
 - `scan_interval` (seconds): data refresh interval.
+- `solar surplus mode` (optional):
+  - `surplus_mode_enabled`: enables automatic regulation.
+  - `surplus_mode`: `classic` or `zero_injection`.
+  - `surplus_sensor_entity_id`: grid power sensor (import/export) in W.
+  - `surplus_sensor_inverted`: enable if your sensor sign is reversed.
+  - `surplus_curtailment_sensor_entity_id`: potential curtailed power (W) (optional, mainly for `zero_injection`).
+  - `surplus_curtailment_sensor_inverted`: invert curtailed power sensor sign.
+  - `surplus_start_threshold_w` / `surplus_stop_threshold_w`: start/stop hysteresis.
+  - `surplus_target_offset_w`: target delta margin (W).
+  - `surplus_start_delay_s` / `surplus_stop_delay_s`: anti-flapping delays.
+  - `surplus_adjust_cooldown_s`: minimum delay between current setpoint updates.
+  - `surplus_line_voltage`: reference voltage for W -> A conversion.
+
+### Surplus Configuration: practical cases
+
+1. `surplus_mode = classic` (Shelly / standard grid meter)
+   - Use `surplus_sensor_entity_id` for grid power.
+   - The integration automatically reconstructs real surplus using internal EV power telemetry (`power_l1`).
+   - `surplus_curtailment_sensor_entity_id` can stay empty.
+2. `surplus_mode = zero_injection` (site with PV curtailment)
+   - Keep the same grid `surplus_sensor_entity_id`.
+   - Add `surplus_curtailment_sensor_entity_id` with potential curtailed power (if available).
+   - The integration adds reconstructed grid surplus and potential curtailed power to compute EV setpoint.
+   - Without that sensor, it still works but behaves close to `classic`.
 
 ### Exposed entities
 

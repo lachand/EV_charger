@@ -24,9 +24,22 @@
     "step": {
       "init": {
         "title": "Options de la borne Tuya",
-        "description": "Ajustez le comportement de mise à jour.",
+        "description": "Ajustez le comportement de mise à jour et le mode surplus solaire.",
         "data": {
-          "scan_interval": "Intervalle de rafraîchissement (secondes)"
+          "scan_interval": "Intervalle de rafraîchissement (secondes)",
+          "surplus_mode_enabled": "Activer le mode surplus solaire",
+          "surplus_mode": "Mode surplus (classic/zero_injection)",
+          "surplus_sensor_entity_id": "Entité capteur puissance réseau (W) (sensor.xxx)",
+          "surplus_sensor_inverted": "Inverser le signe capteur réseau",
+          "surplus_curtailment_sensor_entity_id": "Entité puissance bridée potentielle (W) (optionnel)",
+          "surplus_curtailment_sensor_inverted": "Inverser le signe capteur puissance bridée",
+          "surplus_line_voltage": "Tension de calcul (V)",
+          "surplus_start_threshold_w": "Seuil démarrage charge (W)",
+          "surplus_stop_threshold_w": "Seuil arrêt charge (W)",
+          "surplus_target_offset_w": "Delta cible surplus (W)",
+          "surplus_start_delay_s": "Délai avant démarrage (s)",
+          "surplus_stop_delay_s": "Délai avant arrêt (s)",
+          "surplus_adjust_cooldown_s": "Cooldown ajustement intensité (s)"
         }
       }
     }

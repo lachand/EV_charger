@@ -24,9 +24,22 @@
     "step": {
       "init": {
         "title": "Tuya EV charger options",
-        "description": "Adjust update behavior.",
+        "description": "Adjust update behavior and solar surplus mode.",
         "data": {
-          "scan_interval": "Refresh interval (seconds)"
+          "scan_interval": "Refresh interval (seconds)",
+          "surplus_mode_enabled": "Enable solar surplus mode",
+          "surplus_mode": "Surplus mode (classic/zero_injection)",
+          "surplus_sensor_entity_id": "Grid power sensor entity (W) (sensor.xxx)",
+          "surplus_sensor_inverted": "Invert grid sensor sign",
+          "surplus_curtailment_sensor_entity_id": "Potential curtailed power sensor (W) (optional)",
+          "surplus_curtailment_sensor_inverted": "Invert curtailed power sensor sign",
+          "surplus_line_voltage": "Voltage reference (V)",
+          "surplus_start_threshold_w": "Charge start threshold (W)",
+          "surplus_stop_threshold_w": "Charge stop threshold (W)",
+          "surplus_target_offset_w": "Target surplus offset (W)",
+          "surplus_start_delay_s": "Start delay (s)",
+          "surplus_stop_delay_s": "Stop delay (s)",
+          "surplus_adjust_cooldown_s": "Current adjustment cooldown (s)"
         }
       }
     }
