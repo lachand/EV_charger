@@ -10,6 +10,10 @@ import tinytuya  # type: ignore
 
 from .const import (
     ALLOWED_CURRENTS,
+    CHARGER_PROFILE_DEPOW_V2,
+    CHARGER_PROFILE_GENERIC_V1,
+    CHARGER_PROFILES,
+    DEFAULT_CHARGER_PROFILE,
     DP_ADJUST_CURRENT,
     DP_ALARM,
     DP_CHARGE_HISTORY,
@@ -31,6 +35,68 @@ from .const import (
 LOGGER = logging.getLogger(__name__)
 COMMAND_VERIFY_RETRIES = 3
 COMMAND_VERIFY_DELAY_S = 0.5
+
+
+@dataclass(slots=True, frozen=True)
+class DPProfile:
+    metrics: str
+    charger_info: str
+    work_state: str
+    work_state_debug: str
+    do_charge: str
+    current_target: str
+    max_current_cfg: str
+    nfc_cfg: str
+    downcounter: str
+    selftest: str
+    alarm: str
+    charge_history: str
+    adjust_current: str
+    product_variant: str
+    dp_num: str
+    reboot: str
+
+
+DP_PROFILE_MAP: dict[str, DPProfile] = {
+    CHARGER_PROFILE_DEPOW_V2: DPProfile(
+        metrics=DP_METRICS,
+        charger_info=DP_CHARGER_INFO,
+        work_state=DP_WORK_STATE,
+        work_state_debug=DP_WORK_STATE_DEBUG,
+        do_charge=DP_DO_CHARGE,
+        current_target=DP_CURRENT_TARGET,
+        max_current_cfg=DP_MAX_CURRENT_CFG,
+        nfc_cfg=DP_NFC_CFG,
+        downcounter=DP_DOWNCOUNTER,
+        selftest=DP_SELFTEST,
+        alarm=DP_ALARM,
+        charge_history=DP_CHARGE_HISTORY,
+        adjust_current=DP_ADJUST_CURRENT,
+        product_variant=DP_PRODUCT_VARIANT,
+        dp_num=DP_NUM,
+        reboot=DP_REBOOT,
+    ),
+    # Generic profile currently mirrors depow_v2 mappings and is meant as
+    # an extension point for additional charger firmwares.
+    CHARGER_PROFILE_GENERIC_V1: DPProfile(
+        metrics=DP_METRICS,
+        charger_info=DP_CHARGER_INFO,
+        work_state=DP_WORK_STATE,
+        work_state_debug=DP_WORK_STATE_DEBUG,
+        do_charge=DP_DO_CHARGE,
+        current_target=DP_CURRENT_TARGET,
+        max_current_cfg=DP_MAX_CURRENT_CFG,
+        nfc_cfg=DP_NFC_CFG,
+        downcounter=DP_DOWNCOUNTER,
+        selftest=DP_SELFTEST,
+        alarm=DP_ALARM,
+        charge_history=DP_CHARGE_HISTORY,
+        adjust_current=DP_ADJUST_CURRENT,
+        product_variant=DP_PRODUCT_VARIANT,
+        dp_num=DP_NUM,
+        reboot=DP_REBOOT,
+    ),
+}
 
 
 @dataclass(slots=True, frozen=True)
@@ -62,11 +128,14 @@ class TuyaEVChargerClient:
         host: str,
         local_key: str,
         protocol_version: str,
+        charger_profile: str = DEFAULT_CHARGER_PROFILE,
     ) -> None:
         self._device_id = device_id
         self._host = host
         self._local_key = local_key
         self._protocol_version = protocol_version
+        self._dp_profile = _resolve_profile(charger_profile)
+        self._dp = DP_PROFILE_MAP[self._dp_profile]
         self._device: tinytuya.Device | None = None
 
     @property
@@ -76,6 +145,10 @@ class TuyaEVChargerClient:
     @property
     def host(self) -> str:
         return self._host
+
+    @property
+    def dp_profile(self) -> str:
+        return self._dp_profile
 
     async def async_connect(self) -> None:
         self._device = tinytuya.Device(
@@ -92,18 +165,18 @@ class TuyaEVChargerClient:
                 f"Current setpoint {amperage}A is out of supported range "
                 f"({min(ALLOWED_CURRENTS)}-{max(ALLOWED_CURRENTS)}A)."
             )
-        return await self._async_send_command(DP_CURRENT_TARGET, amperage)
+        return await self._async_send_command(self._dp.current_target, amperage)
 
     async def async_set_charge_enabled(self, enabled: bool) -> bool:
-        return await self._async_send_command(DP_DO_CHARGE, enabled)
+        return await self._async_send_command(self._dp.do_charge, enabled)
 
     async def async_set_nfc_enabled(self, enabled: bool) -> bool:
-        return await self._async_send_command(DP_NFC_CFG, enabled)
+        return await self._async_send_command(self._dp.nfc_cfg, enabled)
 
     async def async_reboot(self) -> bool:
         # Depending on firmware variants, reboot may accept bool, int, or string payloads.
         for payload in (True, 1, "1"):
-            if await self._async_send_command(DP_REBOOT, payload, verify=False):
+            if await self._async_send_command(self._dp.reboot, payload, verify=False):
                 return True
         return False
 
@@ -112,33 +185,33 @@ class TuyaEVChargerClient:
         if dps is None:
             return None
 
-        metrics_dict = _parse_json_object(dps.get(DP_METRICS, "{}"))
-        charger_info = _parse_json_object(dps.get(DP_CHARGER_INFO, "{}"))
+        metrics_dict = _parse_json_object(dps.get(self._dp.metrics, "{}"))
+        charger_info = _parse_json_object(dps.get(self._dp.charger_info, "{}"))
         l1_data = metrics_dict.get("L1", [0, 0, 0])
         if not isinstance(l1_data, list) or len(l1_data) < 3:
             l1_data = [0, 0, 0]
 
         raw_power = l1_data[2] if len(l1_data) > 2 else metrics_dict.get("p", 0)
-        work_state_debug = _coerce_optional_text(dps.get(DP_WORK_STATE_DEBUG)) or "UNKNOWN"
+        work_state_debug = _coerce_optional_text(dps.get(self._dp.work_state_debug)) or "UNKNOWN"
 
         return EVMetrics(
             voltage_l1=_coerce_float(l1_data[0]) / 10.0,
             current_l1=_coerce_float(l1_data[1]) / 10.0,
             power_l1=_coerce_float(raw_power) / 10.0,
             temperature=_coerce_float(metrics_dict.get("t", 0)) / 10.0,
-            work_state=_coerce_optional_int(dps.get(DP_WORK_STATE)),
+            work_state=_coerce_optional_int(dps.get(self._dp.work_state)),
             work_state_debug=work_state_debug.strip().upper(),
-            do_charge=_coerce_optional_bool(dps.get(DP_DO_CHARGE)),
-            current_target=_coerce_optional_int(dps.get(DP_CURRENT_TARGET)),
-            max_current_cfg=_coerce_optional_int(dps.get(DP_MAX_CURRENT_CFG)),
-            nfc_enabled=_coerce_optional_bool(dps.get(DP_NFC_CFG)),
-            downcounter=_coerce_optional_int(dps.get(DP_DOWNCOUNTER)),
-            selftest=_coerce_optional_text(dps.get(DP_SELFTEST)),
-            alarm=_coerce_optional_json_text(dps.get(DP_ALARM)),
-            charge_history=_coerce_optional_json_text(dps.get(DP_CHARGE_HISTORY)),
-            adjust_current_options=_parse_int_list(dps.get(DP_ADJUST_CURRENT)),
-            product_variant=_coerce_optional_int(dps.get(DP_PRODUCT_VARIANT)),
-            dp_num=_coerce_optional_int(dps.get(DP_NUM)),
+            do_charge=_coerce_optional_bool(dps.get(self._dp.do_charge)),
+            current_target=_coerce_optional_int(dps.get(self._dp.current_target)),
+            max_current_cfg=_coerce_optional_int(dps.get(self._dp.max_current_cfg)),
+            nfc_enabled=_coerce_optional_bool(dps.get(self._dp.nfc_cfg)),
+            downcounter=_coerce_optional_int(dps.get(self._dp.downcounter)),
+            selftest=_coerce_optional_text(dps.get(self._dp.selftest)),
+            alarm=_coerce_optional_json_text(dps.get(self._dp.alarm)),
+            charge_history=_coerce_optional_json_text(dps.get(self._dp.charge_history)),
+            adjust_current_options=_parse_int_list(dps.get(self._dp.adjust_current)),
+            product_variant=_coerce_optional_int(dps.get(self._dp.product_variant)),
+            dp_num=_coerce_optional_int(dps.get(self._dp.dp_num)),
             charger_info=charger_info,
         )
 
@@ -190,6 +263,13 @@ class TuyaEVChargerClient:
         if self._device is None:
             raise RuntimeError("Device client is not initialized. Call async_connect first.")
         return self._device
+
+
+def _resolve_profile(profile: str) -> str:
+    normalized = str(profile).strip().lower()
+    if normalized in CHARGER_PROFILES and normalized in DP_PROFILE_MAP:
+        return normalized
+    return DEFAULT_CHARGER_PROFILE
 
 
 def _parse_json_object(raw_value: Any) -> dict[str, Any]:

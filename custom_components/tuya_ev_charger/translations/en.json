@@ -8,7 +8,8 @@
           "host": "Local IP address",
           "device_id": "Device ID",
           "local_key": "Local key",
-          "protocol_version": "Protocol version (default: 3.5)"
+          "protocol_version": "Protocol version (default: 3.5)",
+          "charger_profile": "Charger profile / DP mapping"
         }
       }
     },
@@ -27,6 +28,7 @@
         "description": "Adjust update behavior and solar surplus mode.",
         "data": {
           "scan_interval": "Refresh interval (seconds)",
+          "charger_profile": "Charger profile / DP mapping",
           "surplus_mode_enabled": "Enable solar surplus mode",
           "surplus_mode": "Surplus mode (classic/zero_injection)",
           "surplus_sensor_entity_id": "Grid power sensor entity (W) (sensor.xxx)",
@@ -41,7 +43,9 @@
           "surplus_target_offset_w": "Target surplus offset (W)",
           "surplus_start_delay_s": "Start delay (s)",
           "surplus_stop_delay_s": "Stop delay (s)",
-          "surplus_adjust_cooldown_s": "Current adjustment cooldown (s)"
+          "surplus_adjust_up_cooldown_s": "Current increase cooldown (s)",
+          "surplus_adjust_down_cooldown_s": "Current decrease cooldown (s)",
+          "surplus_ramp_step_a": "Current ramp step limit (A)"
         }
       }
     }
@@ -96,6 +100,36 @@
     "number": {
       "charge_current": {
         "name": "Current setpoint"
+      },
+      "surplus_start_threshold_w": {
+        "name": "Surplus start threshold"
+      },
+      "surplus_stop_threshold_w": {
+        "name": "Surplus stop threshold"
+      },
+      "surplus_target_offset_w": {
+        "name": "Surplus target offset"
+      },
+      "surplus_start_delay_s": {
+        "name": "Surplus start delay"
+      },
+      "surplus_stop_delay_s": {
+        "name": "Surplus stop delay"
+      },
+      "surplus_adjust_up_cooldown_s": {
+        "name": "Surplus increase cooldown"
+      },
+      "surplus_adjust_down_cooldown_s": {
+        "name": "Surplus decrease cooldown"
+      },
+      "surplus_ramp_step_a": {
+        "name": "Surplus current ramp step"
+      },
+      "surplus_battery_soc_threshold_pct": {
+        "name": "Surplus battery SOC threshold"
+      },
+      "surplus_line_voltage": {
+        "name": "Surplus line voltage"
       }
     },
     "switch": {
@@ -107,6 +141,16 @@
       },
       "surplus_mode": {
         "name": "Solar surplus mode"
+      }
+    },
+    "select": {
+      "surplus_strategy": {
+        "name": "Solar surplus strategy",
+        "state": {
+          "off": "Off",
+          "classic": "Classic",
+          "zero_injection": "Zero injection"
+        }
       }
     }
   }

@@ -13,11 +13,15 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
 
 from .const import (
+    CHARGER_PROFILES,
+    CONF_CHARGER_PROFILE,
     CONF_DEVICE_ID,
     CONF_LOCAL_KEY,
     CONF_PROTOCOL_VERSION,
     CONF_SCAN_INTERVAL,
     CONF_SURPLUS_ADJUST_COOLDOWN_S,
+    CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
+    CONF_SURPLUS_ADJUST_UP_COOLDOWN_S,
     CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
     CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
@@ -32,6 +36,8 @@ from .const import (
     CONF_SURPLUS_STOP_DELAY_S,
     CONF_SURPLUS_STOP_THRESHOLD_W,
     CONF_SURPLUS_TARGET_OFFSET_W,
+    CONF_SURPLUS_RAMP_STEP_A,
+    DEFAULT_CHARGER_PROFILE,
     DEFAULT_SURPLUS_ADJUST_COOLDOWN_S,
     DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
     DEFAULT_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
@@ -47,6 +53,7 @@ from .const import (
     DEFAULT_SURPLUS_STOP_DELAY_S,
     DEFAULT_SURPLUS_STOP_THRESHOLD_W,
     DEFAULT_SURPLUS_TARGET_OFFSET_W,
+    DEFAULT_SURPLUS_RAMP_STEP_A,
     DEFAULT_NAME,
     DEFAULT_PROTOCOL_VERSION,
     DEFAULT_SCAN_INTERVAL_SECONDS,
@@ -54,12 +61,14 @@ from .const import (
     MAX_SURPLUS_DELAY_S,
     MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MAX_SURPLUS_LINE_VOLTAGE,
+    MAX_SURPLUS_RAMP_STEP_A,
     MAX_SURPLUS_TARGET_OFFSET_W,
     MAX_SURPLUS_THRESHOLD_W,
     MAX_SCAN_INTERVAL_SECONDS,
     MIN_SURPLUS_DELAY_S,
     MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MIN_SURPLUS_LINE_VOLTAGE,
+    MIN_SURPLUS_RAMP_STEP_A,
     MIN_SURPLUS_TARGET_OFFSET_W,
     MIN_SURPLUS_THRESHOLD_W,
     MIN_SCAN_INTERVAL_SECONDS,
@@ -90,6 +99,10 @@ def _build_user_schema(
                 CONF_PROTOCOL_VERSION,
                 default=user_input.get(CONF_PROTOCOL_VERSION, DEFAULT_PROTOCOL_VERSION),
             ): vol.In(SUPPORTED_PROTOCOL_VERSIONS),
+            vol.Required(
+                CONF_CHARGER_PROFILE,
+                default=user_input.get(CONF_CHARGER_PROFILE, DEFAULT_CHARGER_PROFILE),
+            ): vol.In(CHARGER_PROFILES),
         }
     )
 
@@ -104,6 +117,7 @@ async def _async_validate_input(
         host=str(data[CONF_HOST]),
         local_key=str(data[CONF_LOCAL_KEY]),
         protocol_version=str(data[CONF_PROTOCOL_VERSION]),
+        charger_profile=str(data.get(CONF_CHARGER_PROFILE, DEFAULT_CHARGER_PROFILE)),
     )
     await client.async_connect()
     metrics = await client.async_get_metrics()
@@ -233,6 +247,27 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
             MIN_SURPLUS_DELAY_S,
             MAX_SURPLUS_DELAY_S,
         )
+        surplus_adjust_up_cooldown = _option_int(
+            options,
+            CONF_SURPLUS_ADJUST_UP_COOLDOWN_S,
+            surplus_adjust_cooldown,
+            MIN_SURPLUS_DELAY_S,
+            MAX_SURPLUS_DELAY_S,
+        )
+        surplus_adjust_down_cooldown = _option_int(
+            options,
+            CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
+            surplus_adjust_cooldown,
+            MIN_SURPLUS_DELAY_S,
+            MAX_SURPLUS_DELAY_S,
+        )
+        surplus_ramp_step_a = _option_int(
+            options,
+            CONF_SURPLUS_RAMP_STEP_A,
+            DEFAULT_SURPLUS_RAMP_STEP_A,
+            MIN_SURPLUS_RAMP_STEP_A,
+            MAX_SURPLUS_RAMP_STEP_A,
+        )
         surplus_battery_soc_threshold = _option_int(
             options,
             CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
@@ -257,6 +292,20 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                             max=MAX_SCAN_INTERVAL_SECONDS,
                         ),
                     ),
+                    vol.Required(
+                        CONF_CHARGER_PROFILE,
+                        default=_option_choice(
+                            options,
+                            CONF_CHARGER_PROFILE,
+                            str(
+                                self._config_entry.data.get(
+                                    CONF_CHARGER_PROFILE,
+                                    DEFAULT_CHARGER_PROFILE,
+                                )
+                            ),
+                            CHARGER_PROFILES,
+                        ),
+                    ): vol.In(CHARGER_PROFILES),
                     vol.Required(
                         CONF_SURPLUS_MODE_ENABLED,
                         default=_option_bool(
@@ -380,13 +429,33 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                         ),
                     ),
                     vol.Required(
-                        CONF_SURPLUS_ADJUST_COOLDOWN_S,
-                        default=surplus_adjust_cooldown,
+                        CONF_SURPLUS_ADJUST_UP_COOLDOWN_S,
+                        default=surplus_adjust_up_cooldown,
                     ): vol.All(
                         vol.Coerce(int),
                         vol.Range(
                             min=MIN_SURPLUS_DELAY_S,
                             max=MAX_SURPLUS_DELAY_S,
+                        ),
+                    ),
+                    vol.Required(
+                        CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
+                        default=surplus_adjust_down_cooldown,
+                    ): vol.All(
+                        vol.Coerce(int),
+                        vol.Range(
+                            min=MIN_SURPLUS_DELAY_S,
+                            max=MAX_SURPLUS_DELAY_S,
+                        ),
+                    ),
+                    vol.Required(
+                        CONF_SURPLUS_RAMP_STEP_A,
+                        default=surplus_ramp_step_a,
+                    ): vol.All(
+                        vol.Coerce(int),
+                        vol.Range(
+                            min=MIN_SURPLUS_RAMP_STEP_A,
+                            max=MAX_SURPLUS_RAMP_STEP_A,
                         ),
                     ),
                 }

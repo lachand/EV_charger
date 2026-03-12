@@ -12,6 +12,8 @@ from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import (
     CONF_SURPLUS_ADJUST_COOLDOWN_S,
+    CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
+    CONF_SURPLUS_ADJUST_UP_COOLDOWN_S,
     CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
     CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
@@ -26,6 +28,7 @@ from .const import (
     CONF_SURPLUS_STOP_DELAY_S,
     CONF_SURPLUS_STOP_THRESHOLD_W,
     CONF_SURPLUS_TARGET_OFFSET_W,
+    CONF_SURPLUS_RAMP_STEP_A,
     DEFAULT_SURPLUS_ADJUST_COOLDOWN_S,
     DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
     DEFAULT_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
@@ -41,14 +44,17 @@ from .const import (
     DEFAULT_SURPLUS_STOP_DELAY_S,
     DEFAULT_SURPLUS_STOP_THRESHOLD_W,
     DEFAULT_SURPLUS_TARGET_OFFSET_W,
+    DEFAULT_SURPLUS_RAMP_STEP_A,
     MAX_SURPLUS_DELAY_S,
     MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MAX_SURPLUS_LINE_VOLTAGE,
+    MAX_SURPLUS_RAMP_STEP_A,
     MAX_SURPLUS_TARGET_OFFSET_W,
     MAX_SURPLUS_THRESHOLD_W,
     MIN_SURPLUS_DELAY_S,
     MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MIN_SURPLUS_LINE_VOLTAGE,
+    MIN_SURPLUS_RAMP_STEP_A,
     MIN_SURPLUS_TARGET_OFFSET_W,
     MIN_SURPLUS_THRESHOLD_W,
     SURPLUS_MODE_ZERO_INJECTION,
@@ -77,7 +83,9 @@ class SolarSurplusSettings:
     target_offset_w: int
     start_delay_s: int
     stop_delay_s: int
-    adjust_cooldown_s: int
+    adjust_up_cooldown_s: int
+    adjust_down_cooldown_s: int
+    ramp_step_a: int
 
 
 class SolarSurplusController:
@@ -99,7 +107,8 @@ class SolarSurplusController:
         self._rerun_requested = False
         self._start_candidate_since: float | None = None
         self._stop_candidate_since: float | None = None
-        self._last_action_ts: float = 0.0
+        self._last_increase_action_ts: float = 0.0
+        self._last_decrease_action_ts: float = 0.0
 
     async def async_start(self) -> None:
         if not self._settings.mode_enabled:
@@ -212,17 +221,45 @@ class SolarSurplusController:
 
                 self._stop_candidate_since = None
                 if await self._client.async_set_charge_enabled(False):
-                    self._last_action_ts = now
+                    self._last_decrease_action_ts = now
                     await self._coordinator.async_request_refresh()
                 return
 
             self._stop_candidate_since = None
-            desired_current = max(min_current, max_supported_current)
-            if desired_current != data.current_target:
-                if now - self._last_action_ts < self._settings.adjust_cooldown_s:
+            target_current = max(min_current, max_supported_current)
+            current_target = data.current_target
+            if current_target is None or current_target not in available_currents:
+                current_target = min_current
+
+            if target_current != current_target:
+                increasing = target_current > current_target
+                last_action_ts = (
+                    self._last_increase_action_ts
+                    if increasing
+                    else self._last_decrease_action_ts
+                )
+                cooldown_s = (
+                    self._settings.adjust_up_cooldown_s
+                    if increasing
+                    else self._settings.adjust_down_cooldown_s
+                )
+                if now - last_action_ts < cooldown_s:
                     return
-                if await self._client.async_set_charge_current(desired_current):
-                    self._last_action_ts = now
+
+                next_current = _ramp_current(
+                    current=current_target,
+                    target=target_current,
+                    ramp_step=max(1, self._settings.ramp_step_a),
+                    minimum=min_current,
+                )
+                if next_current == current_target:
+                    return
+
+                if await self._client.async_set_charge_current(next_current):
+                    if increasing:
+                        self._last_increase_action_ts = now
+                    else:
+                        self._last_decrease_action_ts = now
                     await self._coordinator.async_request_refresh()
             return
 
@@ -243,12 +280,13 @@ class SolarSurplusController:
             return
 
         self._start_candidate_since = None
-        desired_current = max(min_current, max_supported_current)
-        if desired_current != data.current_target:
-            if not await self._client.async_set_charge_current(desired_current):
+        startup_current = min_current
+        if data.current_target != startup_current:
+            if not await self._client.async_set_charge_current(startup_current):
                 return
         if await self._client.async_set_charge_enabled(True):
-            self._last_action_ts = now
+            self._last_increase_action_ts = now
+            self._last_decrease_action_ts = now
             await self._coordinator.async_request_refresh()
 
     def _available_surplus_w(
@@ -338,6 +376,14 @@ def _settings_from_entry(entry: ConfigEntry) -> SolarSurplusSettings:
             stop_threshold_w = MAX_SURPLUS_THRESHOLD_W - 1
         start_threshold_w = stop_threshold_w + 1
 
+    legacy_adjust_cooldown_s = _option_int(
+        options,
+        CONF_SURPLUS_ADJUST_COOLDOWN_S,
+        DEFAULT_SURPLUS_ADJUST_COOLDOWN_S,
+        MIN_SURPLUS_DELAY_S,
+        MAX_SURPLUS_DELAY_S,
+    )
+
     return SolarSurplusSettings(
         mode_enabled=_option_bool(
             options, CONF_SURPLUS_MODE_ENABLED, DEFAULT_SURPLUS_MODE_ENABLED
@@ -406,12 +452,26 @@ def _settings_from_entry(entry: ConfigEntry) -> SolarSurplusSettings:
             MIN_SURPLUS_DELAY_S,
             MAX_SURPLUS_DELAY_S,
         ),
-        adjust_cooldown_s=_option_int(
+        adjust_up_cooldown_s=_option_int(
             options,
-            CONF_SURPLUS_ADJUST_COOLDOWN_S,
-            DEFAULT_SURPLUS_ADJUST_COOLDOWN_S,
+            CONF_SURPLUS_ADJUST_UP_COOLDOWN_S,
+            legacy_adjust_cooldown_s,
             MIN_SURPLUS_DELAY_S,
             MAX_SURPLUS_DELAY_S,
+        ),
+        adjust_down_cooldown_s=_option_int(
+            options,
+            CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
+            legacy_adjust_cooldown_s,
+            MIN_SURPLUS_DELAY_S,
+            MAX_SURPLUS_DELAY_S,
+        ),
+        ramp_step_a=_option_int(
+            options,
+            CONF_SURPLUS_RAMP_STEP_A,
+            DEFAULT_SURPLUS_RAMP_STEP_A,
+            MIN_SURPLUS_RAMP_STEP_A,
+            MAX_SURPLUS_RAMP_STEP_A,
         ),
     )
 
@@ -484,3 +544,11 @@ def _current_supported_by_surplus(
     if not candidates:
         return 0
     return max(candidates)
+
+
+def _ramp_current(current: int, target: int, ramp_step: int, minimum: int) -> int:
+    if target == current:
+        return current
+    if target > current:
+        return min(target, current + ramp_step)
+    return max(minimum, max(target, current - ramp_step))

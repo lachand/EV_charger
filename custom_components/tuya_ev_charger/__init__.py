@@ -10,10 +10,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 
 from .const import (
+    CONF_CHARGER_PROFILE,
     CONF_DEVICE_ID,
     CONF_LOCAL_KEY,
     CONF_PROTOCOL_VERSION,
     CONF_SCAN_INTERVAL,
+    DEFAULT_CHARGER_PROFILE,
     DEFAULT_SCAN_INTERVAL_SECONDS,
     MAX_SCAN_INTERVAL_SECONDS,
     MIN_SCAN_INTERVAL_SECONDS,
@@ -41,12 +43,21 @@ def _scan_interval_seconds(entry: ConfigEntry) -> int:
     return max(MIN_SCAN_INTERVAL_SECONDS, min(MAX_SCAN_INTERVAL_SECONDS, configured_value))
 
 
+def _charger_profile(entry: ConfigEntry) -> str:
+    configured_value = entry.options.get(
+        CONF_CHARGER_PROFILE,
+        entry.data.get(CONF_CHARGER_PROFILE, DEFAULT_CHARGER_PROFILE),
+    )
+    return str(configured_value).strip().lower() or DEFAULT_CHARGER_PROFILE
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     client = TuyaEVChargerClient(
         device_id=entry.data[CONF_DEVICE_ID],
         host=entry.data[CONF_HOST],
         local_key=entry.data[CONF_LOCAL_KEY],
         protocol_version=entry.data[CONF_PROTOCOL_VERSION],
+        charger_profile=_charger_profile(entry),
     )
 
     try:

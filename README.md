@@ -44,6 +44,7 @@ Intégration Home Assistant locale pour piloter une borne de recharge Tuya en LA
    - `device_id`
    - `local_key`
    - `protocol_version` (`3.3`, `3.4` ou `3.5`, défaut: `3.5`)
+   - `charger_profile` (`depow_v2` par défaut)
 
 ### Récupérer la `local_key`
 
@@ -67,6 +68,7 @@ Notes:
 ### Options
 
 - `scan_interval` (secondes): intervalle de rafraîchissement des données.
+- `charger_profile`: profil de mapping DP utilisé pour dialoguer avec la borne (`depow_v2` par défaut).
 - Mode `surplus solaire` (optionnel):
   - `surplus_mode_enabled`: active la régulation automatique.
   - `surplus_mode`: `classic` ou `zero_injection`.
@@ -79,7 +81,9 @@ Notes:
   - `surplus_start_threshold_w` / `surplus_stop_threshold_w`: hystérésis démarrage/arrêt.
   - `surplus_target_offset_w`: delta de consigne (marge en W).
   - `surplus_start_delay_s` / `surplus_stop_delay_s`: temporisations anti oscillation.
-  - `surplus_adjust_cooldown_s`: délai minimal entre deux changements d'intensité.
+  - `surplus_adjust_up_cooldown_s`: délai minimal entre deux augmentations de courant.
+  - `surplus_adjust_down_cooldown_s`: délai minimal entre deux diminutions de courant.
+  - `surplus_ramp_step_a`: pas max (A) par ajustement pour lisser les variations.
   - `surplus_line_voltage`: tension de référence pour convertir W -> A.
 
 ### Configuration Surplus: cas pratiques
@@ -96,11 +100,33 @@ Notes:
   - Si `surplus_battery_soc_sensor_entity_id` est défini, la puissance bridée n'est utilisée que lorsque la batterie atteint `surplus_battery_soc_threshold_pct`.
   - Si tu n'as pas ce capteur, le mode fonctionne mais se comportera proche du mode `classic`.
 
+### Pilotage depuis le dashboard Home Assistant
+
+- `switch.surplus_mode`: active/désactive rapidement la régulation surplus.
+- `select.surplus_strategy`: sélectionne `off`, `classic` ou `zero_injection`.
+- `number.*surplus*`: ajuste seuils, deltas, délais, cooldown montée/descente, pas de rampe, seuil SOC batterie et tension de calcul.
+
+### Diagnostics (support)
+
+- L'intégration expose des diagnostics Home Assistant (`Télécharger les diagnostics`) avec:
+  - configuration active et options surplus,
+  - snapshot des capteurs surplus configurés,
+  - dernière télémétrie de la borne.
+- Les secrets sensibles (`host`, `device_id`, `local_key`, numéros de série) sont masqués automatiquement.
+
+### Compatibilité chargeurs (profils DP)
+
+- Le client utilise un système de `charger_profile` pour mapper les DPs Tuya.
+- Profil par défaut: `depow_v2` (comportement actuel).
+- Profil `generic_v1` fourni comme base d'extension pour d'autres firmwares/modèles.
+- Cette base permet d'ajouter de nouveaux profils sans modifier toute la logique métier.
+
 ### Entités exposées
 
 - `sensor`: mesures électriques, température, état, diagnostics.
-- `number`: consigne d'intensité.
+- `number`: consigne d'intensité + seuils/deltas/délais/cooldowns/rampe/SOC/tension du mode surplus.
 - `switch`: session de charge, NFC, mode surplus solaire.
+- `select`: stratégie surplus solaire (`off` / `classic` / `zero_injection`).
 - `button`: redémarrage borne.
 
 ### Notes
@@ -132,6 +158,7 @@ Local Home Assistant integration to control a Tuya EV charger over LAN using `ti
    - `device_id`
    - `local_key`
    - `protocol_version` (`3.3`, `3.4`, or `3.5`, default: `3.5`)
+   - `charger_profile` (`depow_v2` by default)
 
 ### Get the `local_key`
 
@@ -155,6 +182,7 @@ Notes:
 ### Options
 
 - `scan_interval` (seconds): data refresh interval.
+- `charger_profile`: DP mapping profile used to communicate with the charger (`depow_v2` by default).
 - `solar surplus mode` (optional):
   - `surplus_mode_enabled`: enables automatic regulation.
   - `surplus_mode`: `classic` or `zero_injection`.
@@ -167,7 +195,9 @@ Notes:
   - `surplus_start_threshold_w` / `surplus_stop_threshold_w`: start/stop hysteresis.
   - `surplus_target_offset_w`: target delta margin (W).
   - `surplus_start_delay_s` / `surplus_stop_delay_s`: anti-flapping delays.
-  - `surplus_adjust_cooldown_s`: minimum delay between current setpoint updates.
+  - `surplus_adjust_up_cooldown_s`: minimum delay between current increases.
+  - `surplus_adjust_down_cooldown_s`: minimum delay between current decreases.
+  - `surplus_ramp_step_a`: maximum current step (A) per adjustment.
   - `surplus_line_voltage`: reference voltage for W -> A conversion.
 
 ### Surplus Configuration: practical cases
@@ -184,12 +214,34 @@ Notes:
   - If `surplus_battery_soc_sensor_entity_id` is configured, curtailed power is used only when battery SOC reaches `surplus_battery_soc_threshold_pct`.
   - Without that sensor, it still works but behaves close to `classic`.
 
+### Dashboard control entities
+
+- `switch.surplus_mode`: quick on/off for surplus regulation.
+- `select.surplus_strategy`: choose `off`, `classic`, or `zero_injection`.
+- `number.*surplus*`: tune thresholds, offsets, delays, up/down cooldowns, ramp step, battery SOC threshold, and voltage.
+
 ### Exposed entities
 
 - `sensor`: electrical values, temperature, state, diagnostics.
-- `number`: current setpoint.
+- `number`: current setpoint + solar surplus thresholds/offsets/delays/cooldowns/ramp/SOC/voltage.
 - `switch`: charging session, NFC, solar surplus mode.
+- `select`: solar surplus strategy (`off` / `classic` / `zero_injection`).
 - `button`: charger reboot.
+
+### Diagnostics (support)
+
+- The integration exposes Home Assistant diagnostics (`Download diagnostics`) with:
+  - active configuration and surplus options,
+  - configured surplus sensor snapshots,
+  - latest charger telemetry.
+- Sensitive secrets (`host`, `device_id`, `local_key`, serial identifiers) are automatically redacted.
+
+### Charger compatibility (DP profiles)
+
+- The client now relies on a `charger_profile` DP mapping layer.
+- Default profile: `depow_v2` (current behavior).
+- `generic_v1` is included as an extension baseline for additional firmwares/models.
+- This design allows adding new charger mappings without rewriting core control logic.
 
 ### Notes
 
