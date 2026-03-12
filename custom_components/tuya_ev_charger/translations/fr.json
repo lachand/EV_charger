@@ -51,10 +51,10 @@
         "name": "Température"
       },
       "work_state": {
-        "name": "Etat de fonctionnement"
+        "name": "État de fonctionnement"
       },
       "work_state_debug": {
-        "name": "Etat debug"
+        "name": "État debug"
       },
       "downcounter": {
         "name": "Compte à rebours"

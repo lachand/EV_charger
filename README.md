@@ -43,7 +43,7 @@ Intégration Home Assistant locale pour piloter une borne de recharge Tuya en LA
    - `host` (IP locale de la borne)
    - `device_id`
    - `local_key`
-   - `protocol_version` (`3.3`, `3.4` ou `3.5`)
+   - `protocol_version` (`3.3`, `3.4` ou `3.5`, défaut: `3.5`)
 
 ### Récupérer la `local_key`
 
@@ -103,7 +103,7 @@ Local Home Assistant integration to control a Tuya EV charger over LAN using `ti
    - `host` (local IP of the charger)
    - `device_id`
    - `local_key`
-   - `protocol_version` (`3.3`, `3.4`, or `3.5`)
+   - `protocol_version` (`3.3`, `3.4`, or `3.5`, default: `3.5`)
 
 ### Get the `local_key`
 

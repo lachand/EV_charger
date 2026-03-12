@@ -1,0 +1,95 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configure Tuya EV charger",
+        "description": "Enter the charger's local credentials.",
+        "data": {
+          "host": "Local IP address",
+          "device_id": "Device ID",
+          "local_key": "Local key",
+          "protocol_version": "Protocol version (default: 3.5)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to reach the charger with these settings.",
+      "unknown": "Unexpected error."
+    },
+    "abort": {
+      "already_configured": "This charger is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tuya EV charger options",
+        "description": "Adjust update behavior.",
+        "data": {
+          "scan_interval": "Refresh interval (seconds)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "button": {
+      "reboot_charger": {
+        "name": "Reboot charger"
+      }
+    },
+    "sensor": {
+      "voltage_l1": {
+        "name": "L1 voltage"
+      },
+      "current_l1": {
+        "name": "L1 current"
+      },
+      "power_l1": {
+        "name": "L1 power"
+      },
+      "temperature": {
+        "name": "Temperature"
+      },
+      "work_state": {
+        "name": "Operating state"
+      },
+      "work_state_debug": {
+        "name": "Debug state"
+      },
+      "downcounter": {
+        "name": "Countdown"
+      },
+      "selftest": {
+        "name": "Self-test result"
+      },
+      "alarm": {
+        "name": "Alarm"
+      },
+      "charge_history": {
+        "name": "Charge history"
+      },
+      "adjust_current_options": {
+        "name": "Available currents"
+      },
+      "product_variant": {
+        "name": "Product variant"
+      },
+      "dp_num": {
+        "name": "DP count"
+      }
+    },
+    "number": {
+      "charge_current": {
+        "name": "Current setpoint"
+      }
+    },
+    "switch": {
+      "charge_session": {
+        "name": "Charge session"
+      },
+      "nfc_enabled": {
+        "name": "NFC"
+      }
+    }
+  }
+}
