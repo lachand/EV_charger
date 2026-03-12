@@ -230,6 +230,9 @@
       "surplus_max_session_energy_kwh": {
         "name": "Surplus maximum session energy"
       },
+      "surplus_departure_target_energy_kwh": {
+        "name": "Departure target energy"
+      },
       "tariff_max_price_eur_kwh": {
         "name": "Tariff maximum spot price"
       }
@@ -243,6 +246,9 @@
       },
       "surplus_mode": {
         "name": "Solar surplus mode"
+      },
+      "surplus_departure_mode": {
+        "name": "Departure target enabled"
       }
     },
     "select": {
@@ -262,6 +268,9 @@
           "tempo": "Tempo",
           "spot": "Spot"
         }
+      },
+      "surplus_departure_time": {
+        "name": "Departure target time"
       }
     }
   }

@@ -166,9 +166,12 @@ Notes:
 ### Pilotage depuis le dashboard Home Assistant
 
 - `switch.surplus_mode`: active/désactive rapidement la régulation surplus.
+- `switch.surplus_departure_mode`: active/désactive l’objectif de départ.
 - `select.surplus_strategy`: sélectionne `off`, `classic` ou `zero_injection`.
 - `select.tariff_mode`: sélectionne le mode tarif (`disabled`, `hphc`, `tempo`, `spot`).
+- `select.surplus_departure_time`: choisit l’heure cible de départ (pas de 15 min).
 - `number.*surplus*`: ajuste seuils, deltas, délais, cooldown montée/descente, pas de rampe, seuil SOC batterie, protections de session et tension de calcul.
+- `number.surplus_departure_target_energy_kwh`: énergie cible à atteindre avant l’heure de départ.
 - `number.tariff_max_price_eur_kwh`: ajuste rapidement le seuil prix spot.
 - `binary_sensor.surplus_regulation_active`: indique si la régulation pilote activement la charge.
 
@@ -382,9 +385,12 @@ Notes:
 ### Dashboard control entities
 
 - `switch.surplus_mode`: quick on/off for surplus regulation.
+- `switch.surplus_departure_mode`: quick on/off for departure target.
 - `select.surplus_strategy`: choose `off`, `classic`, or `zero_injection`.
 - `select.tariff_mode`: choose tariff mode (`disabled`, `hphc`, `tempo`, `spot`).
+- `select.surplus_departure_time`: choose departure target time (15-minute steps).
 - `number.*surplus*`: tune thresholds, offsets, delays, up/down cooldowns, ramp step, SOC threshold, session protections, and voltage.
+- `number.surplus_departure_target_energy_kwh`: target energy to reach before departure time.
 - `number.tariff_max_price_eur_kwh`: tune spot-price threshold.
 - `binary_sensor.surplus_regulation_active`: shows whether regulation is actively driving charging.
 

@@ -9,9 +9,11 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TuyaEVChargerRuntimeData
 from .const import (
+    CONF_SURPLUS_DEPARTURE_TIME,
     CONF_SURPLUS_MODE,
     CONF_SURPLUS_MODE_ENABLED,
     CONF_TARIFF_MODE,
+    DEFAULT_SURPLUS_DEPARTURE_TIME,
     DEFAULT_SURPLUS_MODE,
     DEFAULT_SURPLUS_MODE_ENABLED,
     DEFAULT_TARIFF_MODE,
@@ -27,6 +29,11 @@ SURPLUS_STRATEGY_OPTIONS = (
     SURPLUS_MODE_CLASSIC,
     SURPLUS_MODE_ZERO_INJECTION,
 )
+DEPARTURE_TIME_DISABLED = "off"
+DEPARTURE_TIME_OPTIONS = (
+    DEPARTURE_TIME_DISABLED,
+    *tuple(f"{hour:02d}:{minute:02d}" for hour in range(24) for minute in (0, 15, 30, 45)),
+)
 
 
 async def async_setup_entry(
@@ -40,6 +47,7 @@ async def async_setup_entry(
         [
             TuyaEVChargerSurplusStrategySelect(entry, runtime_data),
             TuyaEVChargerTariffModeSelect(entry, runtime_data),
+            TuyaEVChargerDepartureTimeSelect(entry, runtime_data),
         ]
     )
 
@@ -106,5 +114,41 @@ class TuyaEVChargerTariffModeSelect(TuyaEVChargerEntity, SelectEntity):
 
         new_options = dict(self._entry.options)
         new_options[CONF_TARIFF_MODE] = option
+        self.hass.config_entries.async_update_entry(self._entry, options=new_options)
+        self.async_write_ha_state()
+
+
+class TuyaEVChargerDepartureTimeSelect(TuyaEVChargerEntity, SelectEntity):
+    _attr_translation_key = "surplus_departure_time"
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_icon = "mdi:clock-end"
+    _attr_options = list(DEPARTURE_TIME_OPTIONS)
+
+    def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
+        super().__init__(entry=entry, runtime_data=runtime_data)
+        self._attr_unique_id = f"{runtime_data.client.device_id}_surplus_departure_time"
+
+    @property
+    def current_option(self) -> str:
+        option = str(
+            self._entry.options.get(
+                CONF_SURPLUS_DEPARTURE_TIME,
+                DEFAULT_SURPLUS_DEPARTURE_TIME,
+            )
+        ).strip()
+        if not option:
+            return DEPARTURE_TIME_DISABLED
+        if option in DEPARTURE_TIME_OPTIONS:
+            return option
+        return DEPARTURE_TIME_DISABLED
+
+    async def async_select_option(self, option: str) -> None:
+        if option not in DEPARTURE_TIME_OPTIONS:
+            raise HomeAssistantError(f"Unsupported departure time option: {option}")
+
+        new_options = dict(self._entry.options)
+        new_options[CONF_SURPLUS_DEPARTURE_TIME] = (
+            "" if option == DEPARTURE_TIME_DISABLED else option
+        )
         self.hass.config_entries.async_update_entry(self._entry, options=new_options)
         self.async_write_ha_state()

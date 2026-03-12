@@ -77,8 +77,11 @@ cards:
     show_header_toggle: false
     entities:
       - entity: switch.<charger_surplus_mode_switch_entity_id>
+      - entity: switch.<charger_surplus_departure_mode_switch_entity_id>
       - entity: select.<charger_surplus_strategy_select_entity_id>
       - entity: select.<charger_tariff_mode_select_entity_id>
+      - entity: select.<charger_surplus_departure_time_select_entity_id>
+      - entity: number.<charger_surplus_departure_target_energy_kwh_entity_id>
       - entity: binary_sensor.<charger_surplus_regulation_active_entity_id>
       - entity: number.<charger_tariff_max_price_eur_kwh_entity_id>
 

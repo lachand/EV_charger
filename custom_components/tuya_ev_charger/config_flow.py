@@ -833,13 +833,13 @@ def _option_entity(
     options: Mapping[str, Any],
     key: str,
     default: str,
-) -> str:
+) -> str | None:
     value = options.get(key, default)
     if value is None:
-        return ""
+        return None
     text = str(value).strip()
-    if text.lower() == "none":
-        return ""
+    if not text or text.lower() == "none":
+        return None
     return text
 
 
@@ -870,7 +870,7 @@ def _sensor_selector() -> selector.EntitySelector:
 
 
 def _optional_sensor_selector() -> vol.Any:
-    return vol.Any(None, _sensor_selector())
+    return vol.Any(None, "", _sensor_selector())
 
 
 def _normalize_optional_entity_value(data: dict[str, Any], key: str) -> None:

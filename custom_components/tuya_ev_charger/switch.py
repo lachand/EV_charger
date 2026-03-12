@@ -8,7 +8,12 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TuyaEVChargerRuntimeData
-from .const import CONF_SURPLUS_MODE_ENABLED, DEFAULT_SURPLUS_MODE_ENABLED
+from .const import (
+    CONF_SURPLUS_DEPARTURE_MODE_ENABLED,
+    CONF_SURPLUS_MODE_ENABLED,
+    DEFAULT_SURPLUS_DEPARTURE_MODE_ENABLED,
+    DEFAULT_SURPLUS_MODE_ENABLED,
+)
 from .entity import TuyaEVChargerEntity
 
 
@@ -23,6 +28,7 @@ async def async_setup_entry(
             TuyaEVChargerChargeSessionSwitch(entry, runtime_data),
             TuyaEVChargerNfcSwitch(entry, runtime_data),
             TuyaEVChargerSurplusModeSwitch(entry, runtime_data),
+            TuyaEVChargerDepartureModeSwitch(entry, runtime_data),
         ]
     )
 
@@ -111,5 +117,38 @@ class TuyaEVChargerSurplusModeSwitch(TuyaEVChargerEntity, SwitchEntity):
             return
         new_options = dict(self._entry.options)
         new_options[CONF_SURPLUS_MODE_ENABLED] = enabled
+        self.hass.config_entries.async_update_entry(self._entry, options=new_options)
+        self.async_write_ha_state()
+
+
+class TuyaEVChargerDepartureModeSwitch(TuyaEVChargerEntity, SwitchEntity):
+    _attr_translation_key = "surplus_departure_mode"
+    _attr_icon = "mdi:clock-check-outline"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
+        super().__init__(entry=entry, runtime_data=runtime_data)
+        self._attr_unique_id = f"{runtime_data.client.device_id}_surplus_departure_mode"
+
+    @property
+    def is_on(self) -> bool:
+        return bool(
+            self._entry.options.get(
+                CONF_SURPLUS_DEPARTURE_MODE_ENABLED,
+                DEFAULT_SURPLUS_DEPARTURE_MODE_ENABLED,
+            )
+        )
+
+    async def async_turn_on(self, **kwargs: object) -> None:
+        await self._async_set_mode(True)
+
+    async def async_turn_off(self, **kwargs: object) -> None:
+        await self._async_set_mode(False)
+
+    async def _async_set_mode(self, enabled: bool) -> None:
+        if enabled == self.is_on:
+            return
+        new_options = dict(self._entry.options)
+        new_options[CONF_SURPLUS_DEPARTURE_MODE_ENABLED] = enabled
         self.hass.config_entries.async_update_entry(self._entry, options=new_options)
         self.async_write_ha_state()
