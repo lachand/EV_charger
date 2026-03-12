@@ -39,6 +39,10 @@
           "surplus_curtailment_sensor_inverted": "Invert curtailed power sensor sign",
           "surplus_battery_soc_sensor_entity_id": "Battery SOC sensor (%) (optional)",
           "surplus_forecast_mode_enabled": "Enable solar forecast mode",
+          "surplus_dry_run_continuous_enabled": "Enable continuous dry-run",
+          "surplus_departure_mode_enabled": "Enable departure target",
+          "surplus_departure_time": "Departure target time (HH:MM)",
+          "surplus_departure_target_energy_kwh": "Departure target energy (kWh)",
           "surplus_forecast_sensor_entity_id": "Forecast surplus sensor entity (W) (optional)",
           "tariff_sensor_entity_id": "Tariff label sensor entity (optional)",
           "tariff_price_sensor_entity_id": "Spot price sensor entity (optional)",
@@ -154,6 +158,33 @@
       },
       "surplus_session_energy": {
         "name": "Surplus session energy"
+      },
+      "surplus_dry_run_action": {
+        "name": "Dry-run simulated action"
+      },
+      "surplus_dry_run_reason": {
+        "name": "Dry-run simulated reason"
+      },
+      "surplus_dry_run_target_current": {
+        "name": "Dry-run simulated current"
+      },
+      "surplus_departure_required_current": {
+        "name": "Departure required current"
+      },
+      "surplus_departure_remaining_energy": {
+        "name": "Departure remaining energy"
+      },
+      "surplus_energy_today": {
+        "name": "Charged energy today"
+      },
+      "surplus_energy_week": {
+        "name": "Charged energy this week"
+      },
+      "surplus_efficiency_today": {
+        "name": "Surplus efficiency today"
+      },
+      "surplus_efficiency_week": {
+        "name": "Surplus efficiency this week"
       }
     },
     "number": {

@@ -88,12 +88,26 @@ cards:
     entities:
       - entity: sensor.<charger_surplus_available_power_entity_id>
       - entity: sensor.<charger_surplus_target_current_entity_id>
+      - entity: sensor.<charger_surplus_dry_run_action_entity_id>
+      - entity: sensor.<charger_surplus_dry_run_reason_entity_id>
+      - entity: sensor.<charger_surplus_dry_run_target_current_entity_id>
+      - entity: sensor.<charger_surplus_departure_required_current_entity_id>
+      - entity: sensor.<charger_surplus_departure_remaining_energy_entity_id>
       - entity: sensor.<charger_surplus_forecast_sensor_power_entity_id>
       - entity: sensor.<charger_surplus_forecast_blended_power_entity_id>
       - entity: sensor.<charger_surplus_last_decision_reason_entity_id>
       - entity: sensor.<charger_surplus_last_start_reason_entity_id>
       - entity: sensor.<charger_surplus_last_stop_reason_entity_id>
       - entity: sensor.<charger_surplus_session_energy_entity_id>
+
+  - type: entities
+    title: Energie (jour/semaine)
+    show_header_toggle: false
+    entities:
+      - entity: sensor.<charger_surplus_energy_today_entity_id>
+      - entity: sensor.<charger_surplus_energy_week_entity_id>
+      - entity: sensor.<charger_surplus_efficiency_today_entity_id>
+      - entity: sensor.<charger_surplus_efficiency_week_entity_id>
 
   - type: entities
     title: Derniere charge (charge_history)

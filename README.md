@@ -101,6 +101,10 @@ Notes:
   - `surplus_curtailment_sensor_inverted`: inversion du capteur de puissance bridée.
   - `surplus_battery_soc_sensor_entity_id`: capteur de pourcentage batterie (optionnel, liste déroulante).
   - `surplus_forecast_mode_enabled`: active le lissage via prévision solaire.
+  - `surplus_dry_run_continuous_enabled`: active le dry-run continu (capteurs de décision simulée).
+  - `surplus_departure_mode_enabled`: active l’objectif de départ.
+  - `surplus_departure_time`: heure cible de départ (`HH:MM`).
+  - `surplus_departure_target_energy_kwh`: énergie cible à délivrer avant l’heure de départ.
   - `surplus_forecast_sensor_entity_id`: capteur externe de prévision surplus/production (W) (optionnel).
   - `tariff_sensor_entity_id`: capteur de label tarifaire (optionnel, surtout `hphc`/`tempo`).
   - `tariff_price_sensor_entity_id`: capteur de prix spot (optionnel, mode `spot`).
@@ -143,6 +147,21 @@ Notes:
 - Un lissage exponentiel (`surplus_forecast_smoothing_s`) est appliqué pour réduire les oscillations sur passages nuageux courts.
 - Un garde-fou (`surplus_forecast_drop_guard_w`) limite les baisses brusques de consigne entre deux mesures.
 - Deux capteurs debug sont exposés: `surplus_forecast_sensor_power` et `surplus_forecast_blended_power`.
+
+### Objectif départ (HH:MM + kWh)
+
+- Active `surplus_departure_mode_enabled`, définis `surplus_departure_time` et `surplus_departure_target_energy_kwh`.
+- L’intégration arbitre automatiquement:
+  - priorité au surplus quand disponible,
+  - bascule progressive sur un courant garanti si nécessaire pour tenir l’objectif à l’heure cible.
+- Le courant garanti estimé est exposé via `surplus_departure_required_current`.
+- Le reste à charger est exposé via `surplus_departure_remaining_energy`.
+
+### Mini vue énergie (jour/semaine + efficacité surplus)
+
+- `surplus_energy_today`: énergie chargée aujourd’hui.
+- `surplus_energy_week`: énergie chargée sur la semaine ISO en cours.
+- `surplus_efficiency_today` / `surplus_efficiency_week`: part estimée de charge couverte par le surplus local (%).
 
 ### Pilotage depuis le dashboard Home Assistant
 
@@ -195,7 +214,7 @@ Notes:
 
 ### Entités exposées
 
-- `sensor`: mesures électriques, température, état, diagnostics, debug surplus/forecast, et `charge_history` parsé (`timestamp`, `start`, `end`, `duration`, `raw_c`).
+- `sensor`: mesures électriques, température, état, diagnostics, debug surplus/forecast, dry-run continu, objectif départ (courant/reste), mini vue énergie (jour/semaine/efficacité) et `charge_history` parsé (`timestamp`, `start`, `end`, `duration`, `raw_c`).
 - `number`: consigne d'intensité + seuils/deltas/délais/cooldowns/rampe/SOC/tension + protections session + seuil spot.
 - `switch`: session de charge, NFC, mode surplus solaire.
 - `select`: stratégie surplus solaire (`off` / `classic` / `zero_injection`) + mode tarif.
@@ -298,6 +317,10 @@ Notes:
   - `surplus_curtailment_sensor_inverted`: invert curtailed power sensor sign.
   - `surplus_battery_soc_sensor_entity_id`: battery SOC percentage sensor (optional, entity dropdown).
   - `surplus_forecast_mode_enabled`: enables solar forecast smoothing.
+  - `surplus_dry_run_continuous_enabled`: enables continuous dry-run (simulated decision sensors).
+  - `surplus_departure_mode_enabled`: enables departure target mode.
+  - `surplus_departure_time`: target departure time (`HH:MM`).
+  - `surplus_departure_target_energy_kwh`: target energy to deliver before departure time.
   - `surplus_forecast_sensor_entity_id`: external forecast surplus/production sensor (W) (optional).
   - `tariff_sensor_entity_id`: tariff label sensor (optional, mainly for `hphc`/`tempo`).
   - `tariff_price_sensor_entity_id`: spot price sensor (optional, for `spot` mode).
@@ -341,6 +364,21 @@ Notes:
 - A drop guard (`surplus_forecast_drop_guard_w`) limits abrupt downward setpoint changes.
 - Two debug sensors are exposed: `surplus_forecast_sensor_power` and `surplus_forecast_blended_power`.
 
+### Departure target (HH:MM + kWh)
+
+- Enable `surplus_departure_mode_enabled`, set `surplus_departure_time`, and `surplus_departure_target_energy_kwh`.
+- The controller arbitrates automatically:
+  - prioritize surplus when available,
+  - progressively enforce guaranteed current when needed to hit the target by departure.
+- Estimated guaranteed current is exposed via `surplus_departure_required_current`.
+- Remaining energy to target is exposed via `surplus_departure_remaining_energy`.
+
+### Mini energy view (day/week + surplus efficiency)
+
+- `surplus_energy_today`: charged energy today.
+- `surplus_energy_week`: charged energy for current ISO week.
+- `surplus_efficiency_today` / `surplus_efficiency_week`: estimated share covered by local surplus (%).
+
 ### Dashboard control entities
 
 - `switch.surplus_mode`: quick on/off for surplus regulation.
@@ -352,7 +390,7 @@ Notes:
 
 ### Exposed entities
 
-- `sensor`: electrical values, temperature, state, diagnostics, surplus/forecast debug, and parsed `charge_history` (`timestamp`, `start`, `end`, `duration`, `raw_c`).
+- `sensor`: electrical values, temperature, state, diagnostics, surplus/forecast debug, continuous dry-run, departure target (required current/remaining energy), mini energy view (day/week/efficiency), and parsed `charge_history` (`timestamp`, `start`, `end`, `duration`, `raw_c`).
 - `number`: current setpoint + surplus thresholds/offsets/delays/cooldowns/ramp/SOC/voltage + session protections + spot price threshold.
 - `switch`: charging session, NFC, solar surplus mode.
 - `select`: solar surplus strategy (`off` / `classic` / `zero_injection`) + tariff mode.

@@ -4,6 +4,8 @@ import json
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import timedelta
+from math import ceil
 from time import monotonic
 from typing import Any
 
@@ -22,6 +24,10 @@ from .const import (
     CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
     CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
+    CONF_SURPLUS_DEPARTURE_MODE_ENABLED,
+    CONF_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
+    CONF_SURPLUS_DEPARTURE_TIME,
+    CONF_SURPLUS_DRY_RUN_CONTINUOUS_ENABLED,
     CONF_SURPLUS_FORECAST_DROP_GUARD_W,
     CONF_SURPLUS_FORECAST_MODE_ENABLED,
     CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
@@ -52,6 +58,10 @@ from .const import (
     DEFAULT_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
     DEFAULT_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
+    DEFAULT_SURPLUS_DEPARTURE_MODE_ENABLED,
+    DEFAULT_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
+    DEFAULT_SURPLUS_DEPARTURE_TIME,
+    DEFAULT_SURPLUS_DRY_RUN_CONTINUOUS_ENABLED,
     DEFAULT_SURPLUS_FORECAST_DROP_GUARD_W,
     DEFAULT_SURPLUS_FORECAST_MODE_ENABLED,
     DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
@@ -84,6 +94,7 @@ from .const import (
     DP_WORK_STATE_DEBUG,
     MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MAX_SURPLUS_DELAY_S,
+    MAX_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
     MAX_SURPLUS_FORECAST_DROP_GUARD_W,
     MAX_SURPLUS_FORECAST_WEIGHT_PCT,
     MAX_SURPLUS_LINE_VOLTAGE,
@@ -95,6 +106,7 @@ from .const import (
     MAX_TARIFF_PRICE_EUR_KWH,
     MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MIN_SURPLUS_DELAY_S,
+    MIN_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
     MIN_SURPLUS_END_TIME_LEN,
     MIN_SURPLUS_FORECAST_DROP_GUARD_W,
     MIN_SURPLUS_FORECAST_WEIGHT_PCT,
@@ -144,6 +156,10 @@ class SolarSurplusSettings:
     forecast_weight_pct: int
     forecast_smoothing_s: int
     forecast_drop_guard_w: int
+    dry_run_continuous_enabled: bool
+    departure_mode_enabled: bool
+    departure_time: str
+    departure_target_energy_kwh: float
     min_run_time_s: int
     max_session_duration_min: int
     max_session_energy_kwh: float
@@ -165,13 +181,22 @@ class SolarSurplusSnapshot:
     forecast_sensor_w: float | None
     forecast_blended_surplus_w: float | None
     target_current_a: int | None
+    departure_required_current_a: int | None
+    departure_remaining_energy_kwh: float
     tariff_allowed: bool | None
     tariff_reason: str
     last_decision_reason: str
     last_start_reason: str | None
     last_stop_reason: str | None
+    dry_run_action: str
+    dry_run_reason: str
+    dry_run_target_current_a: int | None
     session_runtime_s: int
     session_energy_kwh: float
+    energy_today_kwh: float
+    energy_week_kwh: float
+    surplus_efficiency_today_pct: float | None
+    surplus_efficiency_week_pct: float | None
 
 
 class SolarSurplusController:
@@ -206,22 +231,36 @@ class SolarSurplusController:
         self._session_started_ts: float | None = None
         self._session_energy_kwh: float = 0.0
         self._last_energy_sample_ts: float | None = None
+        self._departure_window_key: str | None = None
+        self._departure_delivered_kwh: float = 0.0
 
         self._regulation_active = False
         self._last_available_surplus_w: float | None = None
         self._last_forecast_sensor_w: float | None = None
         self._last_forecast_blended_surplus_w: float | None = None
         self._last_target_current_a: int | None = None
+        self._last_departure_required_current_a: int | None = None
+        self._last_departure_remaining_energy_kwh: float = 0.0
         self._last_decision_reason = "startup"
         self._last_start_reason: str | None = None
         self._last_stop_reason: str | None = None
+        self._last_dry_run_action = "idle"
+        self._last_dry_run_reason = "startup"
+        self._last_dry_run_target_current_a: int | None = None
         self._last_tariff_reason = "tariff_not_evaluated"
         self._tariff_allowed: bool | None = None
         self._forecast_ema_surplus_w: float | None = None
         self._forecast_last_sample_ts: float | None = None
+        self._energy_day_key: str | None = None
+        self._energy_week_key: str | None = None
+        self._energy_today_kwh: float = 0.0
+        self._energy_week_kwh: float = 0.0
+        self._surplus_energy_today_kwh: float = 0.0
+        self._surplus_energy_week_kwh: float = 0.0
 
     @property
     def snapshot(self) -> SolarSurplusSnapshot:
+        self._roll_energy_buckets(dt_util.now())
         now = monotonic()
         return SolarSurplusSnapshot(
             mode_enabled=self._settings.mode_enabled,
@@ -232,13 +271,31 @@ class SolarSurplusController:
             forecast_sensor_w=self._last_forecast_sensor_w,
             forecast_blended_surplus_w=self._last_forecast_blended_surplus_w,
             target_current_a=self._last_target_current_a,
+            departure_required_current_a=self._last_departure_required_current_a,
+            departure_remaining_energy_kwh=round(
+                max(0.0, self._last_departure_remaining_energy_kwh),
+                3,
+            ),
             tariff_allowed=self._tariff_allowed,
             tariff_reason=self._last_tariff_reason,
             last_decision_reason=self._last_decision_reason,
             last_start_reason=self._last_start_reason,
             last_stop_reason=self._last_stop_reason,
+            dry_run_action=self._last_dry_run_action,
+            dry_run_reason=self._last_dry_run_reason,
+            dry_run_target_current_a=self._last_dry_run_target_current_a,
             session_runtime_s=self._session_runtime_s(now),
             session_energy_kwh=round(self._session_energy_kwh, 3),
+            energy_today_kwh=round(self._energy_today_kwh, 3),
+            energy_week_kwh=round(self._energy_week_kwh, 3),
+            surplus_efficiency_today_pct=_efficiency_pct(
+                self._surplus_energy_today_kwh,
+                self._energy_today_kwh,
+            ),
+            surplus_efficiency_week_pct=_efficiency_pct(
+                self._surplus_energy_week_kwh,
+                self._energy_week_kwh,
+            ),
         )
 
     def async_add_update_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
@@ -362,76 +419,13 @@ class SolarSurplusController:
             "session_runtime_s": self._session_runtime_s(now),
             "session_energy_kwh": round(self._session_energy_kwh, 3),
         }
-        if data is None:
-            report["status"] = "no_coordinator_data"
-            return report
-
-        available_currents = allowed_currents(data)
-        if not available_currents:
-            report["status"] = "no_allowed_currents"
-            return report
-
-        min_current = min(available_currents)
-        grid_power_w = self._read_grid_power_w()
-        battery_ready = self._is_battery_threshold_met()
-        tariff_allowed, tariff_reason = self._is_tariff_allowed()
-
-        report["is_charging"] = _is_charging(data)
-        report["grid_power_w"] = grid_power_w
-        report["battery_ready"] = battery_ready
-        report["tariff_allowed"] = tariff_allowed
-        report["tariff_reason"] = tariff_reason
-
-        if grid_power_w is None:
-            report["status"] = "grid_sensor_unavailable"
-            return report
-
-        available_surplus_w = self._available_surplus_w(
-            data=data,
-            grid_power_w=grid_power_w,
-            battery_ready=battery_ready,
-            now=now,
-            update_state=False,
-        )
-        max_supported_current = _current_supported_by_surplus(
-            available_currents,
-            available_surplus_w,
-            self._settings.line_voltage,
-        )
-        target_current = (
-            max(min_current, max_supported_current) if max_supported_current >= min_current else None
-        )
-
-        report["available_surplus_w"] = round(available_surplus_w, 1)
-        report["target_current_a"] = target_current
-        report["current_target_a"] = data.current_target
-        report["start_threshold_w"] = self._settings.start_threshold_w
-        report["stop_threshold_w"] = self._settings.stop_threshold_w
-        report["forecast_sensor_w"] = self._last_forecast_sensor_w
-        report["forecast_blended_surplus_w"] = self._last_forecast_blended_surplus_w
-
-        if _is_charging(data):
-            stop_reason = self._stop_reason(
+        report.update(
+            self._build_dry_run_report(
                 now=now,
-                battery_ready=battery_ready,
-                tariff_allowed=tariff_allowed,
-                available_surplus_w=available_surplus_w,
-                max_supported_current=max_supported_current,
-                min_current=min_current,
+                data=data,
+                update_preview_state=False,
             )
-            report["predicted_action"] = "stop" if stop_reason else "hold_or_adjust"
-            report["predicted_stop_reason"] = stop_reason
-        else:
-            can_start = (
-                battery_ready
-                and tariff_allowed
-                and available_surplus_w >= self._settings.start_threshold_w
-                and max_supported_current >= min_current
-                and not self._is_past_end_time()
-            )
-            report["predicted_action"] = "start" if can_start else "stay_stopped"
-            report["predicted_start_ready"] = can_start
-
+        )
         return report
 
     def _tracked_sensor_entities(self) -> list[str]:
@@ -483,8 +477,13 @@ class SolarSurplusController:
 
     async def _async_evaluate_once(self, reason: str) -> None:
         _ = reason
-        data = self._coordinator.data
         now = monotonic()
+        data = self._coordinator.data
+        self._build_dry_run_report(
+            now=now,
+            data=data,
+            update_preview_state=self._settings.dry_run_continuous_enabled,
+        )
         if data is None:
             self._set_decision("no_coordinator_data")
             self._regulation_active = False
@@ -494,7 +493,10 @@ class SolarSurplusController:
             return
 
         is_charging = _is_charging(data)
-        self._update_session_energy(now, data, is_charging)
+        grid_power_for_energy = (
+            self._read_grid_power_w() if self._settings.grid_sensor_entity_id else None
+        )
+        self._update_session_energy(now, data, is_charging, grid_power_for_energy)
 
         available_currents = allowed_currents(data)
         if not available_currents:
@@ -569,9 +571,27 @@ class SolarSurplusController:
             available_surplus_w,
             self._settings.line_voltage,
         )
-        target_current = (
+        target_current_from_surplus = (
             max(min_current, max_supported_current) if max_supported_current >= min_current else None
         )
+        (
+            departure_required_current,
+            departure_remaining_energy_kwh,
+        ) = self._required_departure_current(
+            available_currents=available_currents,
+            min_current=min_current,
+        )
+        target_current = target_current_from_surplus
+        if departure_required_current is not None:
+            target_current = max(
+                departure_required_current,
+                target_current or 0,
+            )
+            if target_current < min_current:
+                target_current = None
+
+        self._last_departure_required_current_a = departure_required_current
+        self._last_departure_remaining_energy_kwh = departure_remaining_energy_kwh
         self._last_available_surplus_w = available_surplus_w
         self._last_target_current_a = target_current
 
@@ -587,6 +607,7 @@ class SolarSurplusController:
                 available_surplus_w=available_surplus_w,
                 max_supported_current=max_supported_current,
                 min_current=min_current,
+                guaranteed_current_a=departure_required_current,
             )
             if stop_reason:
                 if self._min_runtime_guard_applies(now, stop_reason):
@@ -670,51 +691,57 @@ class SolarSurplusController:
             self._register_stop(now, "charging_stopped")
 
         self._stop_candidate_since = None
-        if not battery_ready:
-            self._start_candidate_since = None
-            self._set_decision("battery_soc_below_threshold")
-            self._regulation_active = False
-            self._notify_state_listeners()
-            return
         if not tariff_allowed:
             self._start_candidate_since = None
             self._set_decision(tariff_reason)
             self._regulation_active = False
             self._notify_state_listeners()
             return
-        if self._is_past_end_time():
-            self._start_candidate_since = None
-            self._set_decision("past_session_end_time")
-            self._regulation_active = False
-            self._notify_state_listeners()
-            return
-        if available_surplus_w < self._settings.start_threshold_w:
-            self._start_candidate_since = None
-            self._set_decision("below_start_threshold")
-            self._regulation_active = False
-            self._notify_state_listeners()
-            return
-        if max_supported_current < min_current:
-            self._start_candidate_since = None
-            self._set_decision("insufficient_surplus_current")
-            self._regulation_active = False
-            self._notify_state_listeners()
-            return
+        guaranteed_start = departure_required_current is not None
+        if not guaranteed_start:
+            if not battery_ready:
+                self._start_candidate_since = None
+                self._set_decision("battery_soc_below_threshold")
+                self._regulation_active = False
+                self._notify_state_listeners()
+                return
+            if self._is_past_end_time():
+                self._start_candidate_since = None
+                self._set_decision("past_session_end_time")
+                self._regulation_active = False
+                self._notify_state_listeners()
+                return
+            if available_surplus_w < self._settings.start_threshold_w:
+                self._start_candidate_since = None
+                self._set_decision("below_start_threshold")
+                self._regulation_active = False
+                self._notify_state_listeners()
+                return
+            if max_supported_current < min_current:
+                self._start_candidate_since = None
+                self._set_decision("insufficient_surplus_current")
+                self._regulation_active = False
+                self._notify_state_listeners()
+                return
 
-        if self._start_candidate_since is None:
-            self._start_candidate_since = now
-            self._set_decision("start_delay_pending")
-            self._regulation_active = False
-            self._notify_state_listeners()
-            return
-        if now - self._start_candidate_since < self._settings.start_delay_s:
-            self._set_decision("start_delay_pending")
-            self._regulation_active = False
-            self._notify_state_listeners()
-            return
+            if self._start_candidate_since is None:
+                self._start_candidate_since = now
+                self._set_decision("start_delay_pending")
+                self._regulation_active = False
+                self._notify_state_listeners()
+                return
+            if now - self._start_candidate_since < self._settings.start_delay_s:
+                self._set_decision("start_delay_pending")
+                self._regulation_active = False
+                self._notify_state_listeners()
+                return
+        else:
+            self._start_candidate_since = None
 
         self._start_candidate_since = None
         startup_current = min_current
+        if guaranteed_start and target_current is not None:
+            startup_current = target_current
         if data.current_target != startup_current:
             if not await self._client.async_set_charge_current(startup_current):
                 self._set_decision("failed_set_startup_current")
@@ -724,8 +751,8 @@ class SolarSurplusController:
         if await self._client.async_set_charge_enabled(True):
             self._last_increase_action_ts = now
             self._last_decrease_action_ts = now
-            self._start_session(now, "surplus_start")
-            self._set_decision("surplus_start")
+            self._start_session(now, "departure_start" if guaranteed_start else "surplus_start")
+            self._set_decision("departure_start" if guaranteed_start else "surplus_start")
             self._regulation_active = True
             await self._coordinator.async_request_refresh()
         else:
@@ -768,14 +795,17 @@ class SolarSurplusController:
         available_surplus_w: float,
         max_supported_current: int,
         min_current: int,
+        guaranteed_current_a: int | None,
     ) -> str | None:
         limit_reason = self._session_limit_reason(now)
         if limit_reason:
             return limit_reason
-        if not battery_ready:
-            return "battery_soc_below_threshold"
         if not tariff_allowed:
             return self._last_tariff_reason or "tariff_blocked"
+        if guaranteed_current_a is not None and guaranteed_current_a >= min_current:
+            return None
+        if not battery_ready:
+            return "battery_soc_below_threshold"
         if available_surplus_w <= self._settings.stop_threshold_w:
             return "below_stop_threshold"
         if max_supported_current < min_current:
@@ -849,6 +879,320 @@ class SolarSurplusController:
         now = dt_util.now()
         now_minutes = now.hour * 60 + now.minute
         return now_minutes >= end_time
+
+    def _required_departure_current(
+        self,
+        *,
+        available_currents: tuple[int, ...],
+        min_current: int,
+    ) -> tuple[int | None, float]:
+        if not self._settings.departure_mode_enabled:
+            self._departure_window_key = None
+            self._departure_delivered_kwh = 0.0
+            return None, 0.0
+        departure_minutes = _parse_end_time(self._settings.departure_time)
+        if departure_minutes is None:
+            self._departure_window_key = None
+            self._departure_delivered_kwh = 0.0
+            return None, 0.0
+        self._refresh_departure_window_state(departure_minutes)
+        target_energy_kwh = max(0.0, self._settings.departure_target_energy_kwh)
+        if target_energy_kwh <= 0.0:
+            return None, 0.0
+
+        remaining_energy_kwh = max(0.0, target_energy_kwh - self._departure_delivered_kwh)
+        if remaining_energy_kwh <= 0.0:
+            return None, 0.0
+
+        hours_until_departure = _hours_until_next_departure(departure_minutes)
+        if hours_until_departure <= 0.0:
+            return None, remaining_energy_kwh
+
+        required_power_w = (remaining_energy_kwh * 1000.0) / hours_until_departure
+        if required_power_w <= 0.0 or self._settings.line_voltage <= 0:
+            return None, remaining_energy_kwh
+
+        required_current_a = ceil(required_power_w / float(self._settings.line_voltage))
+        if required_current_a < min_current:
+            # Not urgent yet: let surplus mode drive charging naturally.
+            return None, remaining_energy_kwh
+
+        higher_or_equal = [
+            current for current in available_currents if current >= required_current_a
+        ]
+        if higher_or_equal:
+            return min(higher_or_equal), remaining_energy_kwh
+        return max(available_currents), remaining_energy_kwh
+
+    def _refresh_departure_window_state(self, departure_minutes: int) -> None:
+        now = dt_util.now()
+        now_minutes = now.hour * 60 + now.minute
+        target_date = now.date()
+        if departure_minutes <= now_minutes:
+            target_date = target_date + timedelta(days=1)
+
+        window_key = f"{target_date.isoformat()}@{departure_minutes:04d}"
+        if self._departure_window_key != window_key:
+            self._departure_window_key = window_key
+            self._departure_delivered_kwh = 0.0
+
+    def _build_dry_run_report(
+        self,
+        *,
+        now: float,
+        data: EVMetrics | None,
+        update_preview_state: bool,
+    ) -> dict[str, Any]:
+        report: dict[str, Any] = {}
+        action = "idle"
+        reason = "no_coordinator_data"
+        target_current: int | None = None
+        departure_required_current: int | None = None
+        departure_remaining_energy_kwh = 0.0
+
+        if data is None:
+            report["status"] = "no_coordinator_data"
+            self._update_dry_run_preview(
+                enabled=update_preview_state,
+                action=action,
+                reason=reason,
+                target_current=target_current,
+                departure_required_current=departure_required_current,
+                departure_remaining_energy_kwh=departure_remaining_energy_kwh,
+            )
+            return report
+
+        available_currents = allowed_currents(data)
+        if not available_currents:
+            action = "idle"
+            reason = "no_allowed_currents"
+            report["status"] = "no_allowed_currents"
+            self._update_dry_run_preview(
+                enabled=update_preview_state,
+                action=action,
+                reason=reason,
+                target_current=target_current,
+                departure_required_current=departure_required_current,
+                departure_remaining_energy_kwh=departure_remaining_energy_kwh,
+            )
+            return report
+
+        min_current = min(available_currents)
+        force_charge_active = self._is_force_charge_active(now)
+        pause_active = self._is_pause_active(now)
+        grid_power_w = self._read_grid_power_w()
+        battery_ready = self._is_battery_threshold_met()
+        tariff_allowed, tariff_reason = self._is_tariff_allowed()
+        is_charging = _is_charging(data)
+
+        report["is_charging"] = is_charging
+        report["grid_power_w"] = grid_power_w
+        report["battery_ready"] = battery_ready
+        report["tariff_allowed"] = tariff_allowed
+        report["tariff_reason"] = tariff_reason
+
+        if force_charge_active:
+            action = "force_charge"
+            reason = "force_charge_active"
+            target_current = self._force_charge_current_a or min_current
+            report["status"] = "force_charge_active"
+            self._update_dry_run_preview(
+                enabled=update_preview_state,
+                action=action,
+                reason=reason,
+                target_current=target_current,
+                departure_required_current=departure_required_current,
+                departure_remaining_energy_kwh=departure_remaining_energy_kwh,
+            )
+            report["predicted_action"] = action
+            report["predicted_reason"] = reason
+            report["target_current_a"] = target_current
+            return report
+
+        if not self._settings.mode_enabled:
+            action = "stay_stopped"
+            reason = "mode_disabled"
+            report["status"] = "mode_disabled"
+            self._update_dry_run_preview(
+                enabled=update_preview_state,
+                action=action,
+                reason=reason,
+                target_current=target_current,
+                departure_required_current=departure_required_current,
+                departure_remaining_energy_kwh=departure_remaining_energy_kwh,
+            )
+            report["predicted_action"] = action
+            report["predicted_reason"] = reason
+            return report
+
+        if pause_active:
+            action = "pause"
+            reason = "surplus_paused_active"
+            report["status"] = "surplus_paused_active"
+            self._update_dry_run_preview(
+                enabled=update_preview_state,
+                action=action,
+                reason=reason,
+                target_current=target_current,
+                departure_required_current=departure_required_current,
+                departure_remaining_energy_kwh=departure_remaining_energy_kwh,
+            )
+            report["predicted_action"] = action
+            report["predicted_reason"] = reason
+            return report
+
+        if not self._settings.grid_sensor_entity_id:
+            action = "stay_stopped"
+            reason = "missing_grid_sensor"
+            report["status"] = "missing_grid_sensor"
+            self._update_dry_run_preview(
+                enabled=update_preview_state,
+                action=action,
+                reason=reason,
+                target_current=target_current,
+                departure_required_current=departure_required_current,
+                departure_remaining_energy_kwh=departure_remaining_energy_kwh,
+            )
+            report["predicted_action"] = action
+            report["predicted_reason"] = reason
+            return report
+
+        if grid_power_w is None:
+            action = "stay_stopped"
+            reason = "grid_sensor_unavailable"
+            report["status"] = "grid_sensor_unavailable"
+            self._update_dry_run_preview(
+                enabled=update_preview_state,
+                action=action,
+                reason=reason,
+                target_current=target_current,
+                departure_required_current=departure_required_current,
+                departure_remaining_energy_kwh=departure_remaining_energy_kwh,
+            )
+            report["predicted_action"] = action
+            report["predicted_reason"] = reason
+            return report
+
+        available_surplus_w = self._available_surplus_w(
+            data=data,
+            grid_power_w=grid_power_w,
+            battery_ready=battery_ready,
+            now=now,
+            update_state=False,
+        )
+        max_supported_current = _current_supported_by_surplus(
+            available_currents,
+            available_surplus_w,
+            self._settings.line_voltage,
+        )
+        target_current_from_surplus = (
+            max(min_current, max_supported_current) if max_supported_current >= min_current else None
+        )
+        (
+            departure_required_current,
+            departure_remaining_energy_kwh,
+        ) = self._required_departure_current(
+            available_currents=available_currents,
+            min_current=min_current,
+        )
+        target_current = target_current_from_surplus
+        if departure_required_current is not None:
+            target_current = max(departure_required_current, target_current or 0)
+            if target_current < min_current:
+                target_current = None
+
+        report["status"] = "ok"
+        report["available_surplus_w"] = round(available_surplus_w, 1)
+        report["target_current_a"] = target_current
+        report["current_target_a"] = data.current_target
+        report["start_threshold_w"] = self._settings.start_threshold_w
+        report["stop_threshold_w"] = self._settings.stop_threshold_w
+        report["forecast_sensor_w"] = self._last_forecast_sensor_w
+        report["forecast_blended_surplus_w"] = self._last_forecast_blended_surplus_w
+        report["departure_required_current_a"] = departure_required_current
+        report["departure_remaining_energy_kwh"] = round(
+            departure_remaining_energy_kwh,
+            3,
+        )
+
+        if is_charging:
+            stop_reason = self._stop_reason(
+                now=now,
+                battery_ready=battery_ready,
+                tariff_allowed=tariff_allowed,
+                available_surplus_w=available_surplus_w,
+                max_supported_current=max_supported_current,
+                min_current=min_current,
+                guaranteed_current_a=departure_required_current,
+            )
+            if stop_reason:
+                action = "stop"
+                reason = stop_reason
+            elif target_current is None:
+                action = "hold"
+                reason = "no_target_current"
+            elif data.current_target is None or data.current_target != target_current:
+                action = "adjust"
+                reason = "target_mismatch"
+            else:
+                action = "hold"
+                reason = "holding_current"
+        else:
+            guaranteed_start = departure_required_current is not None
+            if not tariff_allowed:
+                action = "stay_stopped"
+                reason = tariff_reason
+            elif guaranteed_start:
+                action = "start"
+                reason = "departure_start"
+            elif not battery_ready:
+                action = "stay_stopped"
+                reason = "battery_soc_below_threshold"
+            elif self._is_past_end_time():
+                action = "stay_stopped"
+                reason = "past_session_end_time"
+            elif available_surplus_w < self._settings.start_threshold_w:
+                action = "stay_stopped"
+                reason = "below_start_threshold"
+            elif max_supported_current < min_current:
+                action = "stay_stopped"
+                reason = "insufficient_surplus_current"
+            else:
+                action = "start"
+                reason = "surplus_start"
+
+        report["predicted_action"] = action
+        report["predicted_reason"] = reason
+        self._update_dry_run_preview(
+            enabled=update_preview_state,
+            action=action,
+            reason=reason,
+            target_current=target_current,
+            departure_required_current=departure_required_current,
+            departure_remaining_energy_kwh=departure_remaining_energy_kwh,
+        )
+        return report
+
+    def _update_dry_run_preview(
+        self,
+        *,
+        enabled: bool,
+        action: str,
+        reason: str,
+        target_current: int | None,
+        departure_required_current: int | None,
+        departure_remaining_energy_kwh: float,
+    ) -> None:
+        if not enabled:
+            return
+        self._last_dry_run_action = action
+        self._last_dry_run_reason = reason
+        self._last_dry_run_target_current_a = target_current
+        self._last_departure_required_current_a = departure_required_current
+        self._last_departure_remaining_energy_kwh = max(
+            0.0,
+            departure_remaining_energy_kwh,
+        )
 
     def _available_surplus_w(
         self,
@@ -1022,7 +1366,13 @@ class SolarSurplusController:
             return 0
         return max(0, int(now - self._session_started_ts))
 
-    def _update_session_energy(self, now: float, data: EVMetrics, is_charging: bool) -> None:
+    def _update_session_energy(
+        self,
+        now: float,
+        data: EVMetrics,
+        is_charging: bool,
+        grid_power_w: float | None,
+    ) -> None:
         if not self._session_active:
             self._last_energy_sample_ts = now if is_charging else None
             return
@@ -1037,7 +1387,46 @@ class SolarSurplusController:
         self._last_energy_sample_ts = now
         if elapsed_h <= 0.0:
             return
-        self._session_energy_kwh += max(0.0, data.power_l1) * elapsed_h
+        session_increment_kwh = max(0.0, data.power_l1) * elapsed_h
+        if session_increment_kwh <= 0.0:
+            return
+        self._session_energy_kwh += session_increment_kwh
+
+        now_dt = dt_util.now()
+        self._roll_energy_buckets(now_dt)
+        self._energy_today_kwh += session_increment_kwh
+        self._energy_week_kwh += session_increment_kwh
+
+        surplus_increment_kwh = 0.0
+        if grid_power_w is not None:
+            ev_power_w = _ev_power_w(data)
+            grid_import_w = max(0.0, grid_power_w)
+            locally_supplied_w = max(0.0, ev_power_w - grid_import_w)
+            locally_supplied_w = min(ev_power_w, locally_supplied_w)
+            surplus_increment_kwh = (locally_supplied_w / 1000.0) * elapsed_h
+
+        self._surplus_energy_today_kwh += surplus_increment_kwh
+        self._surplus_energy_week_kwh += surplus_increment_kwh
+
+        if self._settings.departure_mode_enabled:
+            departure_minutes = _parse_end_time(self._settings.departure_time)
+            if departure_minutes is not None:
+                self._refresh_departure_window_state(departure_minutes)
+                self._departure_delivered_kwh += session_increment_kwh
+
+    def _roll_energy_buckets(self, now_dt: Any) -> None:
+        day_key = now_dt.date().isoformat()
+        iso = now_dt.isocalendar()
+        week_key = f"{iso.year}-W{iso.week:02d}"
+
+        if self._energy_day_key != day_key:
+            self._energy_day_key = day_key
+            self._energy_today_kwh = 0.0
+            self._surplus_energy_today_kwh = 0.0
+        if self._energy_week_key != week_key:
+            self._energy_week_key = week_key
+            self._energy_week_kwh = 0.0
+            self._surplus_energy_week_kwh = 0.0
 
     def _set_decision(self, reason: str) -> None:
         self._last_decision_reason = reason
@@ -1198,6 +1587,28 @@ def _settings_from_entry(entry: ConfigEntry) -> SolarSurplusSettings:
             DEFAULT_SURPLUS_FORECAST_DROP_GUARD_W,
             MIN_SURPLUS_FORECAST_DROP_GUARD_W,
             MAX_SURPLUS_FORECAST_DROP_GUARD_W,
+        ),
+        dry_run_continuous_enabled=_option_bool(
+            options,
+            CONF_SURPLUS_DRY_RUN_CONTINUOUS_ENABLED,
+            DEFAULT_SURPLUS_DRY_RUN_CONTINUOUS_ENABLED,
+        ),
+        departure_mode_enabled=_option_bool(
+            options,
+            CONF_SURPLUS_DEPARTURE_MODE_ENABLED,
+            DEFAULT_SURPLUS_DEPARTURE_MODE_ENABLED,
+        ),
+        departure_time=_option_end_time(
+            options,
+            CONF_SURPLUS_DEPARTURE_TIME,
+            DEFAULT_SURPLUS_DEPARTURE_TIME,
+        ),
+        departure_target_energy_kwh=_option_float(
+            options,
+            CONF_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
+            DEFAULT_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
+            MIN_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
+            MAX_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
         ),
         min_run_time_s=_option_int(
             options,
@@ -1376,6 +1787,22 @@ def _parse_end_time(raw: str) -> int | None:
     if minute < 0 or minute > 59:
         return None
     return hour * 60 + minute
+
+
+def _hours_until_next_departure(target_minutes: int) -> float:
+    now = dt_util.now()
+    now_minutes = now.hour * 60 + now.minute
+    remaining_minutes = target_minutes - now_minutes
+    if remaining_minutes <= 0:
+        remaining_minutes += 24 * 60
+    return max(0.0, remaining_minutes / 60.0)
+
+
+def _efficiency_pct(surplus_energy_kwh: float, total_energy_kwh: float) -> float | None:
+    if total_energy_kwh <= 0.0:
+        return None
+    ratio = max(0.0, min(1.0, surplus_energy_kwh / total_energy_kwh))
+    return round(ratio * 100.0, 1)
 
 
 def _coerce_optional_bool(value: Any) -> bool | None:

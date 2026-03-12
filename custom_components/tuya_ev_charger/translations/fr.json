@@ -39,6 +39,10 @@
           "surplus_curtailment_sensor_inverted": "Inverser le signe capteur puissance bridée",
           "surplus_battery_soc_sensor_entity_id": "Entité % batterie (optionnel)",
           "surplus_forecast_mode_enabled": "Activer le mode prévision solaire",
+          "surplus_dry_run_continuous_enabled": "Activer dry-run continu",
+          "surplus_departure_mode_enabled": "Activer objectif départ",
+          "surplus_departure_time": "Heure de départ cible (HH:MM)",
+          "surplus_departure_target_energy_kwh": "Energie cible au départ (kWh)",
           "surplus_forecast_sensor_entity_id": "Entité capteur prévision surplus (W) (optionnel)",
           "tariff_sensor_entity_id": "Entité capteur de label tarifaire (optionnel)",
           "tariff_price_sensor_entity_id": "Entité capteur prix spot (optionnel)",
@@ -154,6 +158,33 @@
       },
       "surplus_session_energy": {
         "name": "Energie session surplus"
+      },
+      "surplus_dry_run_action": {
+        "name": "Dry-run action simulée"
+      },
+      "surplus_dry_run_reason": {
+        "name": "Dry-run raison simulée"
+      },
+      "surplus_dry_run_target_current": {
+        "name": "Dry-run intensité simulée"
+      },
+      "surplus_departure_required_current": {
+        "name": "Intensité requise objectif départ"
+      },
+      "surplus_departure_remaining_energy": {
+        "name": "Energie restante objectif départ"
+      },
+      "surplus_energy_today": {
+        "name": "Energie chargée aujourd'hui"
+      },
+      "surplus_energy_week": {
+        "name": "Energie chargée semaine"
+      },
+      "surplus_efficiency_today": {
+        "name": "Efficacité surplus aujourd'hui"
+      },
+      "surplus_efficiency_week": {
+        "name": "Efficacité surplus semaine"
       }
     },
     "number": {

@@ -27,6 +27,10 @@ from .const import (
     CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
     CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
+    CONF_SURPLUS_DEPARTURE_MODE_ENABLED,
+    CONF_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
+    CONF_SURPLUS_DEPARTURE_TIME,
+    CONF_SURPLUS_DRY_RUN_CONTINUOUS_ENABLED,
     CONF_SURPLUS_FORECAST_DROP_GUARD_W,
     CONF_SURPLUS_FORECAST_MODE_ENABLED,
     CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
@@ -59,6 +63,10 @@ from .const import (
     DEFAULT_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
     DEFAULT_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
+    DEFAULT_SURPLUS_DEPARTURE_MODE_ENABLED,
+    DEFAULT_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
+    DEFAULT_SURPLUS_DEPARTURE_TIME,
+    DEFAULT_SURPLUS_DRY_RUN_CONTINUOUS_ENABLED,
     DEFAULT_SURPLUS_FORECAST_DROP_GUARD_W,
     DEFAULT_SURPLUS_FORECAST_MODE_ENABLED,
     DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
@@ -89,6 +97,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL_SECONDS,
     DOMAIN,
     MAX_SURPLUS_DELAY_S,
+    MAX_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
     MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MAX_SURPLUS_LINE_VOLTAGE,
     MAX_SURPLUS_FORECAST_DROP_GUARD_W,
@@ -101,6 +110,7 @@ from .const import (
     MAX_TARIFF_PRICE_EUR_KWH,
     MAX_SCAN_INTERVAL_SECONDS,
     MIN_SURPLUS_DELAY_S,
+    MIN_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
     MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MIN_SURPLUS_LINE_VOLTAGE,
     MIN_SURPLUS_FORECAST_DROP_GUARD_W,
@@ -249,6 +259,7 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                 DEFAULT_CHARGER_PROFILE_JSON,
             )
             _normalize_end_time_value(cleaned_input, CONF_SURPLUS_MAX_SESSION_END_TIME)
+            _normalize_end_time_value(cleaned_input, CONF_SURPLUS_DEPARTURE_TIME)
             return self.async_create_entry(data=cleaned_input)
 
         options = self._config_entry.options
@@ -397,6 +408,18 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
             CONF_SURPLUS_MAX_SESSION_END_TIME,
             DEFAULT_SURPLUS_MAX_SESSION_END_TIME,
         )
+        surplus_departure_time = _option_end_time(
+            options,
+            CONF_SURPLUS_DEPARTURE_TIME,
+            DEFAULT_SURPLUS_DEPARTURE_TIME,
+        )
+        surplus_departure_target_energy_kwh = _option_float(
+            options,
+            CONF_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
+            DEFAULT_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
+            MIN_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
+            MAX_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
+        )
         surplus_mode = _option_choice(
             options,
             CONF_SURPLUS_MODE,
@@ -488,6 +511,14 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                             options,
                             CONF_SURPLUS_FORECAST_MODE_ENABLED,
                             DEFAULT_SURPLUS_FORECAST_MODE_ENABLED,
+                        ),
+                    ): bool,
+                    vol.Required(
+                        CONF_SURPLUS_DRY_RUN_CONTINUOUS_ENABLED,
+                        default=_option_bool(
+                            options,
+                            CONF_SURPLUS_DRY_RUN_CONTINUOUS_ENABLED,
+                            DEFAULT_SURPLUS_DRY_RUN_CONTINUOUS_ENABLED,
                         ),
                     ): bool,
                     vol.Optional(
@@ -702,6 +733,28 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                         CONF_SURPLUS_MAX_SESSION_END_TIME,
                         default=surplus_max_session_end_time,
                     ): vol.Match(r"^$|^([01]?\d|2[0-3]):[0-5]\d$"),
+                    vol.Required(
+                        CONF_SURPLUS_DEPARTURE_MODE_ENABLED,
+                        default=_option_bool(
+                            options,
+                            CONF_SURPLUS_DEPARTURE_MODE_ENABLED,
+                            DEFAULT_SURPLUS_DEPARTURE_MODE_ENABLED,
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_SURPLUS_DEPARTURE_TIME,
+                        default=surplus_departure_time,
+                    ): vol.Match(r"^$|^([01]?\d|2[0-3]):[0-5]\d$"),
+                    vol.Required(
+                        CONF_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
+                        default=surplus_departure_target_energy_kwh,
+                    ): vol.All(
+                        vol.Coerce(float),
+                        vol.Range(
+                            min=MIN_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
+                            max=MAX_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
+                        ),
+                    ),
                     vol.Required(
                         CONF_TARIFF_MAX_PRICE_EUR_KWH,
                         default=_option_float(
