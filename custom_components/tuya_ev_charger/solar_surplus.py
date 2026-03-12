@@ -1677,7 +1677,10 @@ def _option_str(options: Any, key: str, default: str) -> str:
     value = options.get(key, default)
     if value is None:
         return ""
-    return str(value).strip()
+    text = str(value).strip()
+    if not text or text.lower() == "none":
+        return ""
+    return text
 
 
 def _option_bool(options: Any, key: str, default: bool) -> bool:
