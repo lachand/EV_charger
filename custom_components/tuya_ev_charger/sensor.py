@@ -15,19 +15,20 @@ from homeassistant.const import (
     UnitOfElectricPotential,
     UnitOfPower,
     UnitOfTemperature,
+    UnitOfTime,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TuyaEVChargerRuntimeData
-from .const import DOMAIN
 from .entity import TuyaEVChargerEntity
 from .tuya_ev_charger import EVMetrics
 
 
 @dataclass(frozen=True, kw_only=True)
 class TuyaEVChargerSensorDescription(SensorEntityDescription):
-    value_fn: Callable[[EVMetrics], float | str]
+    value_fn: Callable[[EVMetrics], float | int | str | None]
 
 
 SENSOR_DESCRIPTIONS: tuple[TuyaEVChargerSensorDescription, ...] = (
@@ -70,8 +71,69 @@ SENSOR_DESCRIPTIONS: tuple[TuyaEVChargerSensorDescription, ...] = (
     TuyaEVChargerSensorDescription(
         key="work_state",
         translation_key="work_state",
+        icon="mdi:counter",
+        value_fn=lambda data: data.work_state,
+    ),
+    TuyaEVChargerSensorDescription(
+        key="work_state_debug",
+        translation_key="work_state_debug",
         icon="mdi:state-machine",
-        value_fn=lambda data: data.raw_status.strip().upper() or "UNKNOWN",
+        value_fn=lambda data: data.work_state_debug,
+    ),
+    TuyaEVChargerSensorDescription(
+        key="downcounter",
+        translation_key="downcounter",
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:timer-outline",
+        value_fn=lambda data: data.downcounter,
+    ),
+    TuyaEVChargerSensorDescription(
+        key="selftest",
+        translation_key="selftest",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:check-decagram-outline",
+        value_fn=lambda data: data.selftest,
+    ),
+    TuyaEVChargerSensorDescription(
+        key="alarm",
+        translation_key="alarm",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:alert-circle-outline",
+        value_fn=lambda data: data.alarm,
+    ),
+    TuyaEVChargerSensorDescription(
+        key="charge_history",
+        translation_key="charge_history",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:history",
+        value_fn=lambda data: data.charge_history,
+    ),
+    TuyaEVChargerSensorDescription(
+        key="adjust_current_options",
+        translation_key="adjust_current_options",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:format-list-numbered",
+        value_fn=lambda data: (
+            ",".join(str(value) for value in data.adjust_current_options)
+            if data.adjust_current_options
+            else None
+        ),
+    ),
+    TuyaEVChargerSensorDescription(
+        key="product_variant",
+        translation_key="product_variant",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:identifier",
+        value_fn=lambda data: data.product_variant,
+    ),
+    TuyaEVChargerSensorDescription(
+        key="dp_num",
+        translation_key="dp_num",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:counter",
+        value_fn=lambda data: data.dp_num,
     ),
 )
 
@@ -81,7 +143,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    runtime_data: TuyaEVChargerRuntimeData = hass.data[DOMAIN][entry.entry_id]
+    runtime_data: TuyaEVChargerRuntimeData = entry.runtime_data
     async_add_entities(
         TuyaEVChargerSensor(entry, runtime_data, description)
         for description in SENSOR_DESCRIPTIONS
@@ -102,7 +164,7 @@ class TuyaEVChargerSensor(TuyaEVChargerEntity, SensorEntity):
         self._attr_unique_id = f"{runtime_data.client.device_id}_{description.key}"
 
     @property
-    def native_value(self) -> float | str | None:
+    def native_value(self) -> float | int | str | None:
         data = self.coordinator.data
         if data is None:
             return None

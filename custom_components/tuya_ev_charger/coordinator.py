@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -12,12 +13,17 @@ LOGGER = logging.getLogger(__name__)
 
 
 class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
-    def __init__(self, hass: HomeAssistant, client: TuyaEVChargerClient) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        client: TuyaEVChargerClient,
+        update_interval: timedelta = DEFAULT_SCAN_INTERVAL,
+    ) -> None:
         super().__init__(
             hass=hass,
             logger=LOGGER,
             name=DOMAIN,
-            update_interval=DEFAULT_SCAN_INTERVAL,
+            update_interval=update_interval,
         )
         self.client = client
 

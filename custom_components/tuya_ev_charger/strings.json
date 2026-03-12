@@ -20,6 +20,17 @@
       "already_configured": "Cette borne est déjà configurée."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options de la borne Tuya",
+        "description": "Ajustez le comportement de mise à jour.",
+        "data": {
+          "scan_interval": "Intervalle de rafraîchissement (secondes)"
+        }
+      }
+    }
+  },
   "entity": {
     "button": {
       "reboot_charger": {
@@ -40,7 +51,31 @@
         "name": "Température"
       },
       "work_state": {
-        "name": "Etat courant"
+        "name": "Etat de fonctionnement"
+      },
+      "work_state_debug": {
+        "name": "Etat debug"
+      },
+      "downcounter": {
+        "name": "Compte à rebours"
+      },
+      "selftest": {
+        "name": "Résultat auto-test"
+      },
+      "alarm": {
+        "name": "Alarme"
+      },
+      "charge_history": {
+        "name": "Historique charge"
+      },
+      "adjust_current_options": {
+        "name": "Courants disponibles"
+      },
+      "product_variant": {
+        "name": "Variante produit"
+      },
+      "dp_num": {
+        "name": "Nombre de DP"
       }
     },
     "number": {
@@ -51,6 +86,9 @@
     "switch": {
       "charge_session": {
         "name": "Session de charge"
+      },
+      "nfc_enabled": {
+        "name": "NFC"
       }
     }
   }

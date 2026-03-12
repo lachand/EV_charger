@@ -12,8 +12,9 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TuyaEVChargerRuntimeData
-from .const import ALLOWED_CURRENTS, DOMAIN
+from .const import ALLOWED_CURRENTS
 from .entity import TuyaEVChargerEntity
+from .tuya_ev_charger import EVMetrics
 
 CURRENT_SETPOINT_DESCRIPTION = NumberEntityDescription(
     key="charge_current",
@@ -32,7 +33,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    runtime_data: TuyaEVChargerRuntimeData = hass.data[DOMAIN][entry.entry_id]
+    runtime_data: TuyaEVChargerRuntimeData = entry.runtime_data
     async_add_entities([TuyaEVChargerCurrentNumber(entry, runtime_data)])
 
 
@@ -51,28 +52,49 @@ class TuyaEVChargerCurrentNumber(TuyaEVChargerEntity, NumberEntity):
         return float(data.current_target)
 
     @property
+    def native_min_value(self) -> float:
+        return float(min(self._allowed_currents()))
+
+    @property
     def native_max_value(self) -> float:
-        data = self.coordinator.data
-        if data is None or data.max_current_cfg is None:
-            return float(max(ALLOWED_CURRENTS))
-        return float(min(data.max_current_cfg, max(ALLOWED_CURRENTS)))
+        return float(max(self._allowed_currents()))
 
     async def async_set_native_value(self, value: float) -> None:
         amperage = int(value)
         if float(amperage) != value:
             raise HomeAssistantError("Current setpoint must be an integer.")
-        if amperage not in ALLOWED_CURRENTS:
+
+        allowed_currents = self._allowed_currents()
+        if amperage not in allowed_currents:
             raise HomeAssistantError(
-                f"Unsupported current setpoint: {amperage}A (allowed: {ALLOWED_CURRENTS})."
+                f"Unsupported current setpoint: {amperage}A (allowed: {allowed_currents})."
             )
-        if self.coordinator.data and self.coordinator.data.max_current_cfg is not None:
-            if amperage > self.coordinator.data.max_current_cfg:
-                raise HomeAssistantError(
-                    f"Current setpoint exceeds charger limit ({self.coordinator.data.max_current_cfg}A)."
-                )
 
         success = await self._runtime_data.client.async_set_charge_current(amperage)
         if not success:
             raise HomeAssistantError("Unable to update current setpoint on charger.")
 
         await self.coordinator.async_request_refresh()
+
+    def _allowed_currents(self) -> tuple[int, ...]:
+        data: EVMetrics | None = self.coordinator.data
+        min_current = min(ALLOWED_CURRENTS)
+        max_current = max(ALLOWED_CURRENTS)
+
+        if data is not None and data.max_current_cfg is not None:
+            max_current = min(max_current, data.max_current_cfg)
+
+        if data is not None and data.adjust_current_options:
+            options = tuple(
+                sorted(
+                    {
+                        value
+                        for value in data.adjust_current_options
+                        if min_current <= value <= max_current
+                    }
+                )
+            )
+            if options:
+                return options
+
+        return tuple(range(min_current, max_current + 1))

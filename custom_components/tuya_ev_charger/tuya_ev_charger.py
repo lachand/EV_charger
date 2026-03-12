@@ -10,15 +10,27 @@ import tinytuya  # type: ignore
 
 from .const import (
     ALLOWED_CURRENTS,
+    DP_ADJUST_CURRENT,
+    DP_ALARM,
+    DP_CHARGE_HISTORY,
+    DP_CHARGER_INFO,
     DP_CURRENT_TARGET,
     DP_DO_CHARGE,
+    DP_DOWNCOUNTER,
     DP_MAX_CURRENT_CFG,
     DP_METRICS,
+    DP_NFC_CFG,
+    DP_NUM,
+    DP_PRODUCT_VARIANT,
     DP_REBOOT,
+    DP_SELFTEST,
     DP_WORK_STATE,
+    DP_WORK_STATE_DEBUG,
 )
 
 LOGGER = logging.getLogger(__name__)
+COMMAND_VERIFY_RETRIES = 3
+COMMAND_VERIFY_DELAY_S = 0.5
 
 
 @dataclass(slots=True, frozen=True)
@@ -27,10 +39,20 @@ class EVMetrics:
     current_l1: float
     power_l1: float
     temperature: float
-    raw_status: str
+    work_state: int | None
+    work_state_debug: str
     do_charge: bool | None
     current_target: int | None
     max_current_cfg: int | None
+    nfc_enabled: bool | None
+    downcounter: int | None
+    selftest: str | None
+    alarm: str | None
+    charge_history: str | None
+    adjust_current_options: tuple[int, ...] | None
+    product_variant: int | None
+    dp_num: int | None
+    charger_info: dict[str, Any]
 
 
 class TuyaEVChargerClient:
@@ -65,21 +87,88 @@ class TuyaEVChargerClient:
         self._device.set_socketTimeout(5)
 
     async def async_set_charge_current(self, amperage: int) -> bool:
-        if amperage not in ALLOWED_CURRENTS:
-            raise ValueError(f"Current setpoint {amperage}A is not supported.")
+        if amperage < min(ALLOWED_CURRENTS) or amperage > max(ALLOWED_CURRENTS):
+            raise ValueError(
+                f"Current setpoint {amperage}A is out of supported range "
+                f"({min(ALLOWED_CURRENTS)}-{max(ALLOWED_CURRENTS)}A)."
+            )
         return await self._async_send_command(DP_CURRENT_TARGET, amperage)
 
     async def async_set_charge_enabled(self, enabled: bool) -> bool:
         return await self._async_send_command(DP_DO_CHARGE, enabled)
 
+    async def async_set_nfc_enabled(self, enabled: bool) -> bool:
+        return await self._async_send_command(DP_NFC_CFG, enabled)
+
     async def async_reboot(self) -> bool:
         # Depending on firmware variants, reboot may accept bool, int, or string payloads.
         for payload in (True, 1, "1"):
-            if await self._async_send_command(DP_REBOOT, payload):
+            if await self._async_send_command(DP_REBOOT, payload, verify=False):
                 return True
         return False
 
     async def async_get_metrics(self) -> EVMetrics | None:
+        dps = await self._async_get_dps_payload()
+        if dps is None:
+            return None
+
+        metrics_dict = _parse_json_object(dps.get(DP_METRICS, "{}"))
+        charger_info = _parse_json_object(dps.get(DP_CHARGER_INFO, "{}"))
+        l1_data = metrics_dict.get("L1", [0, 0, 0])
+        if not isinstance(l1_data, list) or len(l1_data) < 3:
+            l1_data = [0, 0, 0]
+
+        raw_power = l1_data[2] if len(l1_data) > 2 else metrics_dict.get("p", 0)
+        work_state_debug = _coerce_optional_text(dps.get(DP_WORK_STATE_DEBUG)) or "UNKNOWN"
+
+        return EVMetrics(
+            voltage_l1=_coerce_float(l1_data[0]) / 10.0,
+            current_l1=_coerce_float(l1_data[1]) / 10.0,
+            power_l1=_coerce_float(raw_power) / 10.0,
+            temperature=_coerce_float(metrics_dict.get("t", 0)) / 10.0,
+            work_state=_coerce_optional_int(dps.get(DP_WORK_STATE)),
+            work_state_debug=work_state_debug.strip().upper(),
+            do_charge=_coerce_optional_bool(dps.get(DP_DO_CHARGE)),
+            current_target=_coerce_optional_int(dps.get(DP_CURRENT_TARGET)),
+            max_current_cfg=_coerce_optional_int(dps.get(DP_MAX_CURRENT_CFG)),
+            nfc_enabled=_coerce_optional_bool(dps.get(DP_NFC_CFG)),
+            downcounter=_coerce_optional_int(dps.get(DP_DOWNCOUNTER)),
+            selftest=_coerce_optional_text(dps.get(DP_SELFTEST)),
+            alarm=_coerce_optional_json_text(dps.get(DP_ALARM)),
+            charge_history=_coerce_optional_json_text(dps.get(DP_CHARGE_HISTORY)),
+            adjust_current_options=_parse_int_list(dps.get(DP_ADJUST_CURRENT)),
+            product_variant=_coerce_optional_int(dps.get(DP_PRODUCT_VARIANT)),
+            dp_num=_coerce_optional_int(dps.get(DP_NUM)),
+            charger_info=charger_info,
+        )
+
+    async def _async_send_command(self, dp_id: str, value: Any, verify: bool = True) -> bool:
+        device = self._get_device()
+        response: Any = await asyncio.to_thread(device.set_value, dp_id, value)
+        if not (isinstance(response, dict) and "Error" not in response):
+            LOGGER.error("Command rejected for DP %s: %s", dp_id, response)
+            return False
+
+        if not verify:
+            return True
+
+        if await self._async_verify_command(dp_id, value):
+            return True
+
+        LOGGER.error("Command accepted but not reflected in status for DP %s.", dp_id)
+        return False
+
+    async def _async_verify_command(self, dp_id: str, expected: Any) -> bool:
+        for _ in range(COMMAND_VERIFY_RETRIES):
+            await asyncio.sleep(COMMAND_VERIFY_DELAY_S)
+            dps = await self._async_get_dps_payload()
+            if dps is None:
+                continue
+            if _values_match(dps.get(dp_id), expected):
+                return True
+        return False
+
+    async def _async_get_dps_payload(self) -> dict[str, Any] | None:
         device = self._get_device()
         payload: Any = await asyncio.to_thread(device.status)
 
@@ -95,32 +184,7 @@ class TuyaEVChargerClient:
         if not isinstance(dps, dict):
             LOGGER.error("Missing or invalid DPS payload.")
             return None
-
-        metrics_dict = _parse_metrics_json(dps.get(DP_METRICS, "{}"))
-        l1_data = metrics_dict.get("L1", [0, 0, 0])
-        if not isinstance(l1_data, list) or len(l1_data) < 3:
-            l1_data = [0, 0, 0]
-
-        raw_power = l1_data[2] if len(l1_data) > 2 else metrics_dict.get("p", 0)
-
-        return EVMetrics(
-            voltage_l1=_coerce_float(l1_data[0]) / 10.0,
-            current_l1=_coerce_float(l1_data[1]) / 10.0,
-            power_l1=_coerce_float(raw_power) / 10.0,
-            temperature=_coerce_float(metrics_dict.get("t", 0)) / 10.0,
-            raw_status=str(dps.get(DP_WORK_STATE, "UNKNOWN")),
-            do_charge=_coerce_optional_bool(dps.get(DP_DO_CHARGE)),
-            current_target=_coerce_optional_int(dps.get(DP_CURRENT_TARGET)),
-            max_current_cfg=_coerce_optional_int(dps.get(DP_MAX_CURRENT_CFG)),
-        )
-
-    async def _async_send_command(self, dp_id: str, value: Any) -> bool:
-        device = self._get_device()
-        response: Any = await asyncio.to_thread(device.set_value, dp_id, value)
-        if isinstance(response, dict) and "Error" not in response:
-            return True
-        LOGGER.error("Command rejected for DP %s: %s", dp_id, response)
-        return False
+        return dps
 
     def _get_device(self) -> tinytuya.Device:
         if self._device is None:
@@ -128,21 +192,47 @@ class TuyaEVChargerClient:
         return self._device
 
 
-def _parse_metrics_json(raw_metrics: Any) -> dict[str, Any]:
-    if isinstance(raw_metrics, dict):
-        return raw_metrics
-    if not isinstance(raw_metrics, str):
+def _parse_json_object(raw_value: Any) -> dict[str, Any]:
+    if isinstance(raw_value, dict):
+        return raw_value
+    if not isinstance(raw_value, str):
         return {}
 
     try:
-        decoded: Any = json.loads(raw_metrics)
+        decoded: Any = json.loads(raw_value)
     except json.JSONDecodeError:
-        LOGGER.error("Unable to decode metrics JSON: %s", raw_metrics)
+        LOGGER.debug("Unable to decode JSON object: %s", raw_value)
         return {}
 
     if isinstance(decoded, dict):
         return decoded
     return {}
+
+
+def _parse_int_list(raw_value: Any) -> tuple[int, ...] | None:
+    parsed_list: list[Any]
+    if isinstance(raw_value, list):
+        parsed_list = raw_value
+    elif isinstance(raw_value, str):
+        try:
+            decoded: Any = json.loads(raw_value)
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(decoded, list):
+            return None
+        parsed_list = decoded
+    else:
+        return None
+
+    cleaned: list[int] = []
+    for item in parsed_list:
+        value = _coerce_optional_int(item)
+        if value is None:
+            continue
+        cleaned.append(value)
+    if not cleaned:
+        return None
+    return tuple(sorted(set(cleaned)))
 
 
 def _coerce_float(value: Any) -> float:
@@ -159,6 +249,30 @@ def _coerce_optional_int(value: Any) -> int | None:
         return None
 
 
+def _coerce_optional_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        text = value.strip()
+    else:
+        text = str(value).strip()
+    if not text:
+        return None
+    return text
+
+
+def _coerce_optional_json_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        text = value.strip()
+        return text or None
+    try:
+        return json.dumps(value, ensure_ascii=True, separators=(",", ":"))
+    except TypeError:
+        return _coerce_optional_text(value)
+
+
 def _coerce_optional_bool(value: Any) -> bool | None:
     if isinstance(value, bool):
         return value
@@ -171,3 +285,19 @@ def _coerce_optional_bool(value: Any) -> bool | None:
         if lowered in {"false", "0", "off"}:
             return False
     return None
+
+
+def _values_match(received: Any, expected: Any) -> bool:
+    expected_bool = _coerce_optional_bool(expected)
+    if expected_bool is not None:
+        received_bool = _coerce_optional_bool(received)
+        return received_bool is not None and received_bool == expected_bool
+
+    expected_int = _coerce_optional_int(expected)
+    if expected_int is not None:
+        received_int = _coerce_optional_int(received)
+        return received_int is not None and received_int == expected_int
+
+    if isinstance(expected, str):
+        return str(received).strip() == expected.strip()
+    return received == expected
