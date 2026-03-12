@@ -29,13 +29,21 @@
         "data": {
           "scan_interval": "Intervalle de rafraîchissement (secondes)",
           "charger_profile": "Profil chargeur / mapping DP",
+          "charger_profile_json": "Mapping DP custom (JSON, optionnel)",
           "surplus_mode_enabled": "Activer le mode surplus solaire",
           "surplus_mode": "Mode surplus (classic/zero_injection)",
+          "tariff_mode": "Mode tarif (disabled/hphc/tempo/spot)",
           "surplus_sensor_entity_id": "Entité capteur puissance réseau (W) (sensor.xxx)",
           "surplus_sensor_inverted": "Inverser le signe capteur réseau",
           "surplus_curtailment_sensor_entity_id": "Entité puissance bridée potentielle (W) (optionnel)",
           "surplus_curtailment_sensor_inverted": "Inverser le signe capteur puissance bridée",
           "surplus_battery_soc_sensor_entity_id": "Entité % batterie (optionnel)",
+          "surplus_forecast_mode_enabled": "Activer le mode prévision solaire",
+          "surplus_forecast_sensor_entity_id": "Entité capteur prévision surplus (W) (optionnel)",
+          "tariff_sensor_entity_id": "Entité capteur de label tarifaire (optionnel)",
+          "tariff_price_sensor_entity_id": "Entité capteur prix spot (optionnel)",
+          "tariff_allowed_values": "Valeurs tarifaires autorisées (CSV, ex: hc,offpeak)",
+          "tariff_max_price_eur_kwh": "Prix spot max (EUR/kWh)",
           "surplus_battery_soc_threshold_pct": "Seuil minimal % batterie",
           "surplus_line_voltage": "Tension de calcul (V)",
           "surplus_start_threshold_w": "Seuil démarrage charge (W)",
@@ -45,12 +53,24 @@
           "surplus_stop_delay_s": "Délai avant arrêt (s)",
           "surplus_adjust_up_cooldown_s": "Cooldown augmentation intensité (s)",
           "surplus_adjust_down_cooldown_s": "Cooldown réduction intensité (s)",
-          "surplus_ramp_step_a": "Pas max d'ajustement intensité (A)"
+          "surplus_ramp_step_a": "Pas max d'ajustement intensité (A)",
+          "surplus_forecast_weight_pct": "Poids prévision solaire (%)",
+          "surplus_forecast_smoothing_s": "Lissage prévision solaire (s)",
+          "surplus_forecast_drop_guard_w": "Garde anti-chute prévision (W)",
+          "surplus_min_run_time_s": "Durée minimale de session (s)",
+          "surplus_max_session_duration_min": "Durée max de session (min)",
+          "surplus_max_session_energy_kwh": "Energie max de session (kWh)",
+          "surplus_max_session_end_time": "Heure de fin max session (HH:MM)"
         }
       }
     }
   },
   "entity": {
+    "binary_sensor": {
+      "surplus_regulation_active": {
+        "name": "Régulation surplus active"
+      }
+    },
     "button": {
       "reboot_charger": {
         "name": "Redémarrer la borne"
@@ -87,6 +107,21 @@
       "charge_history": {
         "name": "Historique charge"
       },
+      "charge_history_timestamp": {
+        "name": "Historique charge horodatage"
+      },
+      "charge_history_start_time": {
+        "name": "Historique charge début"
+      },
+      "charge_history_end_time": {
+        "name": "Historique charge fin"
+      },
+      "charge_history_duration_s": {
+        "name": "Historique charge durée"
+      },
+      "charge_history_raw_c": {
+        "name": "Historique charge valeur brute c"
+      },
       "adjust_current_options": {
         "name": "Courants disponibles"
       },
@@ -95,6 +130,30 @@
       },
       "dp_num": {
         "name": "Nombre de DP"
+      },
+      "surplus_available_power": {
+        "name": "Surplus disponible calculé"
+      },
+      "surplus_target_current": {
+        "name": "Consigne courant surplus"
+      },
+      "surplus_forecast_sensor_power": {
+        "name": "Prévision solaire capteur"
+      },
+      "surplus_forecast_blended_power": {
+        "name": "Prévision solaire surplus pondéré"
+      },
+      "surplus_last_start_reason": {
+        "name": "Dernière raison démarrage surplus"
+      },
+      "surplus_last_stop_reason": {
+        "name": "Dernière raison arrêt surplus"
+      },
+      "surplus_last_decision_reason": {
+        "name": "Dernière décision régulation surplus"
+      },
+      "surplus_session_energy": {
+        "name": "Energie session surplus"
       }
     },
     "number": {
@@ -130,6 +189,18 @@
       },
       "surplus_line_voltage": {
         "name": "Surplus tension de calcul"
+      },
+      "surplus_min_run_time_s": {
+        "name": "Surplus durée min session"
+      },
+      "surplus_max_session_duration_min": {
+        "name": "Surplus durée max session"
+      },
+      "surplus_max_session_energy_kwh": {
+        "name": "Surplus énergie max session"
+      },
+      "tariff_max_price_eur_kwh": {
+        "name": "Tarif prix spot max"
       }
     },
     "switch": {
@@ -150,6 +221,15 @@
           "off": "Off",
           "classic": "Classique",
           "zero_injection": "Zero injection"
+        }
+      },
+      "tariff_mode": {
+        "name": "Mode tarif dynamique",
+        "state": {
+          "disabled": "Désactivé",
+          "hphc": "HP/HC",
+          "tempo": "Tempo",
+          "spot": "Spot"
         }
       }
     }

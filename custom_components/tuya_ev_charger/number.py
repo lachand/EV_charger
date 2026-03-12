@@ -13,6 +13,7 @@ from homeassistant.const import (
     PERCENTAGE,
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
+    UnitOfEnergy,
     UnitOfPower,
     UnitOfTime,
 )
@@ -28,34 +29,48 @@ from .const import (
     CONF_SURPLUS_ADJUST_UP_COOLDOWN_S,
     CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     CONF_SURPLUS_LINE_VOLTAGE,
+    CONF_SURPLUS_MAX_SESSION_DURATION_MIN,
+    CONF_SURPLUS_MAX_SESSION_ENERGY_KWH,
+    CONF_SURPLUS_MIN_RUN_TIME_S,
     CONF_SURPLUS_RAMP_STEP_A,
     CONF_SURPLUS_START_DELAY_S,
     CONF_SURPLUS_START_THRESHOLD_W,
     CONF_SURPLUS_STOP_DELAY_S,
     CONF_SURPLUS_STOP_THRESHOLD_W,
     CONF_SURPLUS_TARGET_OFFSET_W,
+    CONF_TARIFF_MAX_PRICE_EUR_KWH,
     DEFAULT_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
     DEFAULT_SURPLUS_ADJUST_UP_COOLDOWN_S,
     DEFAULT_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     DEFAULT_SURPLUS_LINE_VOLTAGE,
+    DEFAULT_SURPLUS_MAX_SESSION_DURATION_MIN,
+    DEFAULT_SURPLUS_MAX_SESSION_ENERGY_KWH,
+    DEFAULT_SURPLUS_MIN_RUN_TIME_S,
     DEFAULT_SURPLUS_RAMP_STEP_A,
     DEFAULT_SURPLUS_START_DELAY_S,
     DEFAULT_SURPLUS_START_THRESHOLD_W,
     DEFAULT_SURPLUS_STOP_DELAY_S,
     DEFAULT_SURPLUS_STOP_THRESHOLD_W,
     DEFAULT_SURPLUS_TARGET_OFFSET_W,
+    DEFAULT_TARIFF_MAX_PRICE_EUR_KWH,
     MAX_SURPLUS_DELAY_S,
     MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MAX_SURPLUS_LINE_VOLTAGE,
+    MAX_SURPLUS_SESSION_DURATION_MIN,
+    MAX_SURPLUS_SESSION_ENERGY_KWH,
     MAX_SURPLUS_RAMP_STEP_A,
     MAX_SURPLUS_TARGET_OFFSET_W,
     MAX_SURPLUS_THRESHOLD_W,
+    MAX_TARIFF_PRICE_EUR_KWH,
     MIN_SURPLUS_DELAY_S,
     MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MIN_SURPLUS_LINE_VOLTAGE,
+    MIN_SURPLUS_SESSION_DURATION_MIN,
+    MIN_SURPLUS_SESSION_ENERGY_KWH,
     MIN_SURPLUS_RAMP_STEP_A,
     MIN_SURPLUS_TARGET_OFFSET_W,
     MIN_SURPLUS_THRESHOLD_W,
+    MIN_TARIFF_PRICE_EUR_KWH,
 )
 from .entity import TuyaEVChargerEntity
 from .helpers import allowed_currents
@@ -75,9 +90,10 @@ CURRENT_SETPOINT_DESCRIPTION = NumberEntityDescription(
 @dataclass(frozen=True, kw_only=True)
 class SurplusOptionNumberDescription(NumberEntityDescription):
     option_key: str
-    default_value: int
-    minimum: int
-    maximum: int
+    default_value: float
+    minimum: float
+    maximum: float
+    enforce_int: bool = True
 
 
 SURPLUS_OPTION_NUMBER_DESCRIPTIONS: tuple[SurplusOptionNumberDescription, ...] = (
@@ -211,6 +227,60 @@ SURPLUS_OPTION_NUMBER_DESCRIPTIONS: tuple[SurplusOptionNumberDescription, ...] =
         mode=NumberMode.BOX,
         entity_category=EntityCategory.CONFIG,
     ),
+    SurplusOptionNumberDescription(
+        key="surplus_min_run_time_s",
+        translation_key="surplus_min_run_time_s",
+        option_key=CONF_SURPLUS_MIN_RUN_TIME_S,
+        default_value=DEFAULT_SURPLUS_MIN_RUN_TIME_S,
+        minimum=MIN_SURPLUS_DELAY_S,
+        maximum=MAX_SURPLUS_DELAY_S,
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        native_step=1.0,
+        icon="mdi:timer-sand",
+        mode=NumberMode.BOX,
+        entity_category=EntityCategory.CONFIG,
+    ),
+    SurplusOptionNumberDescription(
+        key="surplus_max_session_duration_min",
+        translation_key="surplus_max_session_duration_min",
+        option_key=CONF_SURPLUS_MAX_SESSION_DURATION_MIN,
+        default_value=DEFAULT_SURPLUS_MAX_SESSION_DURATION_MIN,
+        minimum=MIN_SURPLUS_SESSION_DURATION_MIN,
+        maximum=MAX_SURPLUS_SESSION_DURATION_MIN,
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        native_step=1.0,
+        icon="mdi:timer-cog-outline",
+        mode=NumberMode.BOX,
+        entity_category=EntityCategory.CONFIG,
+    ),
+    SurplusOptionNumberDescription(
+        key="surplus_max_session_energy_kwh",
+        translation_key="surplus_max_session_energy_kwh",
+        option_key=CONF_SURPLUS_MAX_SESSION_ENERGY_KWH,
+        default_value=DEFAULT_SURPLUS_MAX_SESSION_ENERGY_KWH,
+        minimum=MIN_SURPLUS_SESSION_ENERGY_KWH,
+        maximum=MAX_SURPLUS_SESSION_ENERGY_KWH,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        native_step=0.1,
+        icon="mdi:lightning-bolt-circle",
+        mode=NumberMode.BOX,
+        entity_category=EntityCategory.CONFIG,
+        enforce_int=False,
+    ),
+    SurplusOptionNumberDescription(
+        key="tariff_max_price_eur_kwh",
+        translation_key="tariff_max_price_eur_kwh",
+        option_key=CONF_TARIFF_MAX_PRICE_EUR_KWH,
+        default_value=DEFAULT_TARIFF_MAX_PRICE_EUR_KWH,
+        minimum=MIN_TARIFF_PRICE_EUR_KWH,
+        maximum=MAX_TARIFF_PRICE_EUR_KWH,
+        native_unit_of_measurement="EUR/kWh",
+        native_step=0.01,
+        icon="mdi:cash-multiple",
+        mode=NumberMode.BOX,
+        entity_category=EntityCategory.CONFIG,
+        enforce_int=False,
+    ),
 )
 
 
@@ -287,7 +357,7 @@ class TuyaEVChargerSurplusOptionNumber(TuyaEVChargerEntity, NumberEntity):
 
     @property
     def native_value(self) -> float:
-        value = _option_int(
+        value = _option_float(
             self._entry.options,
             self.entity_description.option_key,
             self.entity_description.default_value,
@@ -305,9 +375,12 @@ class TuyaEVChargerSurplusOptionNumber(TuyaEVChargerEntity, NumberEntity):
         return float(self.entity_description.maximum)
 
     async def async_set_native_value(self, value: float) -> None:
-        coerced = int(value)
-        if float(coerced) != value:
-            raise HomeAssistantError("This value must be an integer.")
+        if self.entity_description.enforce_int:
+            coerced: float = int(value)
+            if float(coerced) != value:
+                raise HomeAssistantError("This value must be an integer.")
+        else:
+            coerced = float(value)
 
         if coerced < self.entity_description.minimum or coerced > self.entity_description.maximum:
             raise HomeAssistantError(
@@ -318,45 +391,52 @@ class TuyaEVChargerSurplusOptionNumber(TuyaEVChargerEntity, NumberEntity):
         self._validate_hysteresis(coerced)
 
         new_options = dict(self._entry.options)
-        new_options[self.entity_description.option_key] = coerced
+        if self.entity_description.enforce_int:
+            new_options[self.entity_description.option_key] = int(coerced)
+        else:
+            new_options[self.entity_description.option_key] = round(float(coerced), 4)
         self.hass.config_entries.async_update_entry(self._entry, options=new_options)
         self.async_write_ha_state()
 
-    def _validate_hysteresis(self, new_value: int) -> None:
+    def _validate_hysteresis(self, new_value: float) -> None:
         key = self.entity_description.option_key
-        start_threshold = _option_int(
+        start_threshold = int(
+            _option_float(
             self._entry.options,
             CONF_SURPLUS_START_THRESHOLD_W,
             DEFAULT_SURPLUS_START_THRESHOLD_W,
             MIN_SURPLUS_THRESHOLD_W,
             MAX_SURPLUS_THRESHOLD_W,
+            )
         )
-        stop_threshold = _option_int(
+        stop_threshold = int(
+            _option_float(
             self._entry.options,
             CONF_SURPLUS_STOP_THRESHOLD_W,
             DEFAULT_SURPLUS_STOP_THRESHOLD_W,
             MIN_SURPLUS_THRESHOLD_W,
             MAX_SURPLUS_THRESHOLD_W,
+            )
         )
         if key == CONF_SURPLUS_START_THRESHOLD_W:
-            start_threshold = new_value
+            start_threshold = int(new_value)
         if key == CONF_SURPLUS_STOP_THRESHOLD_W:
-            stop_threshold = new_value
+            stop_threshold = int(new_value)
         if start_threshold <= stop_threshold:
             raise HomeAssistantError(
                 "Start threshold must be strictly greater than stop threshold."
             )
 
 
-def _option_int(
+def _option_float(
     options: Mapping[str, object],
     key: str,
-    default: int,
-    minimum: int,
-    maximum: int,
-) -> int:
+    default: float,
+    minimum: float,
+    maximum: float,
+) -> float:
     try:
-        value = int(options.get(key, default))
+        value = float(options.get(key, default))
     except (TypeError, ValueError):
         value = default
     return max(minimum, min(maximum, value))

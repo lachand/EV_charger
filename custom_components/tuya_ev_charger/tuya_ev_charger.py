@@ -10,10 +10,12 @@ import tinytuya  # type: ignore
 
 from .const import (
     ALLOWED_CURRENTS,
+    CHARGER_PROFILE_CUSTOM_JSON,
     CHARGER_PROFILE_DEPOW_V2,
     CHARGER_PROFILE_GENERIC_V1,
     CHARGER_PROFILES,
     DEFAULT_CHARGER_PROFILE,
+    DEFAULT_CHARGER_PROFILE_JSON,
     DP_ADJUST_CURRENT,
     DP_ALARM,
     DP_CHARGE_HISTORY,
@@ -115,6 +117,11 @@ class EVMetrics:
     selftest: str | None
     alarm: str | None
     charge_history: str | None
+    charge_history_timestamp: str | None
+    charge_history_start_time: str | None
+    charge_history_end_time: str | None
+    charge_history_duration_s: int | None
+    charge_history_raw_c: float | None
     adjust_current_options: tuple[int, ...] | None
     product_variant: int | None
     dp_num: int | None
@@ -129,13 +136,16 @@ class TuyaEVChargerClient:
         local_key: str,
         protocol_version: str,
         charger_profile: str = DEFAULT_CHARGER_PROFILE,
+        charger_profile_json: str = DEFAULT_CHARGER_PROFILE_JSON,
     ) -> None:
         self._device_id = device_id
         self._host = host
         self._local_key = local_key
         self._protocol_version = protocol_version
-        self._dp_profile = _resolve_profile(charger_profile)
-        self._dp = DP_PROFILE_MAP[self._dp_profile]
+        self._dp_profile, self._dp = _resolve_profile(
+            charger_profile,
+            charger_profile_json,
+        )
         self._device: tinytuya.Device | None = None
 
     @property
@@ -193,6 +203,7 @@ class TuyaEVChargerClient:
 
         raw_power = l1_data[2] if len(l1_data) > 2 else metrics_dict.get("p", 0)
         work_state_debug = _coerce_optional_text(dps.get(self._dp.work_state_debug)) or "UNKNOWN"
+        charge_history_payload = _parse_json_object(dps.get(self._dp.charge_history, "{}"))
 
         return EVMetrics(
             voltage_l1=_coerce_float(l1_data[0]) / 10.0,
@@ -209,11 +220,19 @@ class TuyaEVChargerClient:
             selftest=_coerce_optional_text(dps.get(self._dp.selftest)),
             alarm=_coerce_optional_json_text(dps.get(self._dp.alarm)),
             charge_history=_coerce_optional_json_text(dps.get(self._dp.charge_history)),
+            charge_history_timestamp=_coerce_optional_text(charge_history_payload.get("t")),
+            charge_history_start_time=_coerce_optional_text(charge_history_payload.get("s")),
+            charge_history_end_time=_coerce_optional_text(charge_history_payload.get("e")),
+            charge_history_duration_s=_coerce_optional_int(charge_history_payload.get("d")),
+            charge_history_raw_c=_coerce_optional_float(charge_history_payload.get("c")),
             adjust_current_options=_parse_int_list(dps.get(self._dp.adjust_current)),
             product_variant=_coerce_optional_int(dps.get(self._dp.product_variant)),
             dp_num=_coerce_optional_int(dps.get(self._dp.dp_num)),
             charger_info=charger_info,
         )
+
+    async def async_get_raw_dps(self) -> dict[str, Any] | None:
+        return await self._async_get_dps_payload()
 
     async def _async_send_command(self, dp_id: str, value: Any, verify: bool = True) -> bool:
         device = self._get_device()
@@ -265,11 +284,45 @@ class TuyaEVChargerClient:
         return self._device
 
 
-def _resolve_profile(profile: str) -> str:
+def _resolve_profile(profile: str, custom_json: str) -> tuple[str, DPProfile]:
     normalized = str(profile).strip().lower()
+    if normalized == CHARGER_PROFILE_CUSTOM_JSON:
+        custom_profile = _parse_custom_dp_profile(custom_json)
+        if custom_profile is not None:
+            return CHARGER_PROFILE_CUSTOM_JSON, custom_profile
+        LOGGER.warning(
+            "Invalid custom charger profile JSON mapping, falling back to '%s'.",
+            DEFAULT_CHARGER_PROFILE,
+        )
+        return DEFAULT_CHARGER_PROFILE, DP_PROFILE_MAP[DEFAULT_CHARGER_PROFILE]
     if normalized in CHARGER_PROFILES and normalized in DP_PROFILE_MAP:
-        return normalized
-    return DEFAULT_CHARGER_PROFILE
+        return normalized, DP_PROFILE_MAP[normalized]
+    return DEFAULT_CHARGER_PROFILE, DP_PROFILE_MAP[DEFAULT_CHARGER_PROFILE]
+
+
+def _parse_custom_dp_profile(raw_json: str) -> DPProfile | None:
+    text = str(raw_json).strip()
+    if not text:
+        return None
+    try:
+        payload: Any = json.loads(text)
+    except json.JSONDecodeError:
+        LOGGER.debug("Unable to decode custom charger profile JSON.")
+        return None
+    if not isinstance(payload, dict):
+        return None
+
+    base_profile = DP_PROFILE_MAP[DEFAULT_CHARGER_PROFILE]
+    values: dict[str, str] = {}
+    for field_name in DPProfile.__dataclass_fields__:
+        raw_value = payload.get(field_name, getattr(base_profile, field_name))
+        if raw_value is None:
+            return None
+        text_value = str(raw_value).strip()
+        if not text_value:
+            return None
+        values[field_name] = text_value
+    return DPProfile(**values)
 
 
 def _parse_json_object(raw_value: Any) -> dict[str, Any]:
@@ -325,6 +378,13 @@ def _coerce_float(value: Any) -> float:
 def _coerce_optional_int(value: Any) -> int | None:
     try:
         return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _coerce_optional_float(value: Any) -> float | None:
+    try:
+        return float(value)
     except (TypeError, ValueError):
         return None
 

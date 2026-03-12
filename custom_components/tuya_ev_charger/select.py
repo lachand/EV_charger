@@ -11,10 +11,13 @@ from . import TuyaEVChargerRuntimeData
 from .const import (
     CONF_SURPLUS_MODE,
     CONF_SURPLUS_MODE_ENABLED,
+    CONF_TARIFF_MODE,
     DEFAULT_SURPLUS_MODE,
     DEFAULT_SURPLUS_MODE_ENABLED,
+    DEFAULT_TARIFF_MODE,
     SURPLUS_MODE_CLASSIC,
     SURPLUS_MODE_ZERO_INJECTION,
+    TARIFF_MODES,
 )
 from .entity import TuyaEVChargerEntity
 
@@ -33,7 +36,12 @@ async def async_setup_entry(
 ) -> None:
     _ = hass
     runtime_data: TuyaEVChargerRuntimeData = entry.runtime_data
-    async_add_entities([TuyaEVChargerSurplusStrategySelect(entry, runtime_data)])
+    async_add_entities(
+        [
+            TuyaEVChargerSurplusStrategySelect(entry, runtime_data),
+            TuyaEVChargerTariffModeSelect(entry, runtime_data),
+        ]
+    )
 
 
 class TuyaEVChargerSurplusStrategySelect(TuyaEVChargerEntity, SelectEntity):
@@ -71,5 +79,32 @@ class TuyaEVChargerSurplusStrategySelect(TuyaEVChargerEntity, SelectEntity):
             new_options[CONF_SURPLUS_MODE_ENABLED] = True
             new_options[CONF_SURPLUS_MODE] = option
 
+        self.hass.config_entries.async_update_entry(self._entry, options=new_options)
+        self.async_write_ha_state()
+
+
+class TuyaEVChargerTariffModeSelect(TuyaEVChargerEntity, SelectEntity):
+    _attr_translation_key = "tariff_mode"
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_icon = "mdi:cash-clock"
+    _attr_options = list(TARIFF_MODES)
+
+    def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
+        super().__init__(entry=entry, runtime_data=runtime_data)
+        self._attr_unique_id = f"{runtime_data.client.device_id}_tariff_mode"
+
+    @property
+    def current_option(self) -> str:
+        mode = str(self._entry.options.get(CONF_TARIFF_MODE, DEFAULT_TARIFF_MODE)).lower()
+        if mode in TARIFF_MODES:
+            return mode
+        return DEFAULT_TARIFF_MODE
+
+    async def async_select_option(self, option: str) -> None:
+        if option not in TARIFF_MODES:
+            raise HomeAssistantError(f"Unsupported tariff mode: {option}")
+
+        new_options = dict(self._entry.options)
+        new_options[CONF_TARIFF_MODE] = option
         self.hass.config_entries.async_update_entry(self._entry, options=new_options)
         self.async_write_ha_state()

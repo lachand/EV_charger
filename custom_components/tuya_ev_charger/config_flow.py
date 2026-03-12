@@ -15,6 +15,7 @@ from homeassistant.helpers import selector
 from .const import (
     CHARGER_PROFILES,
     CONF_CHARGER_PROFILE,
+    CONF_CHARGER_PROFILE_JSON,
     CONF_DEVICE_ID,
     CONF_LOCAL_KEY,
     CONF_PROTOCOL_VERSION,
@@ -26,7 +27,16 @@ from .const import (
     CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
     CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
+    CONF_SURPLUS_FORECAST_DROP_GUARD_W,
+    CONF_SURPLUS_FORECAST_MODE_ENABLED,
+    CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
+    CONF_SURPLUS_FORECAST_SMOOTHING_S,
+    CONF_SURPLUS_FORECAST_WEIGHT_PCT,
     CONF_SURPLUS_LINE_VOLTAGE,
+    CONF_SURPLUS_MAX_SESSION_DURATION_MIN,
+    CONF_SURPLUS_MAX_SESSION_END_TIME,
+    CONF_SURPLUS_MAX_SESSION_ENERGY_KWH,
+    CONF_SURPLUS_MIN_RUN_TIME_S,
     CONF_SURPLUS_MODE,
     CONF_SURPLUS_MODE_ENABLED,
     CONF_SURPLUS_SENSOR_ENTITY_ID,
@@ -37,13 +47,28 @@ from .const import (
     CONF_SURPLUS_STOP_THRESHOLD_W,
     CONF_SURPLUS_TARGET_OFFSET_W,
     CONF_SURPLUS_RAMP_STEP_A,
+    CONF_TARIFF_ALLOWED_VALUES,
+    CONF_TARIFF_MAX_PRICE_EUR_KWH,
+    CONF_TARIFF_MODE,
+    CONF_TARIFF_PRICE_SENSOR_ENTITY_ID,
+    CONF_TARIFF_SENSOR_ENTITY_ID,
     DEFAULT_CHARGER_PROFILE,
+    DEFAULT_CHARGER_PROFILE_JSON,
     DEFAULT_SURPLUS_ADJUST_COOLDOWN_S,
     DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
     DEFAULT_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
     DEFAULT_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
+    DEFAULT_SURPLUS_FORECAST_DROP_GUARD_W,
+    DEFAULT_SURPLUS_FORECAST_MODE_ENABLED,
+    DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
+    DEFAULT_SURPLUS_FORECAST_SMOOTHING_S,
+    DEFAULT_SURPLUS_FORECAST_WEIGHT_PCT,
     DEFAULT_SURPLUS_LINE_VOLTAGE,
+    DEFAULT_SURPLUS_MAX_SESSION_DURATION_MIN,
+    DEFAULT_SURPLUS_MAX_SESSION_END_TIME,
+    DEFAULT_SURPLUS_MAX_SESSION_ENERGY_KWH,
+    DEFAULT_SURPLUS_MIN_RUN_TIME_S,
     DEFAULT_SURPLUS_MODE,
     DEFAULT_SURPLUS_MODE_ENABLED,
     DEFAULT_SURPLUS_SENSOR_ENTITY_ID,
@@ -54,6 +79,11 @@ from .const import (
     DEFAULT_SURPLUS_STOP_THRESHOLD_W,
     DEFAULT_SURPLUS_TARGET_OFFSET_W,
     DEFAULT_SURPLUS_RAMP_STEP_A,
+    DEFAULT_TARIFF_ALLOWED_VALUES,
+    DEFAULT_TARIFF_MAX_PRICE_EUR_KWH,
+    DEFAULT_TARIFF_MODE,
+    DEFAULT_TARIFF_PRICE_SENSOR_ENTITY_ID,
+    DEFAULT_TARIFF_SENSOR_ENTITY_ID,
     DEFAULT_NAME,
     DEFAULT_PROTOCOL_VERSION,
     DEFAULT_SCAN_INTERVAL_SECONDS,
@@ -61,18 +91,29 @@ from .const import (
     MAX_SURPLUS_DELAY_S,
     MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MAX_SURPLUS_LINE_VOLTAGE,
+    MAX_SURPLUS_FORECAST_DROP_GUARD_W,
+    MAX_SURPLUS_FORECAST_WEIGHT_PCT,
     MAX_SURPLUS_RAMP_STEP_A,
+    MAX_SURPLUS_SESSION_DURATION_MIN,
+    MAX_SURPLUS_SESSION_ENERGY_KWH,
     MAX_SURPLUS_TARGET_OFFSET_W,
     MAX_SURPLUS_THRESHOLD_W,
+    MAX_TARIFF_PRICE_EUR_KWH,
     MAX_SCAN_INTERVAL_SECONDS,
     MIN_SURPLUS_DELAY_S,
     MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MIN_SURPLUS_LINE_VOLTAGE,
+    MIN_SURPLUS_FORECAST_DROP_GUARD_W,
+    MIN_SURPLUS_FORECAST_WEIGHT_PCT,
     MIN_SURPLUS_RAMP_STEP_A,
+    MIN_SURPLUS_SESSION_DURATION_MIN,
+    MIN_SURPLUS_SESSION_ENERGY_KWH,
     MIN_SURPLUS_TARGET_OFFSET_W,
     MIN_SURPLUS_THRESHOLD_W,
+    MIN_TARIFF_PRICE_EUR_KWH,
     MIN_SCAN_INTERVAL_SECONDS,
     SURPLUS_MODES,
+    TARIFF_MODES,
     SUPPORTED_PROTOCOL_VERSIONS,
 )
 from .tuya_ev_charger import TuyaEVChargerClient
@@ -118,6 +159,7 @@ async def _async_validate_input(
         local_key=str(data[CONF_LOCAL_KEY]),
         protocol_version=str(data[CONF_PROTOCOL_VERSION]),
         charger_profile=str(data.get(CONF_CHARGER_PROFILE, DEFAULT_CHARGER_PROFILE)),
+        charger_profile_json=str(data.get(CONF_CHARGER_PROFILE_JSON, "")),
     )
     await client.async_connect()
     metrics = await client.async_get_metrics()
@@ -184,9 +226,42 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                 cleaned_input,
                 CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
             )
+            _normalize_optional_entity_value(
+                cleaned_input,
+                CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
+            )
+            _normalize_optional_entity_value(
+                cleaned_input,
+                CONF_TARIFF_SENSOR_ENTITY_ID,
+            )
+            _normalize_optional_entity_value(
+                cleaned_input,
+                CONF_TARIFF_PRICE_SENSOR_ENTITY_ID,
+            )
+            _normalize_text_value(
+                cleaned_input,
+                CONF_TARIFF_ALLOWED_VALUES,
+                DEFAULT_TARIFF_ALLOWED_VALUES,
+            )
+            _normalize_text_value(
+                cleaned_input,
+                CONF_CHARGER_PROFILE_JSON,
+                DEFAULT_CHARGER_PROFILE_JSON,
+            )
+            _normalize_end_time_value(cleaned_input, CONF_SURPLUS_MAX_SESSION_END_TIME)
             return self.async_create_entry(data=cleaned_input)
 
         options = self._config_entry.options
+        charger_profile_json = _option_text(
+            options,
+            CONF_CHARGER_PROFILE_JSON,
+            str(
+                self._config_entry.data.get(
+                    CONF_CHARGER_PROFILE_JSON,
+                    DEFAULT_CHARGER_PROFILE_JSON,
+                )
+            ),
+        )
         current_scan_interval = _option_int(
             options,
             CONF_SCAN_INTERVAL,
@@ -268,6 +343,27 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
             MIN_SURPLUS_RAMP_STEP_A,
             MAX_SURPLUS_RAMP_STEP_A,
         )
+        surplus_forecast_weight_pct = _option_int(
+            options,
+            CONF_SURPLUS_FORECAST_WEIGHT_PCT,
+            DEFAULT_SURPLUS_FORECAST_WEIGHT_PCT,
+            MIN_SURPLUS_FORECAST_WEIGHT_PCT,
+            MAX_SURPLUS_FORECAST_WEIGHT_PCT,
+        )
+        surplus_forecast_smoothing_s = _option_int(
+            options,
+            CONF_SURPLUS_FORECAST_SMOOTHING_S,
+            DEFAULT_SURPLUS_FORECAST_SMOOTHING_S,
+            MIN_SURPLUS_DELAY_S,
+            MAX_SURPLUS_DELAY_S,
+        )
+        surplus_forecast_drop_guard_w = _option_int(
+            options,
+            CONF_SURPLUS_FORECAST_DROP_GUARD_W,
+            DEFAULT_SURPLUS_FORECAST_DROP_GUARD_W,
+            MIN_SURPLUS_FORECAST_DROP_GUARD_W,
+            MAX_SURPLUS_FORECAST_DROP_GUARD_W,
+        )
         surplus_battery_soc_threshold = _option_int(
             options,
             CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
@@ -275,11 +371,43 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
             MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
             MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
         )
+        surplus_min_run_time = _option_int(
+            options,
+            CONF_SURPLUS_MIN_RUN_TIME_S,
+            DEFAULT_SURPLUS_MIN_RUN_TIME_S,
+            MIN_SURPLUS_DELAY_S,
+            MAX_SURPLUS_DELAY_S,
+        )
+        surplus_max_session_duration_min = _option_int(
+            options,
+            CONF_SURPLUS_MAX_SESSION_DURATION_MIN,
+            DEFAULT_SURPLUS_MAX_SESSION_DURATION_MIN,
+            MIN_SURPLUS_SESSION_DURATION_MIN,
+            MAX_SURPLUS_SESSION_DURATION_MIN,
+        )
+        surplus_max_session_energy_kwh = _option_float(
+            options,
+            CONF_SURPLUS_MAX_SESSION_ENERGY_KWH,
+            DEFAULT_SURPLUS_MAX_SESSION_ENERGY_KWH,
+            MIN_SURPLUS_SESSION_ENERGY_KWH,
+            MAX_SURPLUS_SESSION_ENERGY_KWH,
+        )
+        surplus_max_session_end_time = _option_end_time(
+            options,
+            CONF_SURPLUS_MAX_SESSION_END_TIME,
+            DEFAULT_SURPLUS_MAX_SESSION_END_TIME,
+        )
         surplus_mode = _option_choice(
             options,
             CONF_SURPLUS_MODE,
             DEFAULT_SURPLUS_MODE,
             SURPLUS_MODES,
+        )
+        tariff_mode = _option_choice(
+            options,
+            CONF_TARIFF_MODE,
+            DEFAULT_TARIFF_MODE,
+            TARIFF_MODES,
         )
         return self.async_show_form(
             step_id="init",
@@ -306,6 +434,14 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                             CHARGER_PROFILES,
                         ),
                     ): vol.In(CHARGER_PROFILES),
+                    vol.Optional(
+                        CONF_CHARGER_PROFILE_JSON,
+                        default=charger_profile_json,
+                    ): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            multiline=True,
+                        )
+                    ),
                     vol.Required(
                         CONF_SURPLUS_MODE_ENABLED,
                         default=_option_bool(
@@ -318,6 +454,10 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                         CONF_SURPLUS_MODE,
                         default=surplus_mode,
                     ): vol.In(SURPLUS_MODES),
+                    vol.Required(
+                        CONF_TARIFF_MODE,
+                        default=tariff_mode,
+                    ): vol.In(TARIFF_MODES),
                     vol.Optional(
                         CONF_SURPLUS_SENSOR_ENTITY_ID,
                         default=_option_entity(
@@ -342,6 +482,46 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                             DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
                         ),
                     ): _optional_sensor_selector(),
+                    vol.Required(
+                        CONF_SURPLUS_FORECAST_MODE_ENABLED,
+                        default=_option_bool(
+                            options,
+                            CONF_SURPLUS_FORECAST_MODE_ENABLED,
+                            DEFAULT_SURPLUS_FORECAST_MODE_ENABLED,
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
+                        default=_option_entity(
+                            options,
+                            CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
+                            DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
+                        ),
+                    ): _optional_sensor_selector(),
+                    vol.Optional(
+                        CONF_TARIFF_SENSOR_ENTITY_ID,
+                        default=_option_entity(
+                            options,
+                            CONF_TARIFF_SENSOR_ENTITY_ID,
+                            DEFAULT_TARIFF_SENSOR_ENTITY_ID,
+                        ),
+                    ): _optional_sensor_selector(),
+                    vol.Optional(
+                        CONF_TARIFF_PRICE_SENSOR_ENTITY_ID,
+                        default=_option_entity(
+                            options,
+                            CONF_TARIFF_PRICE_SENSOR_ENTITY_ID,
+                            DEFAULT_TARIFF_PRICE_SENSOR_ENTITY_ID,
+                        ),
+                    ): _optional_sensor_selector(),
+                    vol.Optional(
+                        CONF_TARIFF_ALLOWED_VALUES,
+                        default=_option_text(
+                            options,
+                            CONF_TARIFF_ALLOWED_VALUES,
+                            DEFAULT_TARIFF_ALLOWED_VALUES,
+                        ),
+                    ): str,
                     vol.Required(
                         CONF_SURPLUS_SENSOR_INVERTED,
                         default=_option_bool(
@@ -458,6 +638,86 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                             max=MAX_SURPLUS_RAMP_STEP_A,
                         ),
                     ),
+                    vol.Required(
+                        CONF_SURPLUS_FORECAST_WEIGHT_PCT,
+                        default=surplus_forecast_weight_pct,
+                    ): vol.All(
+                        vol.Coerce(int),
+                        vol.Range(
+                            min=MIN_SURPLUS_FORECAST_WEIGHT_PCT,
+                            max=MAX_SURPLUS_FORECAST_WEIGHT_PCT,
+                        ),
+                    ),
+                    vol.Required(
+                        CONF_SURPLUS_FORECAST_SMOOTHING_S,
+                        default=surplus_forecast_smoothing_s,
+                    ): vol.All(
+                        vol.Coerce(int),
+                        vol.Range(
+                            min=MIN_SURPLUS_DELAY_S,
+                            max=MAX_SURPLUS_DELAY_S,
+                        ),
+                    ),
+                    vol.Required(
+                        CONF_SURPLUS_FORECAST_DROP_GUARD_W,
+                        default=surplus_forecast_drop_guard_w,
+                    ): vol.All(
+                        vol.Coerce(int),
+                        vol.Range(
+                            min=MIN_SURPLUS_FORECAST_DROP_GUARD_W,
+                            max=MAX_SURPLUS_FORECAST_DROP_GUARD_W,
+                        ),
+                    ),
+                    vol.Required(
+                        CONF_SURPLUS_MIN_RUN_TIME_S,
+                        default=surplus_min_run_time,
+                    ): vol.All(
+                        vol.Coerce(int),
+                        vol.Range(
+                            min=MIN_SURPLUS_DELAY_S,
+                            max=MAX_SURPLUS_DELAY_S,
+                        ),
+                    ),
+                    vol.Required(
+                        CONF_SURPLUS_MAX_SESSION_DURATION_MIN,
+                        default=surplus_max_session_duration_min,
+                    ): vol.All(
+                        vol.Coerce(int),
+                        vol.Range(
+                            min=MIN_SURPLUS_SESSION_DURATION_MIN,
+                            max=MAX_SURPLUS_SESSION_DURATION_MIN,
+                        ),
+                    ),
+                    vol.Required(
+                        CONF_SURPLUS_MAX_SESSION_ENERGY_KWH,
+                        default=surplus_max_session_energy_kwh,
+                    ): vol.All(
+                        vol.Coerce(float),
+                        vol.Range(
+                            min=MIN_SURPLUS_SESSION_ENERGY_KWH,
+                            max=MAX_SURPLUS_SESSION_ENERGY_KWH,
+                        ),
+                    ),
+                    vol.Optional(
+                        CONF_SURPLUS_MAX_SESSION_END_TIME,
+                        default=surplus_max_session_end_time,
+                    ): vol.Match(r"^$|^([01]?\d|2[0-3]):[0-5]\d$"),
+                    vol.Required(
+                        CONF_TARIFF_MAX_PRICE_EUR_KWH,
+                        default=_option_float(
+                            options,
+                            CONF_TARIFF_MAX_PRICE_EUR_KWH,
+                            DEFAULT_TARIFF_MAX_PRICE_EUR_KWH,
+                            MIN_TARIFF_PRICE_EUR_KWH,
+                            MAX_TARIFF_PRICE_EUR_KWH,
+                        ),
+                    ): vol.All(
+                        vol.Coerce(float),
+                        vol.Range(
+                            min=MIN_TARIFF_PRICE_EUR_KWH,
+                            max=MAX_TARIFF_PRICE_EUR_KWH,
+                        ),
+                    ),
                 }
             ),
         )
@@ -490,6 +750,20 @@ def _option_bool(options: Mapping[str, Any], key: str, default: bool) -> bool:
     return bool(value)
 
 
+def _option_float(
+    options: Mapping[str, Any],
+    key: str,
+    default: float,
+    minimum: float,
+    maximum: float,
+) -> float:
+    try:
+        value = float(options.get(key, default))
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, min(maximum, value))
+
+
 def _option_choice(
     options: Mapping[str, Any],
     key: str,
@@ -516,6 +790,23 @@ def _option_entity(
     return text
 
 
+def _option_text(options: Mapping[str, Any], key: str, default: str) -> str:
+    value = options.get(key, default)
+    if value is None:
+        return default
+    return str(value).strip()
+
+
+def _option_end_time(options: Mapping[str, Any], key: str, default: str) -> str:
+    text = _option_text(options, key, default)
+    if not text:
+        return ""
+    try:
+        return str(vol.Match(r"^([01]?\d|2[0-3]):[0-5]\d$")(text))
+    except vol.Invalid:
+        return ""
+
+
 def _sensor_selector() -> selector.EntitySelector:
     return selector.EntitySelector(
         selector.EntitySelectorConfig(
@@ -539,3 +830,24 @@ def _normalize_optional_entity_value(data: dict[str, Any], key: str) -> None:
         data[key] = ""
         return
     data[key] = text
+
+
+def _normalize_text_value(data: dict[str, Any], key: str, default: str) -> None:
+    value = data.get(key, default)
+    if value is None:
+        data[key] = default
+        return
+    text = str(value).strip()
+    data[key] = text if text else default
+
+
+def _normalize_end_time_value(data: dict[str, Any], key: str) -> None:
+    value = data.get(key, "")
+    text = str(value).strip() if value is not None else ""
+    if not text:
+        data[key] = ""
+        return
+    try:
+        data[key] = str(vol.Match(r"^([01]?\d|2[0-3]):[0-5]\d$")(text))
+    except vol.Invalid:
+        data[key] = ""

@@ -14,7 +14,10 @@ from .const import (
     CONF_LOCAL_KEY,
     CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
     CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
+    CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
     CONF_SURPLUS_SENSOR_ENTITY_ID,
+    CONF_TARIFF_PRICE_SENSOR_ENTITY_ID,
+    CONF_TARIFF_SENSOR_ENTITY_ID,
 )
 
 TO_REDACT = {
@@ -34,15 +37,20 @@ async def async_get_config_entry_diagnostics(
     runtime_data: TuyaEVChargerRuntimeData | None = getattr(entry, "runtime_data", None)
     coordinator_data: dict[str, Any] | None = None
     profile: str | None = None
+    raw_dps: dict[str, Any] | None = None
     if runtime_data is not None and runtime_data.coordinator.data is not None:
         coordinator_data = asdict(runtime_data.coordinator.data)
         profile = runtime_data.client.dp_profile
+        raw_dps = await runtime_data.client.async_get_raw_dps()
 
     sensors: dict[str, Any] = {}
     for option_key in (
         CONF_SURPLUS_SENSOR_ENTITY_ID,
         CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
         CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
+        CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
+        CONF_TARIFF_SENSOR_ENTITY_ID,
+        CONF_TARIFF_PRICE_SENSOR_ENTITY_ID,
     ):
         entity_id = str(entry.options.get(option_key, "")).strip()
         if not entity_id:
@@ -68,6 +76,7 @@ async def async_get_config_entry_diagnostics(
         },
         "client": {"dp_profile": profile},
         "coordinator_data": coordinator_data,
+        "raw_dps": raw_dps,
         "configured_surplus_sensors": sensors,
     }
     return async_redact_data(payload, TO_REDACT)

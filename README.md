@@ -44,7 +44,7 @@ Intégration Home Assistant locale pour piloter une borne de recharge Tuya en LA
    - `device_id`
    - `local_key`
    - `protocol_version` (`3.3`, `3.4` ou `3.5`, défaut: `3.5`)
-   - `charger_profile` (`depow_v2` par défaut)
+   - `charger_profile` (`depow_v2` par défaut, `custom_json` possible)
 
 ### Récupérer la `local_key`
 
@@ -68,15 +68,44 @@ Notes:
 ### Options
 
 - `scan_interval` (secondes): intervalle de rafraîchissement des données.
-- `charger_profile`: profil de mapping DP utilisé pour dialoguer avec la borne (`depow_v2` par défaut).
+- `charger_profile`: profil de mapping DP utilisé pour dialoguer avec la borne (`depow_v2`, `generic_v1` ou `custom_json`).
+- `charger_profile_json`: mapping DP personnalisé en JSON (optionnel, utilisé si `charger_profile = custom_json`).
+  - Exemple minimal:
+    ```json
+    {
+      "metrics": "102",
+      "charger_info": "106",
+      "work_state": "101",
+      "work_state_debug": "109",
+      "do_charge": "140",
+      "current_target": "150",
+      "max_current_cfg": "152",
+      "nfc_cfg": "155",
+      "downcounter": "108",
+      "selftest": "103",
+      "alarm": "104",
+      "charge_history": "105",
+      "adjust_current": "107",
+      "product_variant": "157",
+      "dp_num": "189",
+      "reboot": "142"
+    }
+    ```
 - Mode `surplus solaire` (optionnel):
   - `surplus_mode_enabled`: active la régulation automatique.
   - `surplus_mode`: `classic` ou `zero_injection`.
+  - `tariff_mode`: mode tarif dynamique (`disabled`, `hphc`, `tempo`, `spot`).
   - `surplus_sensor_entity_id`: capteur puissance réseau (import/export) en W (sélection via liste déroulante).
   - `surplus_sensor_inverted`: à activer si ton capteur est inversé.
   - `surplus_curtailment_sensor_entity_id`: puissance bridée potentielle (W) (optionnel, surtout en `zero_injection`, sélection via liste déroulante).
   - `surplus_curtailment_sensor_inverted`: inversion du capteur de puissance bridée.
   - `surplus_battery_soc_sensor_entity_id`: capteur de pourcentage batterie (optionnel, liste déroulante).
+  - `surplus_forecast_mode_enabled`: active le lissage via prévision solaire.
+  - `surplus_forecast_sensor_entity_id`: capteur externe de prévision surplus/production (W) (optionnel).
+  - `tariff_sensor_entity_id`: capteur de label tarifaire (optionnel, surtout `hphc`/`tempo`).
+  - `tariff_price_sensor_entity_id`: capteur de prix spot (optionnel, mode `spot`).
+  - `tariff_allowed_values`: labels tarifaires autorisés en CSV (ex: `hc,offpeak`).
+  - `tariff_max_price_eur_kwh`: seuil max pour autoriser la charge en mode spot.
   - `surplus_battery_soc_threshold_pct`: seuil minimal de batterie pour autoriser la charge via le mode surplus.
   - `surplus_start_threshold_w` / `surplus_stop_threshold_w`: hystérésis démarrage/arrêt.
   - `surplus_target_offset_w`: delta de consigne (marge en W).
@@ -84,6 +113,13 @@ Notes:
   - `surplus_adjust_up_cooldown_s`: délai minimal entre deux augmentations de courant.
   - `surplus_adjust_down_cooldown_s`: délai minimal entre deux diminutions de courant.
   - `surplus_ramp_step_a`: pas max (A) par ajustement pour lisser les variations.
+  - `surplus_forecast_weight_pct`: poids de la prévision externe dans la décision (%).
+  - `surplus_forecast_smoothing_s`: lissage temporel de la consigne basée forecast (s).
+  - `surplus_forecast_drop_guard_w`: garde anti-chute pour éviter les réactions trop brutales (W).
+  - `surplus_min_run_time_s`: durée minimale d’une session avant arrêt automatique (anti cycles courts).
+  - `surplus_max_session_duration_min`: limite de durée max d’une session (0 = désactivé).
+  - `surplus_max_session_energy_kwh`: limite d’énergie max d’une session (0 = désactivé).
+  - `surplus_max_session_end_time`: heure de fin max d’une session (`HH:MM`, vide = désactivé).
   - `surplus_line_voltage`: tension de référence pour convertir W -> A.
 
 ### Configuration Surplus: cas pratiques
@@ -100,18 +136,30 @@ Notes:
   - Si `surplus_battery_soc_sensor_entity_id` est défini, la puissance bridée n'est utilisée que lorsque la batterie atteint `surplus_battery_soc_threshold_pct`.
   - Si tu n'as pas ce capteur, le mode fonctionne mais se comportera proche du mode `classic`.
 
+### Mode prévision solaire (forecast)
+
+- Le mode forecast mélange le surplus instantané reconstruit avec un capteur externe de prévision (`surplus_forecast_sensor_entity_id`).
+- La pondération est réglée par `surplus_forecast_weight_pct`.
+- Un lissage exponentiel (`surplus_forecast_smoothing_s`) est appliqué pour réduire les oscillations sur passages nuageux courts.
+- Un garde-fou (`surplus_forecast_drop_guard_w`) limite les baisses brusques de consigne entre deux mesures.
+- Deux capteurs debug sont exposés: `surplus_forecast_sensor_power` et `surplus_forecast_blended_power`.
+
 ### Pilotage depuis le dashboard Home Assistant
 
 - `switch.surplus_mode`: active/désactive rapidement la régulation surplus.
 - `select.surplus_strategy`: sélectionne `off`, `classic` ou `zero_injection`.
-- `number.*surplus*`: ajuste seuils, deltas, délais, cooldown montée/descente, pas de rampe, seuil SOC batterie et tension de calcul.
+- `select.tariff_mode`: sélectionne le mode tarif (`disabled`, `hphc`, `tempo`, `spot`).
+- `number.*surplus*`: ajuste seuils, deltas, délais, cooldown montée/descente, pas de rampe, seuil SOC batterie, protections de session et tension de calcul.
+- `number.tariff_max_price_eur_kwh`: ajuste rapidement le seuil prix spot.
+- `binary_sensor.surplus_regulation_active`: indique si la régulation pilote activement la charge.
 
 ### Diagnostics (support)
 
 - L'intégration expose des diagnostics Home Assistant (`Télécharger les diagnostics`) avec:
   - configuration active et options surplus,
   - snapshot des capteurs surplus configurés,
-  - dernière télémétrie de la borne.
+  - dernière télémétrie de la borne,
+  - DPS bruts remontés par le chargeur (utile pour mapping profil).
 - Les secrets sensibles (`host`, `device_id`, `local_key`, numéros de série) sont masqués automatiquement.
 
 ### Compatibilité chargeurs (profils DP)
@@ -120,14 +168,49 @@ Notes:
 - Profil par défaut: `depow_v2` (comportement actuel).
 - Profil `generic_v1` fourni comme base d'extension pour d'autres firmwares/modèles.
 - Cette base permet d'ajouter de nouveaux profils sans modifier toute la logique métier.
+- Service `tuya_ev_charger.profile_assistant`: analyse les DPS, suggère un profil et peut l'appliquer.
+
+### Services Home Assistant
+
+- `tuya_ev_charger.force_charge_for`: force une charge temporaire pendant `duration_minutes` (avec `current_a` optionnel).
+- `tuya_ev_charger.pause_surplus`: met en pause la régulation surplus pendant `duration_minutes`.
+- `tuya_ev_charger.dry_run_surplus`: simule une décision surplus sans action sur la borne (notification + événement bus).
+- `tuya_ev_charger.set_surplus_profile`: applique un preset (`balanced`, `aggressive`, `conservative`) + option de mode.
+- `tuya_ev_charger.profile_assistant`: génère un rapport de mapping DPS et suggestion de profil.
+
+### Blueprint d'automatisation
+
+- Blueprint inclus: `blueprints/automation/tuya_ev_charger/smart_charge_surplus_tariff.yaml`
+- Cas visé: lancer un boost temporaire quand le mode surplus est OFF et que la plage horaire est creuse ou que le prix spot est bas.
+
+### Carte Lovelace “Charge intelligente”
+
+- Carte exemple fournie: `lovelace/charge_intelligente.yaml`
+- Contient:
+  - presets (`balanced`, `aggressive`, `conservative`),
+  - actions rapides (`pause_surplus`, `force_charge_for`, `dry_run_surplus`),
+  - états debug surplus + forecast,
+  - résumé `charge_history` parsé.
+- Remplace les placeholders `<...>` par tes vrais `entity_id`.
 
 ### Entités exposées
 
-- `sensor`: mesures électriques, température, état, diagnostics.
-- `number`: consigne d'intensité + seuils/deltas/délais/cooldowns/rampe/SOC/tension du mode surplus.
+- `sensor`: mesures électriques, température, état, diagnostics, debug surplus/forecast, et `charge_history` parsé (`timestamp`, `start`, `end`, `duration`, `raw_c`).
+- `number`: consigne d'intensité + seuils/deltas/délais/cooldowns/rampe/SOC/tension + protections session + seuil spot.
 - `switch`: session de charge, NFC, mode surplus solaire.
-- `select`: stratégie surplus solaire (`off` / `classic` / `zero_injection`).
+- `select`: stratégie surplus solaire (`off` / `classic` / `zero_injection`) + mode tarif.
+- `binary_sensor`: état de régulation surplus active.
 - `button`: redémarrage borne.
+
+### Détails charge_history
+
+- Le JSON brut `charge_history` est conservé dans `sensor.charge_history`.
+- L’intégration expose aussi les champs parsés:
+  - `t` -> `sensor.charge_history_timestamp`
+  - `s` -> `sensor.charge_history_start_time`
+  - `e` -> `sensor.charge_history_end_time`
+  - `d` -> `sensor.charge_history_duration_s`
+  - `c` -> `sensor.charge_history_raw_c`
 
 ### Notes
 
@@ -158,7 +241,7 @@ Local Home Assistant integration to control a Tuya EV charger over LAN using `ti
    - `device_id`
    - `local_key`
    - `protocol_version` (`3.3`, `3.4`, or `3.5`, default: `3.5`)
-   - `charger_profile` (`depow_v2` by default)
+   - `charger_profile` (`depow_v2` by default, `custom_json` supported)
 
 ### Get the `local_key`
 
@@ -182,15 +265,44 @@ Notes:
 ### Options
 
 - `scan_interval` (seconds): data refresh interval.
-- `charger_profile`: DP mapping profile used to communicate with the charger (`depow_v2` by default).
+- `charger_profile`: DP mapping profile used to communicate with the charger (`depow_v2`, `generic_v1`, or `custom_json`).
+- `charger_profile_json`: custom DP mapping JSON (optional, used when `charger_profile = custom_json`).
+  - Minimal example:
+    ```json
+    {
+      "metrics": "102",
+      "charger_info": "106",
+      "work_state": "101",
+      "work_state_debug": "109",
+      "do_charge": "140",
+      "current_target": "150",
+      "max_current_cfg": "152",
+      "nfc_cfg": "155",
+      "downcounter": "108",
+      "selftest": "103",
+      "alarm": "104",
+      "charge_history": "105",
+      "adjust_current": "107",
+      "product_variant": "157",
+      "dp_num": "189",
+      "reboot": "142"
+    }
+    ```
 - `solar surplus mode` (optional):
   - `surplus_mode_enabled`: enables automatic regulation.
   - `surplus_mode`: `classic` or `zero_injection`.
+  - `tariff_mode`: dynamic tariff mode (`disabled`, `hphc`, `tempo`, `spot`).
   - `surplus_sensor_entity_id`: grid power sensor (import/export) in W (entity dropdown).
   - `surplus_sensor_inverted`: enable if your sensor sign is reversed.
   - `surplus_curtailment_sensor_entity_id`: potential curtailed power (W) (optional, mainly for `zero_injection`, entity dropdown).
   - `surplus_curtailment_sensor_inverted`: invert curtailed power sensor sign.
   - `surplus_battery_soc_sensor_entity_id`: battery SOC percentage sensor (optional, entity dropdown).
+  - `surplus_forecast_mode_enabled`: enables solar forecast smoothing.
+  - `surplus_forecast_sensor_entity_id`: external forecast surplus/production sensor (W) (optional).
+  - `tariff_sensor_entity_id`: tariff label sensor (optional, mainly for `hphc`/`tempo`).
+  - `tariff_price_sensor_entity_id`: spot price sensor (optional, for `spot` mode).
+  - `tariff_allowed_values`: allowed label values as CSV (for example `hc,offpeak`).
+  - `tariff_max_price_eur_kwh`: maximum allowed spot price in `spot` mode.
   - `surplus_battery_soc_threshold_pct`: minimum SOC threshold required for surplus charging.
   - `surplus_start_threshold_w` / `surplus_stop_threshold_w`: start/stop hysteresis.
   - `surplus_target_offset_w`: target delta margin (W).
@@ -198,6 +310,13 @@ Notes:
   - `surplus_adjust_up_cooldown_s`: minimum delay between current increases.
   - `surplus_adjust_down_cooldown_s`: minimum delay between current decreases.
   - `surplus_ramp_step_a`: maximum current step (A) per adjustment.
+  - `surplus_forecast_weight_pct`: weight of external forecast in decision (%).
+  - `surplus_forecast_smoothing_s`: time smoothing applied to forecast blend (s).
+  - `surplus_forecast_drop_guard_w`: drop guard to avoid abrupt setpoint decreases (W).
+  - `surplus_min_run_time_s`: minimum runtime before automatic stop (anti short-cycling).
+  - `surplus_max_session_duration_min`: max session duration (0 = disabled).
+  - `surplus_max_session_energy_kwh`: max session energy (0 = disabled).
+  - `surplus_max_session_end_time`: latest session end time (`HH:MM`, empty = disabled).
   - `surplus_line_voltage`: reference voltage for W -> A conversion.
 
 ### Surplus Configuration: practical cases
@@ -214,26 +333,49 @@ Notes:
   - If `surplus_battery_soc_sensor_entity_id` is configured, curtailed power is used only when battery SOC reaches `surplus_battery_soc_threshold_pct`.
   - Without that sensor, it still works but behaves close to `classic`.
 
+### Solar forecast mode
+
+- Forecast mode blends instantaneous reconstructed surplus with an external forecast sensor (`surplus_forecast_sensor_entity_id`).
+- Blend weight is controlled by `surplus_forecast_weight_pct`.
+- Exponential smoothing (`surplus_forecast_smoothing_s`) reduces oscillations during short cloud transitions.
+- A drop guard (`surplus_forecast_drop_guard_w`) limits abrupt downward setpoint changes.
+- Two debug sensors are exposed: `surplus_forecast_sensor_power` and `surplus_forecast_blended_power`.
+
 ### Dashboard control entities
 
 - `switch.surplus_mode`: quick on/off for surplus regulation.
 - `select.surplus_strategy`: choose `off`, `classic`, or `zero_injection`.
-- `number.*surplus*`: tune thresholds, offsets, delays, up/down cooldowns, ramp step, battery SOC threshold, and voltage.
+- `select.tariff_mode`: choose tariff mode (`disabled`, `hphc`, `tempo`, `spot`).
+- `number.*surplus*`: tune thresholds, offsets, delays, up/down cooldowns, ramp step, SOC threshold, session protections, and voltage.
+- `number.tariff_max_price_eur_kwh`: tune spot-price threshold.
+- `binary_sensor.surplus_regulation_active`: shows whether regulation is actively driving charging.
 
 ### Exposed entities
 
-- `sensor`: electrical values, temperature, state, diagnostics.
-- `number`: current setpoint + solar surplus thresholds/offsets/delays/cooldowns/ramp/SOC/voltage.
+- `sensor`: electrical values, temperature, state, diagnostics, surplus/forecast debug, and parsed `charge_history` (`timestamp`, `start`, `end`, `duration`, `raw_c`).
+- `number`: current setpoint + surplus thresholds/offsets/delays/cooldowns/ramp/SOC/voltage + session protections + spot price threshold.
 - `switch`: charging session, NFC, solar surplus mode.
-- `select`: solar surplus strategy (`off` / `classic` / `zero_injection`).
+- `select`: solar surplus strategy (`off` / `classic` / `zero_injection`) + tariff mode.
+- `binary_sensor`: surplus regulation activity.
 - `button`: charger reboot.
+
+### charge_history details
+
+- Raw `charge_history` JSON remains available in `sensor.charge_history`.
+- Parsed fields are also exposed:
+  - `t` -> `sensor.charge_history_timestamp`
+  - `s` -> `sensor.charge_history_start_time`
+  - `e` -> `sensor.charge_history_end_time`
+  - `d` -> `sensor.charge_history_duration_s`
+  - `c` -> `sensor.charge_history_raw_c`
 
 ### Diagnostics (support)
 
 - The integration exposes Home Assistant diagnostics (`Download diagnostics`) with:
   - active configuration and surplus options,
   - configured surplus sensor snapshots,
-  - latest charger telemetry.
+  - latest charger telemetry,
+  - raw DPS payload (useful for profile mapping).
 - Sensitive secrets (`host`, `device_id`, `local_key`, serial identifiers) are automatically redacted.
 
 ### Charger compatibility (DP profiles)
@@ -242,6 +384,30 @@ Notes:
 - Default profile: `depow_v2` (current behavior).
 - `generic_v1` is included as an extension baseline for additional firmwares/models.
 - This design allows adding new charger mappings without rewriting core control logic.
+- `tuya_ev_charger.profile_assistant` service analyzes DPS and suggests a profile (with optional auto-apply).
+
+### Home Assistant services
+
+- `tuya_ev_charger.force_charge_for`: force charging for `duration_minutes` (optional `current_a`).
+- `tuya_ev_charger.pause_surplus`: pause surplus regulation for `duration_minutes`.
+- `tuya_ev_charger.dry_run_surplus`: simulate surplus decision without sending commands to the charger (notification + bus event).
+- `tuya_ev_charger.set_surplus_profile`: apply a preset (`balanced`, `aggressive`, `conservative`) with optional mode override.
+- `tuya_ev_charger.profile_assistant`: generate a DPS mapping report and profile suggestion.
+
+### Automation blueprint
+
+- Included blueprint: `blueprints/automation/tuya_ev_charger/smart_charge_surplus_tariff.yaml`
+- Use case: trigger temporary force charge when surplus is OFF and cheap-hours window or spot price condition is met.
+
+### Lovelace “Smart Charging” card
+
+- Example card provided: `lovelace/charge_intelligente.yaml`
+- Includes:
+  - presets (`balanced`, `aggressive`, `conservative`),
+  - quick actions (`pause_surplus`, `force_charge_for`, `dry_run_surplus`),
+  - surplus + forecast debug states,
+  - parsed `charge_history` summary.
+- Replace `<...>` placeholders with your own `entity_id`.
 
 ### Notes
 

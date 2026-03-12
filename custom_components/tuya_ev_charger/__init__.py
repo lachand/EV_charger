@@ -1,31 +1,133 @@
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from datetime import timedelta
+from typing import Any
 
+import voluptuous as vol
+
+from homeassistant.components import persistent_notification
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST
-from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import ConfigEntryNotReady, ServiceValidationError
 
 from .const import (
+    CHARGER_PROFILES,
     CONF_CHARGER_PROFILE,
+    CONF_CHARGER_PROFILE_JSON,
     CONF_DEVICE_ID,
     CONF_LOCAL_KEY,
     CONF_PROTOCOL_VERSION,
     CONF_SCAN_INTERVAL,
+    CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
+    CONF_SURPLUS_ADJUST_UP_COOLDOWN_S,
+    CONF_SURPLUS_MODE,
+    CONF_SURPLUS_MODE_ENABLED,
+    CONF_SURPLUS_RAMP_STEP_A,
+    CONF_SURPLUS_START_THRESHOLD_W,
+    CONF_SURPLUS_STOP_THRESHOLD_W,
+    CONF_SURPLUS_TARGET_OFFSET_W,
     DEFAULT_CHARGER_PROFILE,
+    DEFAULT_CHARGER_PROFILE_JSON,
     DEFAULT_SCAN_INTERVAL_SECONDS,
+    DOMAIN,
     MAX_SCAN_INTERVAL_SECONDS,
     MIN_SCAN_INTERVAL_SECONDS,
     PLATFORMS,
+    SERVICE_DRY_RUN_SURPLUS,
+    SERVICE_FORCE_CHARGE_FOR,
+    SERVICE_PAUSE_SURPLUS,
+    SERVICE_PROFILE_ASSISTANT,
+    SERVICE_SET_SURPLUS_PROFILE,
+    SURPLUS_MODES,
+    SURPLUS_PROFILE_AGGRESSIVE,
+    SURPLUS_PROFILE_BALANCED,
+    SURPLUS_PROFILE_CONSERVATIVE,
+    SURPLUS_PROFILES,
 )
 from .coordinator import TuyaEVChargerDataUpdateCoordinator
 from .solar_surplus import SolarSurplusController
 from .tuya_ev_charger import TuyaEVChargerClient
 
 LOGGER = logging.getLogger(__name__)
+
+SERVICE_DATA_ENTRY_ID = "entry_id"
+SERVICE_DATA_DURATION_MINUTES = "duration_minutes"
+SERVICE_DATA_CURRENT_A = "current_a"
+SERVICE_DATA_PROFILE = "profile"
+SERVICE_DATA_MODE = "mode"
+SERVICE_DATA_APPLY = "apply"
+
+SERVICE_FORCE_CHARGE_SCHEMA = vol.Schema(
+    {
+        vol.Optional(SERVICE_DATA_ENTRY_ID): str,
+        vol.Required(SERVICE_DATA_DURATION_MINUTES): vol.All(
+            vol.Coerce(int),
+            vol.Range(min=0, max=24 * 60),
+        ),
+        vol.Optional(SERVICE_DATA_CURRENT_A): vol.All(
+            vol.Coerce(int),
+            vol.Range(min=6, max=32),
+        ),
+    }
+)
+SERVICE_PAUSE_SURPLUS_SCHEMA = vol.Schema(
+    {
+        vol.Optional(SERVICE_DATA_ENTRY_ID): str,
+        vol.Required(SERVICE_DATA_DURATION_MINUTES): vol.All(
+            vol.Coerce(int),
+            vol.Range(min=0, max=24 * 60),
+        ),
+    }
+)
+SERVICE_DRY_RUN_SURPLUS_SCHEMA = vol.Schema(
+    {
+        vol.Optional(SERVICE_DATA_ENTRY_ID): str,
+    }
+)
+SERVICE_SET_SURPLUS_PROFILE_SCHEMA = vol.Schema(
+    {
+        vol.Optional(SERVICE_DATA_ENTRY_ID): str,
+        vol.Required(SERVICE_DATA_PROFILE): vol.In(SURPLUS_PROFILES),
+        vol.Optional(SERVICE_DATA_MODE): vol.In(SURPLUS_MODES),
+    }
+)
+SERVICE_PROFILE_ASSISTANT_SCHEMA = vol.Schema(
+    {
+        vol.Optional(SERVICE_DATA_ENTRY_ID): str,
+        vol.Optional(SERVICE_DATA_APPLY, default=False): bool,
+    }
+)
+
+SURPLUS_PROFILE_PRESETS: dict[str, dict[str, Any]] = {
+    SURPLUS_PROFILE_BALANCED: {
+        CONF_SURPLUS_START_THRESHOLD_W: 1600,
+        CONF_SURPLUS_STOP_THRESHOLD_W: 1200,
+        CONF_SURPLUS_TARGET_OFFSET_W: 0,
+        CONF_SURPLUS_ADJUST_UP_COOLDOWN_S: 20,
+        CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S: 10,
+        CONF_SURPLUS_RAMP_STEP_A: 1,
+    },
+    SURPLUS_PROFILE_AGGRESSIVE: {
+        CONF_SURPLUS_START_THRESHOLD_W: 1300,
+        CONF_SURPLUS_STOP_THRESHOLD_W: 1000,
+        CONF_SURPLUS_TARGET_OFFSET_W: -100,
+        CONF_SURPLUS_ADJUST_UP_COOLDOWN_S: 10,
+        CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S: 5,
+        CONF_SURPLUS_RAMP_STEP_A: 2,
+    },
+    SURPLUS_PROFILE_CONSERVATIVE: {
+        CONF_SURPLUS_START_THRESHOLD_W: 2200,
+        CONF_SURPLUS_STOP_THRESHOLD_W: 1800,
+        CONF_SURPLUS_TARGET_OFFSET_W: 200,
+        CONF_SURPLUS_ADJUST_UP_COOLDOWN_S: 30,
+        CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S: 20,
+        CONF_SURPLUS_RAMP_STEP_A: 1,
+    },
+}
 
 
 @dataclass(slots=True)
@@ -48,7 +150,18 @@ def _charger_profile(entry: ConfigEntry) -> str:
         CONF_CHARGER_PROFILE,
         entry.data.get(CONF_CHARGER_PROFILE, DEFAULT_CHARGER_PROFILE),
     )
-    return str(configured_value).strip().lower() or DEFAULT_CHARGER_PROFILE
+    normalized = str(configured_value).strip().lower()
+    if normalized in CHARGER_PROFILES:
+        return normalized
+    return DEFAULT_CHARGER_PROFILE
+
+
+def _charger_profile_json(entry: ConfigEntry) -> str:
+    configured_value = entry.options.get(
+        CONF_CHARGER_PROFILE_JSON,
+        entry.data.get(CONF_CHARGER_PROFILE_JSON, DEFAULT_CHARGER_PROFILE_JSON),
+    )
+    return str(configured_value or "").strip()
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -58,6 +171,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         local_key=entry.data[CONF_LOCAL_KEY],
         protocol_version=entry.data[CONF_PROTOCOL_VERSION],
         charger_profile=_charger_profile(entry),
+        charger_profile_json=_charger_profile_json(entry),
     )
 
     try:
@@ -92,6 +206,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    await _async_register_services(hass)
     LOGGER.debug("Tuya EV charger integration initialized: %s", entry.title)
     return True
 
@@ -105,3 +220,156 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if runtime_data is not None and runtime_data.solar_surplus_controller is not None:
         await runtime_data.solar_surplus_controller.async_shutdown()
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def _async_register_services(hass: HomeAssistant) -> None:
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    if domain_data.get("services_registered"):
+        return
+
+    async def _handle_force_charge(call: ServiceCall) -> None:
+        entry = _resolve_entry_from_call(hass, call)
+        controller = _resolve_controller(entry)
+        duration_minutes = int(call.data[SERVICE_DATA_DURATION_MINUTES])
+        current_a = call.data.get(SERVICE_DATA_CURRENT_A)
+        await controller.async_force_charge_for(
+            duration_s=duration_minutes * 60,
+            current_a=int(current_a) if current_a is not None else None,
+        )
+
+    async def _handle_pause_surplus(call: ServiceCall) -> None:
+        entry = _resolve_entry_from_call(hass, call)
+        controller = _resolve_controller(entry)
+        duration_minutes = int(call.data[SERVICE_DATA_DURATION_MINUTES])
+        await controller.async_pause_for(duration_s=duration_minutes * 60)
+
+    async def _handle_dry_run_surplus(call: ServiceCall) -> None:
+        entry = _resolve_entry_from_call(hass, call)
+        controller = _resolve_controller(entry)
+        report = await controller.async_dry_run_report()
+        payload = {
+            "entry_id": entry.entry_id,
+            "entry_title": entry.title,
+            "report": report,
+        }
+        hass.bus.async_fire(f"{DOMAIN}_dry_run_surplus", payload)
+        persistent_notification.async_create(
+            hass=hass,
+            title=f"Tuya EV Charger Dry Run ({entry.title})",
+            message=(
+                "Dry run surplus report:\n\n```json\n"
+                f"{json.dumps(payload, indent=2, ensure_ascii=True)}\n```"
+            ),
+            notification_id=f"{DOMAIN}_{entry.entry_id}_dry_run_surplus",
+        )
+
+    async def _handle_set_surplus_profile(call: ServiceCall) -> None:
+        entry = _resolve_entry_from_call(hass, call)
+        profile = str(call.data[SERVICE_DATA_PROFILE]).strip().lower()
+        if profile not in SURPLUS_PROFILE_PRESETS:
+            raise ServiceValidationError(f"Unknown surplus profile: {profile}")
+
+        new_options = dict(entry.options)
+        new_options.update(SURPLUS_PROFILE_PRESETS[profile])
+        new_options[CONF_SURPLUS_MODE_ENABLED] = True
+
+        mode = call.data.get(SERVICE_DATA_MODE)
+        if mode is not None:
+            new_options[CONF_SURPLUS_MODE] = str(mode).strip().lower()
+
+        hass.config_entries.async_update_entry(entry, options=new_options)
+
+    async def _handle_profile_assistant(call: ServiceCall) -> None:
+        entry = _resolve_entry_from_call(hass, call)
+        controller = _resolve_controller(entry)
+        apply_suggestion = bool(call.data.get(SERVICE_DATA_APPLY, False))
+
+        report = await controller.async_profile_assistant_report()
+        suggested = str(report.get("suggested_profile", "")).lower()
+        applied_profile: str | None = None
+        if apply_suggestion and suggested in CHARGER_PROFILES:
+            new_options = dict(entry.options)
+            new_options[CONF_CHARGER_PROFILE] = suggested
+            hass.config_entries.async_update_entry(entry, options=new_options)
+            applied_profile = suggested
+
+        payload = {
+            "entry_id": entry.entry_id,
+            "entry_title": entry.title,
+            "suggested_profile": suggested or None,
+            "applied_profile": applied_profile,
+            "report": report,
+        }
+        hass.bus.async_fire(f"{DOMAIN}_profile_assistant", payload)
+        persistent_notification.async_create(
+            hass=hass,
+            title=f"Tuya EV Charger Profile Assistant ({entry.title})",
+            message=(
+                "Profile assistant report:\n\n```json\n"
+                f"{json.dumps(payload, indent=2, ensure_ascii=True)}\n```"
+            ),
+            notification_id=f"{DOMAIN}_{entry.entry_id}_profile_assistant",
+        )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_FORCE_CHARGE_FOR,
+        _handle_force_charge,
+        schema=SERVICE_FORCE_CHARGE_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_PAUSE_SURPLUS,
+        _handle_pause_surplus,
+        schema=SERVICE_PAUSE_SURPLUS_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_DRY_RUN_SURPLUS,
+        _handle_dry_run_surplus,
+        schema=SERVICE_DRY_RUN_SURPLUS_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_SURPLUS_PROFILE,
+        _handle_set_surplus_profile,
+        schema=SERVICE_SET_SURPLUS_PROFILE_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_PROFILE_ASSISTANT,
+        _handle_profile_assistant,
+        schema=SERVICE_PROFILE_ASSISTANT_SCHEMA,
+    )
+    domain_data["services_registered"] = True
+
+
+def _resolve_entry_from_call(hass: HomeAssistant, call: ServiceCall) -> ConfigEntry:
+    entry_id = str(call.data.get(SERVICE_DATA_ENTRY_ID, "")).strip()
+    entries = hass.config_entries.async_entries(DOMAIN)
+    loaded_entries = [
+        entry for entry in entries if getattr(entry, "runtime_data", None) is not None
+    ]
+    if entry_id:
+        for entry in loaded_entries:
+            if entry.entry_id == entry_id:
+                return entry
+        raise ServiceValidationError(
+            f"Entry '{entry_id}' is not loaded for domain '{DOMAIN}'."
+        )
+    if len(loaded_entries) == 1:
+        return loaded_entries[0]
+    if not loaded_entries:
+        raise ServiceValidationError(f"No loaded '{DOMAIN}' entries found.")
+    raise ServiceValidationError(
+        f"Multiple '{DOMAIN}' entries loaded, provide '{SERVICE_DATA_ENTRY_ID}'."
+    )
+
+
+def _resolve_controller(entry: ConfigEntry) -> SolarSurplusController:
+    runtime_data: TuyaEVChargerRuntimeData | None = getattr(entry, "runtime_data", None)
+    if runtime_data is None or runtime_data.solar_surplus_controller is None:
+        raise ServiceValidationError(
+            f"Solar surplus controller is unavailable for entry '{entry.entry_id}'."
+        )
+    return runtime_data.solar_surplus_controller

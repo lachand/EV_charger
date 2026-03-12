@@ -1,0 +1,92 @@
+blueprint:
+  name: Tuya EV Charger - Smart Surplus/Tariff Boost
+  description: >
+    Launch a temporary forced charge when surplus mode is off and either
+    cheap-hours window is active or spot price is below a threshold.
+  domain: automation
+  input:
+    entry_id:
+      name: Integration entry ID
+      description: Config entry ID of the Tuya EV Charger integration.
+      selector:
+        text:
+    surplus_mode_switch:
+      name: Surplus mode switch
+      description: Switch entity that enables/disables surplus mode.
+      selector:
+        entity:
+          domain: switch
+    spot_price_sensor:
+      name: Spot price sensor
+      description: Sensor with current electricity price in EUR/kWh.
+      selector:
+        entity:
+          domain: sensor
+    max_spot_price:
+      name: Max spot price
+      description: Spot price threshold (EUR/kWh) below which boost can start.
+      default: 0.15
+      selector:
+        number:
+          min: 0
+          max: 2
+          step: 0.01
+          mode: box
+    cheap_hours_start:
+      name: Cheap-hours start
+      default: "22:30:00"
+      selector:
+        time:
+    cheap_hours_end:
+      name: Cheap-hours end
+      default: "06:30:00"
+      selector:
+        time:
+    force_duration_minutes:
+      name: Force duration (minutes)
+      default: 30
+      selector:
+        number:
+          min: 5
+          max: 180
+          step: 5
+          mode: slider
+
+mode: single
+
+trigger:
+  - platform: state
+    entity_id: !input surplus_mode_switch
+  - platform: state
+    entity_id: !input spot_price_sensor
+  - platform: time_pattern
+    minutes: "/5"
+
+action:
+  - variables:
+      entry_id: !input entry_id
+      surplus_mode_switch: !input surplus_mode_switch
+      spot_price_sensor: !input spot_price_sensor
+      max_spot_price: !input max_spot_price
+      cheap_hours_start: !input cheap_hours_start
+      cheap_hours_end: !input cheap_hours_end
+      force_duration_minutes: !input force_duration_minutes
+      surplus_enabled: "{{ is_state(surplus_mode_switch, 'on') }}"
+      current_spot_price: "{{ states(spot_price_sensor) | float(999) }}"
+      now_time: "{{ now().strftime('%H:%M:%S') }}"
+      in_cheap_hours: >-
+        {% if cheap_hours_start <= cheap_hours_end %}
+          {{ cheap_hours_start <= now_time <= cheap_hours_end }}
+        {% else %}
+          {{ now_time >= cheap_hours_start or now_time <= cheap_hours_end }}
+        {% endif %}
+      spot_allowed: "{{ current_spot_price <= (max_spot_price | float(0)) }}"
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ not surplus_enabled and (in_cheap_hours or spot_allowed) }}"
+        sequence:
+          - service: tuya_ev_charger.force_charge_for
+            data:
+              entry_id: "{{ entry_id }}"
+              duration_minutes: "{{ force_duration_minutes | int }}"
