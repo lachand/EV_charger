@@ -11,7 +11,7 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
-from homeassistant.core import Event, EventStateChangedData, HomeAssistant
+from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.util import dt as dt_util
 
@@ -450,6 +450,12 @@ class SolarSurplusController:
         self._schedule_evaluation("sensor_update")
 
     def _schedule_evaluation(self, reason: str) -> None:
+        # Sensor callbacks can come from worker threads. Marshal scheduling
+        # back to the Home Assistant event loop.
+        self._hass.add_job(self._async_schedule_evaluation, reason)
+
+    @callback
+    def _async_schedule_evaluation(self, reason: str) -> None:
         if self._evaluation_task is not None and not self._evaluation_task.done():
             self._rerun_requested = True
             return
