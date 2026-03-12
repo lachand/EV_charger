@@ -10,6 +10,7 @@ from homeassistant import config_entries
 from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers import selector
 
 from .const import (
     CONF_DEVICE_ID,
@@ -17,6 +18,8 @@ from .const import (
     CONF_PROTOCOL_VERSION,
     CONF_SCAN_INTERVAL,
     CONF_SURPLUS_ADJUST_COOLDOWN_S,
+    CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
+    CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
     CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
     CONF_SURPLUS_LINE_VOLTAGE,
@@ -30,6 +33,8 @@ from .const import (
     CONF_SURPLUS_STOP_THRESHOLD_W,
     CONF_SURPLUS_TARGET_OFFSET_W,
     DEFAULT_SURPLUS_ADJUST_COOLDOWN_S,
+    DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
+    DEFAULT_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
     DEFAULT_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
     DEFAULT_SURPLUS_LINE_VOLTAGE,
@@ -47,11 +52,13 @@ from .const import (
     DEFAULT_SCAN_INTERVAL_SECONDS,
     DOMAIN,
     MAX_SURPLUS_DELAY_S,
+    MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MAX_SURPLUS_LINE_VOLTAGE,
     MAX_SURPLUS_TARGET_OFFSET_W,
     MAX_SURPLUS_THRESHOLD_W,
     MAX_SCAN_INTERVAL_SECONDS,
     MIN_SURPLUS_DELAY_S,
+    MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MIN_SURPLUS_LINE_VOLTAGE,
     MIN_SURPLUS_TARGET_OFFSET_W,
     MIN_SURPLUS_THRESHOLD_W,
@@ -213,6 +220,13 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
             MIN_SURPLUS_DELAY_S,
             MAX_SURPLUS_DELAY_S,
         )
+        surplus_battery_soc_threshold = _option_int(
+            options,
+            CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+            DEFAULT_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+            MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+            MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+        )
         surplus_mode = _option_choice(
             options,
             CONF_SURPLUS_MODE,
@@ -244,22 +258,28 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                     ): vol.In(SURPLUS_MODES),
                     vol.Optional(
                         CONF_SURPLUS_SENSOR_ENTITY_ID,
-                        default=str(
-                            options.get(
-                                CONF_SURPLUS_SENSOR_ENTITY_ID,
-                                DEFAULT_SURPLUS_SENSOR_ENTITY_ID,
-                            )
+                        default=_option_entity(
+                            options,
+                            CONF_SURPLUS_SENSOR_ENTITY_ID,
+                            DEFAULT_SURPLUS_SENSOR_ENTITY_ID,
                         ),
-                    ): str,
+                    ): _sensor_selector(),
                     vol.Optional(
                         CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
-                        default=str(
-                            options.get(
-                                CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
-                                DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
-                            )
+                        default=_option_entity(
+                            options,
+                            CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
+                            DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
                         ),
-                    ): str,
+                    ): _sensor_selector(),
+                    vol.Optional(
+                        CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
+                        default=_option_entity(
+                            options,
+                            CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
+                            DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
+                        ),
+                    ): _sensor_selector(),
                     vol.Required(
                         CONF_SURPLUS_SENSOR_INVERTED,
                         default=_option_bool(
@@ -284,6 +304,16 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                         vol.Range(
                             min=MIN_SURPLUS_LINE_VOLTAGE,
                             max=MAX_SURPLUS_LINE_VOLTAGE,
+                        ),
+                    ),
+                    vol.Required(
+                        CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+                        default=surplus_battery_soc_threshold,
+                    ): vol.All(
+                        vol.Coerce(int),
+                        vol.Range(
+                            min=MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+                            max=MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
                         ),
                     ),
                     vol.Required(
@@ -388,3 +418,24 @@ def _option_choice(
     if value in choices:
         return value
     return default
+
+
+def _option_entity(
+    options: Mapping[str, Any],
+    key: str,
+    default: str,
+) -> str | None:
+    value = options.get(key, default)
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _sensor_selector() -> selector.EntitySelector:
+    return selector.EntitySelector(
+        selector.EntitySelectorConfig(
+            domain=["sensor"],
+            multiple=False,
+        )
+    )

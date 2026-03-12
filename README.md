@@ -70,10 +70,12 @@ Notes:
 - Mode `surplus solaire` (optionnel):
   - `surplus_mode_enabled`: active la régulation automatique.
   - `surplus_mode`: `classic` ou `zero_injection`.
-  - `surplus_sensor_entity_id`: capteur puissance réseau (import/export) en W.
+  - `surplus_sensor_entity_id`: capteur puissance réseau (import/export) en W (sélection via liste déroulante).
   - `surplus_sensor_inverted`: à activer si ton capteur est inversé.
-  - `surplus_curtailment_sensor_entity_id`: puissance bridée potentielle (W) (optionnel, surtout en `zero_injection`).
+  - `surplus_curtailment_sensor_entity_id`: puissance bridée potentielle (W) (optionnel, surtout en `zero_injection`, sélection via liste déroulante).
   - `surplus_curtailment_sensor_inverted`: inversion du capteur de puissance bridée.
+  - `surplus_battery_soc_sensor_entity_id`: capteur de pourcentage batterie (optionnel, liste déroulante).
+  - `surplus_battery_soc_threshold_pct`: seuil minimal de batterie pour autoriser la charge via le mode surplus.
   - `surplus_start_threshold_w` / `surplus_stop_threshold_w`: hystérésis démarrage/arrêt.
   - `surplus_target_offset_w`: delta de consigne (marge en W).
   - `surplus_start_delay_s` / `surplus_stop_delay_s`: temporisations anti oscillation.
@@ -83,20 +85,22 @@ Notes:
 ### Configuration Surplus: cas pratiques
 
 1. `surplus_mode = classic` (Shelly / compteur réseau standard)
-   - Utilise `surplus_sensor_entity_id` pour la puissance réseau.
-   - L'intégration reconstruit automatiquement le surplus réel en tenant compte de la puissance EV interne (`power_l1`).
-   - `surplus_curtailment_sensor_entity_id` peut rester vide.
+  - Utilise `surplus_sensor_entity_id` pour la puissance réseau.
+  - L'intégration reconstruit automatiquement le surplus réel en tenant compte de la puissance EV interne (`power_l1`).
+  - Si `surplus_battery_soc_sensor_entity_id` est défini, la charge ne démarre que si la batterie est >= `surplus_battery_soc_threshold_pct`.
+  - `surplus_curtailment_sensor_entity_id` peut rester vide.
 2. `surplus_mode = zero_injection` (installation qui bride la production)
-   - Garde le même `surplus_sensor_entity_id` réseau.
-   - Ajoute `surplus_curtailment_sensor_entity_id` avec la puissance bridée potentielle (si disponible).
-   - L'intégration additionne le surplus réseau reconstruit et la puissance bridée potentielle pour fixer la consigne EV.
-   - Si tu n'as pas ce capteur, le mode fonctionne mais se comportera proche du mode `classic`.
+  - Garde le même `surplus_sensor_entity_id` réseau.
+  - Ajoute `surplus_curtailment_sensor_entity_id` avec la puissance bridée potentielle (si disponible).
+  - L'intégration additionne le surplus réseau reconstruit et la puissance bridée potentielle pour fixer la consigne EV.
+  - Si `surplus_battery_soc_sensor_entity_id` est défini, la puissance bridée n'est utilisée que lorsque la batterie atteint `surplus_battery_soc_threshold_pct`.
+  - Si tu n'as pas ce capteur, le mode fonctionne mais se comportera proche du mode `classic`.
 
 ### Entités exposées
 
 - `sensor`: mesures électriques, température, état, diagnostics.
 - `number`: consigne d'intensité.
-- `switch`: session de charge, NFC.
+- `switch`: session de charge, NFC, mode surplus solaire.
 - `button`: redémarrage borne.
 
 ### Notes
@@ -154,10 +158,12 @@ Notes:
 - `solar surplus mode` (optional):
   - `surplus_mode_enabled`: enables automatic regulation.
   - `surplus_mode`: `classic` or `zero_injection`.
-  - `surplus_sensor_entity_id`: grid power sensor (import/export) in W.
+  - `surplus_sensor_entity_id`: grid power sensor (import/export) in W (entity dropdown).
   - `surplus_sensor_inverted`: enable if your sensor sign is reversed.
-  - `surplus_curtailment_sensor_entity_id`: potential curtailed power (W) (optional, mainly for `zero_injection`).
+  - `surplus_curtailment_sensor_entity_id`: potential curtailed power (W) (optional, mainly for `zero_injection`, entity dropdown).
   - `surplus_curtailment_sensor_inverted`: invert curtailed power sensor sign.
+  - `surplus_battery_soc_sensor_entity_id`: battery SOC percentage sensor (optional, entity dropdown).
+  - `surplus_battery_soc_threshold_pct`: minimum SOC threshold required for surplus charging.
   - `surplus_start_threshold_w` / `surplus_stop_threshold_w`: start/stop hysteresis.
   - `surplus_target_offset_w`: target delta margin (W).
   - `surplus_start_delay_s` / `surplus_stop_delay_s`: anti-flapping delays.
@@ -167,20 +173,22 @@ Notes:
 ### Surplus Configuration: practical cases
 
 1. `surplus_mode = classic` (Shelly / standard grid meter)
-   - Use `surplus_sensor_entity_id` for grid power.
-   - The integration automatically reconstructs real surplus using internal EV power telemetry (`power_l1`).
-   - `surplus_curtailment_sensor_entity_id` can stay empty.
+  - Use `surplus_sensor_entity_id` for grid power.
+  - The integration automatically reconstructs real surplus using internal EV power telemetry (`power_l1`).
+  - If `surplus_battery_soc_sensor_entity_id` is configured, charging starts only when SOC is >= `surplus_battery_soc_threshold_pct`.
+  - `surplus_curtailment_sensor_entity_id` can stay empty.
 2. `surplus_mode = zero_injection` (site with PV curtailment)
-   - Keep the same grid `surplus_sensor_entity_id`.
-   - Add `surplus_curtailment_sensor_entity_id` with potential curtailed power (if available).
-   - The integration adds reconstructed grid surplus and potential curtailed power to compute EV setpoint.
-   - Without that sensor, it still works but behaves close to `classic`.
+  - Keep the same grid `surplus_sensor_entity_id`.
+  - Add `surplus_curtailment_sensor_entity_id` with potential curtailed power (if available).
+  - The integration adds reconstructed grid surplus and potential curtailed power to compute EV setpoint.
+  - If `surplus_battery_soc_sensor_entity_id` is configured, curtailed power is used only when battery SOC reaches `surplus_battery_soc_threshold_pct`.
+  - Without that sensor, it still works but behaves close to `classic`.
 
 ### Exposed entities
 
 - `sensor`: electrical values, temperature, state, diagnostics.
 - `number`: current setpoint.
-- `switch`: charging session, NFC.
+- `switch`: charging session, NFC, solar surplus mode.
 - `button`: charger reboot.
 
 ### Notes

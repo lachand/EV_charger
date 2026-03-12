@@ -12,6 +12,8 @@ from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import (
     CONF_SURPLUS_ADJUST_COOLDOWN_S,
+    CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
+    CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
     CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
     CONF_SURPLUS_LINE_VOLTAGE,
@@ -25,6 +27,8 @@ from .const import (
     CONF_SURPLUS_STOP_THRESHOLD_W,
     CONF_SURPLUS_TARGET_OFFSET_W,
     DEFAULT_SURPLUS_ADJUST_COOLDOWN_S,
+    DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
+    DEFAULT_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
     DEFAULT_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
     DEFAULT_SURPLUS_LINE_VOLTAGE,
@@ -38,14 +42,15 @@ from .const import (
     DEFAULT_SURPLUS_STOP_THRESHOLD_W,
     DEFAULT_SURPLUS_TARGET_OFFSET_W,
     MAX_SURPLUS_DELAY_S,
+    MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MAX_SURPLUS_LINE_VOLTAGE,
     MAX_SURPLUS_TARGET_OFFSET_W,
     MAX_SURPLUS_THRESHOLD_W,
     MIN_SURPLUS_DELAY_S,
+    MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MIN_SURPLUS_LINE_VOLTAGE,
     MIN_SURPLUS_TARGET_OFFSET_W,
     MIN_SURPLUS_THRESHOLD_W,
-    SURPLUS_MODE_CLASSIC,
     SURPLUS_MODE_ZERO_INJECTION,
     SURPLUS_MODES,
 )
@@ -64,6 +69,8 @@ class SolarSurplusSettings:
     grid_sensor_inverted: bool
     curtailment_sensor_entity_id: str
     curtailment_sensor_inverted: bool
+    battery_soc_sensor_entity_id: str
+    battery_soc_threshold_pct: int
     line_voltage: int
     start_threshold_w: int
     stop_threshold_w: int
@@ -108,6 +115,8 @@ class SolarSurplusController:
         sensor_entities = [self._settings.grid_sensor_entity_id]
         if self._settings.curtailment_sensor_entity_id:
             sensor_entities.append(self._settings.curtailment_sensor_entity_id)
+        if self._settings.battery_soc_sensor_entity_id:
+            sensor_entities.append(self._settings.battery_soc_sensor_entity_id)
 
         self._unsub_coordinator = self._coordinator.async_add_listener(
             self._handle_coordinator_update
@@ -172,7 +181,8 @@ class SolarSurplusController:
             self._stop_candidate_since = None
             return
 
-        available_surplus_w = self._available_surplus_w(data, grid_power_w)
+        battery_ready = self._is_battery_threshold_met()
+        available_surplus_w = self._available_surplus_w(data, grid_power_w, battery_ready)
         available_currents = allowed_currents(data)
         if not available_currents:
             return
@@ -189,7 +199,8 @@ class SolarSurplusController:
             self._start_candidate_since = None
 
             should_stop = (
-                available_surplus_w <= self._settings.stop_threshold_w
+                not battery_ready
+                or available_surplus_w <= self._settings.stop_threshold_w
                 or max_supported_current < min_current
             )
             if should_stop:
@@ -217,7 +228,8 @@ class SolarSurplusController:
 
         self._stop_candidate_since = None
         can_start = (
-            available_surplus_w >= self._settings.start_threshold_w
+            battery_ready
+            and available_surplus_w >= self._settings.start_threshold_w
             and max_supported_current >= min_current
         )
         if not can_start:
@@ -239,13 +251,18 @@ class SolarSurplusController:
             self._last_action_ts = now
             await self._coordinator.async_request_refresh()
 
-    def _available_surplus_w(self, data: EVMetrics, grid_power_w: float) -> float:
+    def _available_surplus_w(
+        self,
+        data: EVMetrics,
+        grid_power_w: float,
+        battery_ready: bool,
+    ) -> float:
         # Positive grid power means import. Reconstruct natural surplus by
         # adding EV consumption back into the grid balance.
         ev_power_w = _ev_power_w(data)
         reconstructed_surplus_w = ev_power_w - grid_power_w
 
-        if self._settings.mode == SURPLUS_MODE_ZERO_INJECTION:
+        if self._settings.mode == SURPLUS_MODE_ZERO_INJECTION and battery_ready:
             reconstructed_surplus_w += self._read_curtailment_power_w()
 
         return reconstructed_surplus_w + self._settings.target_offset_w
@@ -268,6 +285,14 @@ class SolarSurplusController:
             value = -value
         return max(0.0, value)
 
+    def _is_battery_threshold_met(self) -> bool:
+        if not self._settings.battery_soc_sensor_entity_id:
+            return True
+        soc = self._read_sensor_power_w(self._settings.battery_soc_sensor_entity_id)
+        if soc is None:
+            return False
+        return soc >= float(self._settings.battery_soc_threshold_pct)
+
     def _read_sensor_power_w(self, entity_id: str) -> float | None:
         state = self._hass.states.get(entity_id)
         if state is None:
@@ -280,7 +305,7 @@ class SolarSurplusController:
             value = float(str(raw).replace(",", "."))
         except ValueError:
             LOGGER.debug(
-                "Unable to parse power sensor '%s' value '%s'.",
+                "Unable to parse numeric sensor '%s' value '%s'.",
                 entity_id,
                 raw,
             )
@@ -339,6 +364,18 @@ def _settings_from_entry(entry: ConfigEntry) -> SolarSurplusSettings:
             CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
             DEFAULT_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
         ),
+        battery_soc_sensor_entity_id=_option_str(
+            options,
+            CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
+            DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
+        ),
+        battery_soc_threshold_pct=_option_int(
+            options,
+            CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+            DEFAULT_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+            MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+            MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+        ),
         line_voltage=_option_int(
             options,
             CONF_SURPLUS_LINE_VOLTAGE,
@@ -381,6 +418,8 @@ def _settings_from_entry(entry: ConfigEntry) -> SolarSurplusSettings:
 
 def _option_str(options: Any, key: str, default: str) -> str:
     value = options.get(key, default)
+    if value is None:
+        return ""
     return str(value).strip()
 
 

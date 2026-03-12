@@ -33,6 +33,8 @@
           "surplus_sensor_inverted": "Invert grid sensor sign",
           "surplus_curtailment_sensor_entity_id": "Potential curtailed power sensor (W) (optional)",
           "surplus_curtailment_sensor_inverted": "Invert curtailed power sensor sign",
+          "surplus_battery_soc_sensor_entity_id": "Battery SOC sensor (%) (optional)",
+          "surplus_battery_soc_threshold_pct": "Minimum battery SOC threshold (%)",
           "surplus_line_voltage": "Voltage reference (V)",
           "surplus_start_threshold_w": "Charge start threshold (W)",
           "surplus_stop_threshold_w": "Charge stop threshold (W)",
@@ -102,6 +104,9 @@
       },
       "nfc_enabled": {
         "name": "NFC"
+      },
+      "surplus_mode": {
+        "name": "Solar surplus mode"
       }
     }
   }

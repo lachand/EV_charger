@@ -33,6 +33,8 @@
           "surplus_sensor_inverted": "Inverser le signe capteur réseau",
           "surplus_curtailment_sensor_entity_id": "Entité puissance bridée potentielle (W) (optionnel)",
           "surplus_curtailment_sensor_inverted": "Inverser le signe capteur puissance bridée",
+          "surplus_battery_soc_sensor_entity_id": "Entité % batterie (optionnel)",
+          "surplus_battery_soc_threshold_pct": "Seuil minimal % batterie",
           "surplus_line_voltage": "Tension de calcul (V)",
           "surplus_start_threshold_w": "Seuil démarrage charge (W)",
           "surplus_stop_threshold_w": "Seuil arrêt charge (W)",
@@ -102,6 +104,9 @@
       },
       "nfc_enabled": {
         "name": "NFC"
+      },
+      "surplus_mode": {
+        "name": "Mode surplus solaire"
       }
     }
   }
