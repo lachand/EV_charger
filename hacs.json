@@ -1,8 +1,5 @@
 {
   "name": "Tuya EV Charger Local",
   "content_in_root": false,
-  "domains": [
-    "tuya_ev_charger"
-  ],
   "render_readme": true
 }

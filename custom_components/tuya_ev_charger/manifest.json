@@ -1,8 +1,9 @@
 {
   "domain": "tuya_ev_charger",
   "name": "Tuya EV Charger Local",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "documentation": "https://github.com/lachand/EV_charger",
+  "issue_tracker": "https://github.com/lachand/EV_charger/issues",
   "iot_class": "local_polling",
   "config_flow": true,
   "requirements": ["tinytuya>=1.16.0"],
