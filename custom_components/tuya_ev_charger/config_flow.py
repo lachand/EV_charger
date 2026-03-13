@@ -20,110 +20,36 @@ from .const import (
     CONF_LOCAL_KEY,
     CONF_PROTOCOL_VERSION,
     CONF_SCAN_INTERVAL,
-    CONF_SURPLUS_ADJUST_COOLDOWN_S,
-    CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
-    CONF_SURPLUS_ADJUST_UP_COOLDOWN_S,
+    CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
+    CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
     CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
     CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
     CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
-    CONF_SURPLUS_DEPARTURE_MODE_ENABLED,
-    CONF_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
-    CONF_SURPLUS_DEPARTURE_TIME,
-    CONF_SURPLUS_DRY_RUN_CONTINUOUS_ENABLED,
-    CONF_SURPLUS_FORECAST_DROP_GUARD_W,
-    CONF_SURPLUS_FORECAST_MODE_ENABLED,
     CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
-    CONF_SURPLUS_FORECAST_SMOOTHING_S,
-    CONF_SURPLUS_FORECAST_WEIGHT_PCT,
-    CONF_SURPLUS_LINE_VOLTAGE,
-    CONF_SURPLUS_MAX_SESSION_DURATION_MIN,
-    CONF_SURPLUS_MAX_SESSION_END_TIME,
-    CONF_SURPLUS_MAX_SESSION_ENERGY_KWH,
-    CONF_SURPLUS_MIN_RUN_TIME_S,
-    CONF_SURPLUS_MODE,
     CONF_SURPLUS_MODE_ENABLED,
     CONF_SURPLUS_SENSOR_ENTITY_ID,
     CONF_SURPLUS_SENSOR_INVERTED,
-    CONF_SURPLUS_START_DELAY_S,
-    CONF_SURPLUS_START_THRESHOLD_W,
-    CONF_SURPLUS_STOP_DELAY_S,
-    CONF_SURPLUS_STOP_THRESHOLD_W,
-    CONF_SURPLUS_TARGET_OFFSET_W,
-    CONF_SURPLUS_RAMP_STEP_A,
-    CONF_TARIFF_ALLOWED_VALUES,
-    CONF_TARIFF_MAX_PRICE_EUR_KWH,
-    CONF_TARIFF_MODE,
-    CONF_TARIFF_PRICE_SENSOR_ENTITY_ID,
-    CONF_TARIFF_SENSOR_ENTITY_ID,
     DEFAULT_CHARGER_PROFILE,
     DEFAULT_CHARGER_PROFILE_JSON,
-    DEFAULT_SURPLUS_ADJUST_COOLDOWN_S,
+    DEFAULT_NAME,
+    DEFAULT_PROTOCOL_VERSION,
+    DEFAULT_SCAN_INTERVAL_SECONDS,
+    DEFAULT_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
+    DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
     DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
     DEFAULT_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
     DEFAULT_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
-    DEFAULT_SURPLUS_DEPARTURE_MODE_ENABLED,
-    DEFAULT_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
-    DEFAULT_SURPLUS_DEPARTURE_TIME,
-    DEFAULT_SURPLUS_DRY_RUN_CONTINUOUS_ENABLED,
-    DEFAULT_SURPLUS_FORECAST_DROP_GUARD_W,
-    DEFAULT_SURPLUS_FORECAST_MODE_ENABLED,
     DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
-    DEFAULT_SURPLUS_FORECAST_SMOOTHING_S,
-    DEFAULT_SURPLUS_FORECAST_WEIGHT_PCT,
-    DEFAULT_SURPLUS_LINE_VOLTAGE,
-    DEFAULT_SURPLUS_MAX_SESSION_DURATION_MIN,
-    DEFAULT_SURPLUS_MAX_SESSION_END_TIME,
-    DEFAULT_SURPLUS_MAX_SESSION_ENERGY_KWH,
-    DEFAULT_SURPLUS_MIN_RUN_TIME_S,
-    DEFAULT_SURPLUS_MODE,
     DEFAULT_SURPLUS_MODE_ENABLED,
     DEFAULT_SURPLUS_SENSOR_ENTITY_ID,
     DEFAULT_SURPLUS_SENSOR_INVERTED,
-    DEFAULT_SURPLUS_START_DELAY_S,
-    DEFAULT_SURPLUS_START_THRESHOLD_W,
-    DEFAULT_SURPLUS_STOP_DELAY_S,
-    DEFAULT_SURPLUS_STOP_THRESHOLD_W,
-    DEFAULT_SURPLUS_TARGET_OFFSET_W,
-    DEFAULT_SURPLUS_RAMP_STEP_A,
-    DEFAULT_TARIFF_ALLOWED_VALUES,
-    DEFAULT_TARIFF_MAX_PRICE_EUR_KWH,
-    DEFAULT_TARIFF_MODE,
-    DEFAULT_TARIFF_PRICE_SENSOR_ENTITY_ID,
-    DEFAULT_TARIFF_SENSOR_ENTITY_ID,
-    DEFAULT_NAME,
-    DEFAULT_PROTOCOL_VERSION,
-    DEFAULT_SCAN_INTERVAL_SECONDS,
     DOMAIN,
-    MAX_SURPLUS_DELAY_S,
-    MAX_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
-    MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-    MAX_SURPLUS_LINE_VOLTAGE,
-    MAX_SURPLUS_FORECAST_DROP_GUARD_W,
-    MAX_SURPLUS_FORECAST_WEIGHT_PCT,
-    MAX_SURPLUS_RAMP_STEP_A,
-    MAX_SURPLUS_SESSION_DURATION_MIN,
-    MAX_SURPLUS_SESSION_ENERGY_KWH,
-    MAX_SURPLUS_TARGET_OFFSET_W,
-    MAX_SURPLUS_THRESHOLD_W,
-    MAX_TARIFF_PRICE_EUR_KWH,
     MAX_SCAN_INTERVAL_SECONDS,
-    MIN_SURPLUS_DELAY_S,
-    MIN_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
-    MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-    MIN_SURPLUS_LINE_VOLTAGE,
-    MIN_SURPLUS_FORECAST_DROP_GUARD_W,
-    MIN_SURPLUS_FORECAST_WEIGHT_PCT,
-    MIN_SURPLUS_RAMP_STEP_A,
-    MIN_SURPLUS_SESSION_DURATION_MIN,
-    MIN_SURPLUS_SESSION_ENERGY_KWH,
-    MIN_SURPLUS_TARGET_OFFSET_W,
-    MIN_SURPLUS_THRESHOLD_W,
-    MIN_TARIFF_PRICE_EUR_KWH,
+    MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MIN_SCAN_INTERVAL_SECONDS,
-    SURPLUS_MODES,
-    TARIFF_MODES,
+    MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     SUPPORTED_PROTOCOL_VERSIONS,
 )
 from .tuya_ev_charger import TuyaEVChargerClient
@@ -143,7 +69,8 @@ def _build_user_schema(
         {
             vol.Required(CONF_HOST, default=user_input.get(CONF_HOST, "")): str,
             vol.Required(
-                CONF_DEVICE_ID, default=user_input.get(CONF_DEVICE_ID, "")
+                CONF_DEVICE_ID,
+                default=user_input.get(CONF_DEVICE_ID, ""),
             ): str,
             vol.Required(CONF_LOCAL_KEY, default=user_input.get(CONF_LOCAL_KEY, "")): str,
             vol.Required(
@@ -224,10 +151,7 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
     ) -> FlowResult:
         if user_input is not None:
             cleaned_input = dict(user_input)
-            _normalize_optional_entity_value(
-                cleaned_input,
-                CONF_SURPLUS_SENSOR_ENTITY_ID,
-            )
+            _normalize_optional_entity_value(cleaned_input, CONF_SURPLUS_SENSOR_ENTITY_ID)
             _normalize_optional_entity_value(
                 cleaned_input,
                 CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
@@ -240,29 +164,23 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                 cleaned_input,
                 CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
             )
-            _normalize_optional_entity_value(
-                cleaned_input,
-                CONF_TARIFF_SENSOR_ENTITY_ID,
-            )
-            _normalize_optional_entity_value(
-                cleaned_input,
-                CONF_TARIFF_PRICE_SENSOR_ENTITY_ID,
-            )
-            _normalize_text_value(
-                cleaned_input,
-                CONF_TARIFF_ALLOWED_VALUES,
-                DEFAULT_TARIFF_ALLOWED_VALUES,
-            )
             _normalize_text_value(
                 cleaned_input,
                 CONF_CHARGER_PROFILE_JSON,
                 DEFAULT_CHARGER_PROFILE_JSON,
             )
-            _normalize_end_time_value(cleaned_input, CONF_SURPLUS_MAX_SESSION_END_TIME)
-            _normalize_end_time_value(cleaned_input, CONF_SURPLUS_DEPARTURE_TIME)
+            _normalize_soc_thresholds(cleaned_input)
             return self.async_create_entry(data=cleaned_input)
 
         options = self._config_entry.options
+
+        current_scan_interval = _option_int(
+            options,
+            CONF_SCAN_INTERVAL,
+            DEFAULT_SCAN_INTERVAL_SECONDS,
+            MIN_SCAN_INTERVAL_SECONDS,
+            MAX_SCAN_INTERVAL_SECONDS,
+        )
         charger_profile_json = _option_text(
             options,
             CONF_CHARGER_PROFILE_JSON,
@@ -273,165 +191,24 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                 )
             ),
         )
-        current_scan_interval = _option_int(
+
+        high_threshold = _option_int(
             options,
-            CONF_SCAN_INTERVAL,
-            DEFAULT_SCAN_INTERVAL_SECONDS,
-            MIN_SCAN_INTERVAL_SECONDS,
-            MAX_SCAN_INTERVAL_SECONDS,
-        )
-        surplus_line_voltage = _option_int(
-            options,
-            CONF_SURPLUS_LINE_VOLTAGE,
-            DEFAULT_SURPLUS_LINE_VOLTAGE,
-            MIN_SURPLUS_LINE_VOLTAGE,
-            MAX_SURPLUS_LINE_VOLTAGE,
-        )
-        surplus_start_threshold = _option_int(
-            options,
-            CONF_SURPLUS_START_THRESHOLD_W,
-            DEFAULT_SURPLUS_START_THRESHOLD_W,
-            MIN_SURPLUS_THRESHOLD_W,
-            MAX_SURPLUS_THRESHOLD_W,
-        )
-        surplus_stop_threshold = _option_int(
-            options,
-            CONF_SURPLUS_STOP_THRESHOLD_W,
-            DEFAULT_SURPLUS_STOP_THRESHOLD_W,
-            MIN_SURPLUS_THRESHOLD_W,
-            MAX_SURPLUS_THRESHOLD_W,
-        )
-        if surplus_start_threshold <= surplus_stop_threshold:
-            if surplus_stop_threshold >= MAX_SURPLUS_THRESHOLD_W:
-                surplus_stop_threshold = MAX_SURPLUS_THRESHOLD_W - 1
-            surplus_start_threshold = surplus_stop_threshold + 1
-        surplus_target_offset = _option_int(
-            options,
-            CONF_SURPLUS_TARGET_OFFSET_W,
-            DEFAULT_SURPLUS_TARGET_OFFSET_W,
-            MIN_SURPLUS_TARGET_OFFSET_W,
-            MAX_SURPLUS_TARGET_OFFSET_W,
-        )
-        surplus_start_delay = _option_int(
-            options,
-            CONF_SURPLUS_START_DELAY_S,
-            DEFAULT_SURPLUS_START_DELAY_S,
-            MIN_SURPLUS_DELAY_S,
-            MAX_SURPLUS_DELAY_S,
-        )
-        surplus_stop_delay = _option_int(
-            options,
-            CONF_SURPLUS_STOP_DELAY_S,
-            DEFAULT_SURPLUS_STOP_DELAY_S,
-            MIN_SURPLUS_DELAY_S,
-            MAX_SURPLUS_DELAY_S,
-        )
-        surplus_adjust_cooldown = _option_int(
-            options,
-            CONF_SURPLUS_ADJUST_COOLDOWN_S,
-            DEFAULT_SURPLUS_ADJUST_COOLDOWN_S,
-            MIN_SURPLUS_DELAY_S,
-            MAX_SURPLUS_DELAY_S,
-        )
-        surplus_adjust_up_cooldown = _option_int(
-            options,
-            CONF_SURPLUS_ADJUST_UP_COOLDOWN_S,
-            surplus_adjust_cooldown,
-            MIN_SURPLUS_DELAY_S,
-            MAX_SURPLUS_DELAY_S,
-        )
-        surplus_adjust_down_cooldown = _option_int(
-            options,
-            CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
-            surplus_adjust_cooldown,
-            MIN_SURPLUS_DELAY_S,
-            MAX_SURPLUS_DELAY_S,
-        )
-        surplus_ramp_step_a = _option_int(
-            options,
-            CONF_SURPLUS_RAMP_STEP_A,
-            DEFAULT_SURPLUS_RAMP_STEP_A,
-            MIN_SURPLUS_RAMP_STEP_A,
-            MAX_SURPLUS_RAMP_STEP_A,
-        )
-        surplus_forecast_weight_pct = _option_int(
-            options,
-            CONF_SURPLUS_FORECAST_WEIGHT_PCT,
-            DEFAULT_SURPLUS_FORECAST_WEIGHT_PCT,
-            MIN_SURPLUS_FORECAST_WEIGHT_PCT,
-            MAX_SURPLUS_FORECAST_WEIGHT_PCT,
-        )
-        surplus_forecast_smoothing_s = _option_int(
-            options,
-            CONF_SURPLUS_FORECAST_SMOOTHING_S,
-            DEFAULT_SURPLUS_FORECAST_SMOOTHING_S,
-            MIN_SURPLUS_DELAY_S,
-            MAX_SURPLUS_DELAY_S,
-        )
-        surplus_forecast_drop_guard_w = _option_int(
-            options,
-            CONF_SURPLUS_FORECAST_DROP_GUARD_W,
-            DEFAULT_SURPLUS_FORECAST_DROP_GUARD_W,
-            MIN_SURPLUS_FORECAST_DROP_GUARD_W,
-            MAX_SURPLUS_FORECAST_DROP_GUARD_W,
-        )
-        surplus_battery_soc_threshold = _option_int(
-            options,
-            CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-            DEFAULT_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+            CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
+            _legacy_high_threshold_default(options),
             MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
             MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
         )
-        surplus_min_run_time = _option_int(
+        low_threshold = _option_int(
             options,
-            CONF_SURPLUS_MIN_RUN_TIME_S,
-            DEFAULT_SURPLUS_MIN_RUN_TIME_S,
-            MIN_SURPLUS_DELAY_S,
-            MAX_SURPLUS_DELAY_S,
+            CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
+            min(DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT, high_threshold),
+            MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+            MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
         )
-        surplus_max_session_duration_min = _option_int(
-            options,
-            CONF_SURPLUS_MAX_SESSION_DURATION_MIN,
-            DEFAULT_SURPLUS_MAX_SESSION_DURATION_MIN,
-            MIN_SURPLUS_SESSION_DURATION_MIN,
-            MAX_SURPLUS_SESSION_DURATION_MIN,
-        )
-        surplus_max_session_energy_kwh = _option_float(
-            options,
-            CONF_SURPLUS_MAX_SESSION_ENERGY_KWH,
-            DEFAULT_SURPLUS_MAX_SESSION_ENERGY_KWH,
-            MIN_SURPLUS_SESSION_ENERGY_KWH,
-            MAX_SURPLUS_SESSION_ENERGY_KWH,
-        )
-        surplus_max_session_end_time = _option_end_time(
-            options,
-            CONF_SURPLUS_MAX_SESSION_END_TIME,
-            DEFAULT_SURPLUS_MAX_SESSION_END_TIME,
-        )
-        surplus_departure_time = _option_end_time(
-            options,
-            CONF_SURPLUS_DEPARTURE_TIME,
-            DEFAULT_SURPLUS_DEPARTURE_TIME,
-        )
-        surplus_departure_target_energy_kwh = _option_float(
-            options,
-            CONF_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
-            DEFAULT_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
-            MIN_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
-            MAX_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
-        )
-        surplus_mode = _option_choice(
-            options,
-            CONF_SURPLUS_MODE,
-            DEFAULT_SURPLUS_MODE,
-            SURPLUS_MODES,
-        )
-        tariff_mode = _option_choice(
-            options,
-            CONF_TARIFF_MODE,
-            DEFAULT_TARIFF_MODE,
-            TARIFF_MODES,
-        )
+        if low_threshold >= high_threshold:
+            low_threshold = max(MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, high_threshold - 1)
+
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
@@ -473,14 +250,6 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                             DEFAULT_SURPLUS_MODE_ENABLED,
                         ),
                     ): bool,
-                    vol.Required(
-                        CONF_SURPLUS_MODE,
-                        default=surplus_mode,
-                    ): vol.In(SURPLUS_MODES),
-                    vol.Required(
-                        CONF_TARIFF_MODE,
-                        default=tariff_mode,
-                    ): vol.In(TARIFF_MODES),
                     vol.Optional(
                         CONF_SURPLUS_SENSOR_ENTITY_ID,
                         default=_option_entity(
@@ -489,6 +258,14 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                             DEFAULT_SURPLUS_SENSOR_ENTITY_ID,
                         ),
                     ): _optional_sensor_selector(),
+                    vol.Required(
+                        CONF_SURPLUS_SENSOR_INVERTED,
+                        default=_option_bool(
+                            options,
+                            CONF_SURPLUS_SENSOR_INVERTED,
+                            DEFAULT_SURPLUS_SENSOR_INVERTED,
+                        ),
+                    ): bool,
                     vol.Optional(
                         CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
                         default=_option_entity(
@@ -497,6 +274,14 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                             DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
                         ),
                     ): _optional_sensor_selector(),
+                    vol.Required(
+                        CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
+                        default=_option_bool(
+                            options,
+                            CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
+                            DEFAULT_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
+                        ),
+                    ): bool,
                     vol.Optional(
                         CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
                         default=_option_entity(
@@ -506,82 +291,8 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                         ),
                     ): _optional_sensor_selector(),
                     vol.Required(
-                        CONF_SURPLUS_FORECAST_MODE_ENABLED,
-                        default=_option_bool(
-                            options,
-                            CONF_SURPLUS_FORECAST_MODE_ENABLED,
-                            DEFAULT_SURPLUS_FORECAST_MODE_ENABLED,
-                        ),
-                    ): bool,
-                    vol.Required(
-                        CONF_SURPLUS_DRY_RUN_CONTINUOUS_ENABLED,
-                        default=_option_bool(
-                            options,
-                            CONF_SURPLUS_DRY_RUN_CONTINUOUS_ENABLED,
-                            DEFAULT_SURPLUS_DRY_RUN_CONTINUOUS_ENABLED,
-                        ),
-                    ): bool,
-                    vol.Optional(
-                        CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
-                        default=_option_entity(
-                            options,
-                            CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
-                            DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
-                        ),
-                    ): _optional_sensor_selector(),
-                    vol.Optional(
-                        CONF_TARIFF_SENSOR_ENTITY_ID,
-                        default=_option_entity(
-                            options,
-                            CONF_TARIFF_SENSOR_ENTITY_ID,
-                            DEFAULT_TARIFF_SENSOR_ENTITY_ID,
-                        ),
-                    ): _optional_sensor_selector(),
-                    vol.Optional(
-                        CONF_TARIFF_PRICE_SENSOR_ENTITY_ID,
-                        default=_option_entity(
-                            options,
-                            CONF_TARIFF_PRICE_SENSOR_ENTITY_ID,
-                            DEFAULT_TARIFF_PRICE_SENSOR_ENTITY_ID,
-                        ),
-                    ): _optional_sensor_selector(),
-                    vol.Optional(
-                        CONF_TARIFF_ALLOWED_VALUES,
-                        default=_option_text(
-                            options,
-                            CONF_TARIFF_ALLOWED_VALUES,
-                            DEFAULT_TARIFF_ALLOWED_VALUES,
-                        ),
-                    ): str,
-                    vol.Required(
-                        CONF_SURPLUS_SENSOR_INVERTED,
-                        default=_option_bool(
-                            options,
-                            CONF_SURPLUS_SENSOR_INVERTED,
-                            DEFAULT_SURPLUS_SENSOR_INVERTED,
-                        ),
-                    ): bool,
-                    vol.Required(
-                        CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
-                        default=_option_bool(
-                            options,
-                            CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
-                            DEFAULT_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
-                        ),
-                    ): bool,
-                    vol.Required(
-                        CONF_SURPLUS_LINE_VOLTAGE,
-                        default=surplus_line_voltage,
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_SURPLUS_LINE_VOLTAGE,
-                            max=MAX_SURPLUS_LINE_VOLTAGE,
-                        ),
-                    ),
-                    vol.Required(
-                        CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-                        default=surplus_battery_soc_threshold,
+                        CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
+                        default=high_threshold,
                     ): vol.All(
                         vol.Coerce(int),
                         vol.Range(
@@ -590,190 +301,36 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                         ),
                     ),
                     vol.Required(
-                        CONF_SURPLUS_START_THRESHOLD_W,
-                        default=surplus_start_threshold,
+                        CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
+                        default=low_threshold,
                     ): vol.All(
                         vol.Coerce(int),
                         vol.Range(
-                            min=MIN_SURPLUS_THRESHOLD_W,
-                            max=MAX_SURPLUS_THRESHOLD_W,
-                        ),
-                    ),
-                    vol.Required(
-                        CONF_SURPLUS_STOP_THRESHOLD_W,
-                        default=surplus_stop_threshold,
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_SURPLUS_THRESHOLD_W,
-                            max=MAX_SURPLUS_THRESHOLD_W,
-                        ),
-                    ),
-                    vol.Required(
-                        CONF_SURPLUS_TARGET_OFFSET_W,
-                        default=surplus_target_offset,
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_SURPLUS_TARGET_OFFSET_W,
-                            max=MAX_SURPLUS_TARGET_OFFSET_W,
-                        ),
-                    ),
-                    vol.Required(
-                        CONF_SURPLUS_START_DELAY_S,
-                        default=surplus_start_delay,
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_SURPLUS_DELAY_S,
-                            max=MAX_SURPLUS_DELAY_S,
-                        ),
-                    ),
-                    vol.Required(
-                        CONF_SURPLUS_STOP_DELAY_S,
-                        default=surplus_stop_delay,
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_SURPLUS_DELAY_S,
-                            max=MAX_SURPLUS_DELAY_S,
-                        ),
-                    ),
-                    vol.Required(
-                        CONF_SURPLUS_ADJUST_UP_COOLDOWN_S,
-                        default=surplus_adjust_up_cooldown,
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_SURPLUS_DELAY_S,
-                            max=MAX_SURPLUS_DELAY_S,
-                        ),
-                    ),
-                    vol.Required(
-                        CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
-                        default=surplus_adjust_down_cooldown,
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_SURPLUS_DELAY_S,
-                            max=MAX_SURPLUS_DELAY_S,
-                        ),
-                    ),
-                    vol.Required(
-                        CONF_SURPLUS_RAMP_STEP_A,
-                        default=surplus_ramp_step_a,
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_SURPLUS_RAMP_STEP_A,
-                            max=MAX_SURPLUS_RAMP_STEP_A,
-                        ),
-                    ),
-                    vol.Required(
-                        CONF_SURPLUS_FORECAST_WEIGHT_PCT,
-                        default=surplus_forecast_weight_pct,
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_SURPLUS_FORECAST_WEIGHT_PCT,
-                            max=MAX_SURPLUS_FORECAST_WEIGHT_PCT,
-                        ),
-                    ),
-                    vol.Required(
-                        CONF_SURPLUS_FORECAST_SMOOTHING_S,
-                        default=surplus_forecast_smoothing_s,
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_SURPLUS_DELAY_S,
-                            max=MAX_SURPLUS_DELAY_S,
-                        ),
-                    ),
-                    vol.Required(
-                        CONF_SURPLUS_FORECAST_DROP_GUARD_W,
-                        default=surplus_forecast_drop_guard_w,
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_SURPLUS_FORECAST_DROP_GUARD_W,
-                            max=MAX_SURPLUS_FORECAST_DROP_GUARD_W,
-                        ),
-                    ),
-                    vol.Required(
-                        CONF_SURPLUS_MIN_RUN_TIME_S,
-                        default=surplus_min_run_time,
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_SURPLUS_DELAY_S,
-                            max=MAX_SURPLUS_DELAY_S,
-                        ),
-                    ),
-                    vol.Required(
-                        CONF_SURPLUS_MAX_SESSION_DURATION_MIN,
-                        default=surplus_max_session_duration_min,
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_SURPLUS_SESSION_DURATION_MIN,
-                            max=MAX_SURPLUS_SESSION_DURATION_MIN,
-                        ),
-                    ),
-                    vol.Required(
-                        CONF_SURPLUS_MAX_SESSION_ENERGY_KWH,
-                        default=surplus_max_session_energy_kwh,
-                    ): vol.All(
-                        vol.Coerce(float),
-                        vol.Range(
-                            min=MIN_SURPLUS_SESSION_ENERGY_KWH,
-                            max=MAX_SURPLUS_SESSION_ENERGY_KWH,
+                            min=MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+                            max=MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
                         ),
                     ),
                     vol.Optional(
-                        CONF_SURPLUS_MAX_SESSION_END_TIME,
-                        default=surplus_max_session_end_time,
-                    ): str,
-                    vol.Required(
-                        CONF_SURPLUS_DEPARTURE_MODE_ENABLED,
-                        default=_option_bool(
+                        CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
+                        default=_option_entity(
                             options,
-                            CONF_SURPLUS_DEPARTURE_MODE_ENABLED,
-                            DEFAULT_SURPLUS_DEPARTURE_MODE_ENABLED,
+                            CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
+                            DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
                         ),
-                    ): bool,
-                    vol.Optional(
-                        CONF_SURPLUS_DEPARTURE_TIME,
-                        default=surplus_departure_time,
-                    ): str,
-                    vol.Required(
-                        CONF_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
-                        default=surplus_departure_target_energy_kwh,
-                    ): vol.All(
-                        vol.Coerce(float),
-                        vol.Range(
-                            min=MIN_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
-                            max=MAX_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
-                        ),
-                    ),
-                    vol.Required(
-                        CONF_TARIFF_MAX_PRICE_EUR_KWH,
-                        default=_option_float(
-                            options,
-                            CONF_TARIFF_MAX_PRICE_EUR_KWH,
-                            DEFAULT_TARIFF_MAX_PRICE_EUR_KWH,
-                            MIN_TARIFF_PRICE_EUR_KWH,
-                            MAX_TARIFF_PRICE_EUR_KWH,
-                        ),
-                    ): vol.All(
-                        vol.Coerce(float),
-                        vol.Range(
-                            min=MIN_TARIFF_PRICE_EUR_KWH,
-                            max=MAX_TARIFF_PRICE_EUR_KWH,
-                        ),
-                    ),
+                    ): _optional_sensor_selector(),
                 }
             ),
         )
+
+
+def _legacy_high_threshold_default(options: Mapping[str, Any]) -> int:
+    return _option_int(
+        options,
+        CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+        DEFAULT_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
+        MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+        MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+    )
 
 
 def _option_int(
@@ -801,20 +358,6 @@ def _option_bool(options: Mapping[str, Any], key: str, default: bool) -> bool:
         if lowered in {"0", "false", "off", "no"}:
             return False
     return bool(value)
-
-
-def _option_float(
-    options: Mapping[str, Any],
-    key: str,
-    default: float,
-    minimum: float,
-    maximum: float,
-) -> float:
-    try:
-        value = float(options.get(key, default))
-    except (TypeError, ValueError):
-        value = default
-    return max(minimum, min(maximum, value))
 
 
 def _option_choice(
@@ -848,16 +391,6 @@ def _option_text(options: Mapping[str, Any], key: str, default: str) -> str:
     if value is None:
         return default
     return str(value).strip()
-
-
-def _option_end_time(options: Mapping[str, Any], key: str, default: str) -> str:
-    text = _option_text(options, key, default)
-    if not text:
-        return ""
-    try:
-        return str(vol.Match(r"^([01]?\d|2[0-3]):[0-5]\d$")(text))
-    except vol.Invalid:
-        return ""
 
 
 def _sensor_selector() -> selector.EntitySelector:
@@ -894,13 +427,23 @@ def _normalize_text_value(data: dict[str, Any], key: str, default: str) -> None:
     data[key] = text if text else default
 
 
-def _normalize_end_time_value(data: dict[str, Any], key: str) -> None:
-    value = data.get(key, "")
-    text = str(value).strip() if value is not None else ""
-    if not text:
-        data[key] = ""
-        return
+def _normalize_soc_thresholds(data: dict[str, Any]) -> None:
     try:
-        data[key] = str(vol.Match(r"^([01]?\d|2[0-3]):[0-5]\d$")(text))
-    except vol.Invalid:
-        data[key] = ""
+        high = int(data.get(CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT, DEFAULT_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT))
+    except (TypeError, ValueError):
+        high = DEFAULT_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT
+    try:
+        low = int(data.get(CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT, DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT))
+    except (TypeError, ValueError):
+        low = DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT
+
+    high = max(MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, min(MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, high))
+    low = max(MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, min(MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, low))
+
+    if high <= MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT:
+        high = MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT + 1
+    if low >= high:
+        low = max(MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, high - 1)
+
+    data[CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT] = high
+    data[CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT] = low

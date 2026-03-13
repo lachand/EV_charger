@@ -1,47 +1,30 @@
-# Lovelace card example for "Smart Charging"
+# Lovelace card example for simplified smart charging.
 # Duplicate and replace every <...> placeholder with your real entity IDs.
-# Tip: use Home Assistant UI "Inspect entity" to get exact IDs.
 type: vertical-stack
 cards:
   - type: markdown
     content: |
-      ## Charge intelligente
-      Presets, debug, et actions rapides.
+      ## Charge intelligente (simplifiee)
+      Mode surplus court: on/off + seuils batterie.
+
+  - type: entities
+    title: Pilotage
+    show_header_toggle: false
+    entities:
+      - entity: switch.<charger_charge_session_switch_entity_id>
+      - entity: number.<charger_charge_current_number_entity_id>
+      - entity: switch.<charger_surplus_mode_switch_entity_id>
+      - entity: binary_sensor.<charger_surplus_regulation_active_entity_id>
+
+  - type: entities
+    title: Batterie (hysteresis)
+    show_header_toggle: false
+    entities:
+      - entity: number.<charger_surplus_battery_soc_high_threshold_pct_entity_id>
+      - entity: number.<charger_surplus_battery_soc_low_threshold_pct_entity_id>
 
   - type: grid
-    columns: 3
-    square: false
-    cards:
-      - type: button
-        name: Preset Balanced
-        icon: mdi:tune
-        tap_action:
-          action: call-service
-          service: tuya_ev_charger.set_surplus_profile
-          data:
-            profile: balanced
-            # entry_id: "<entry_id>"  # Only needed with multiple chargers
-      - type: button
-        name: Preset Aggressive
-        icon: mdi:rocket-launch-outline
-        tap_action:
-          action: call-service
-          service: tuya_ev_charger.set_surplus_profile
-          data:
-            profile: aggressive
-            # entry_id: "<entry_id>"
-      - type: button
-        name: Preset Conservative
-        icon: mdi:shield-sun-outline
-        tap_action:
-          action: call-service
-          service: tuya_ev_charger.set_surplus_profile
-          data:
-            profile: conservative
-            # entry_id: "<entry_id>"
-
-  - type: grid
-    columns: 3
+    columns: 2
     square: false
     cards:
       - type: button
@@ -63,62 +46,3 @@ cards:
             duration_minutes: 30
             # current_a: 6
             # entry_id: "<entry_id>"
-      - type: button
-        name: Dry run
-        icon: mdi:test-tube
-        tap_action:
-          action: call-service
-          service: tuya_ev_charger.dry_run_surplus
-          data:
-            # entry_id: "<entry_id>"
-
-  - type: entities
-    title: Etats et reglages
-    show_header_toggle: false
-    entities:
-      - entity: switch.<charger_surplus_mode_switch_entity_id>
-      - entity: switch.<charger_surplus_departure_mode_switch_entity_id>
-      - entity: select.<charger_surplus_strategy_select_entity_id>
-      - entity: select.<charger_tariff_mode_select_entity_id>
-      - entity: select.<charger_surplus_departure_time_select_entity_id>
-      - entity: number.<charger_surplus_departure_target_energy_kwh_entity_id>
-      - entity: binary_sensor.<charger_surplus_regulation_active_entity_id>
-      - entity: number.<charger_tariff_max_price_eur_kwh_entity_id>
-
-  - type: entities
-    title: Debug surplus
-    show_header_toggle: false
-    entities:
-      - entity: sensor.<charger_surplus_available_power_entity_id>
-      - entity: sensor.<charger_surplus_target_current_entity_id>
-      - entity: sensor.<charger_surplus_dry_run_action_entity_id>
-      - entity: sensor.<charger_surplus_dry_run_reason_entity_id>
-      - entity: sensor.<charger_surplus_dry_run_target_current_entity_id>
-      - entity: sensor.<charger_surplus_departure_required_current_entity_id>
-      - entity: sensor.<charger_surplus_departure_remaining_energy_entity_id>
-      - entity: sensor.<charger_surplus_forecast_sensor_power_entity_id>
-      - entity: sensor.<charger_surplus_forecast_blended_power_entity_id>
-      - entity: sensor.<charger_surplus_last_decision_reason_entity_id>
-      - entity: sensor.<charger_surplus_last_start_reason_entity_id>
-      - entity: sensor.<charger_surplus_last_stop_reason_entity_id>
-      - entity: sensor.<charger_surplus_session_energy_entity_id>
-
-  - type: entities
-    title: Energie (jour/semaine)
-    show_header_toggle: false
-    entities:
-      - entity: sensor.<charger_surplus_energy_today_entity_id>
-      - entity: sensor.<charger_surplus_energy_week_entity_id>
-      - entity: sensor.<charger_surplus_efficiency_today_entity_id>
-      - entity: sensor.<charger_surplus_efficiency_week_entity_id>
-
-  - type: entities
-    title: Derniere charge (charge_history)
-    show_header_toggle: false
-    entities:
-      - entity: sensor.<charger_charge_history_entity_id>
-      - entity: sensor.<charger_charge_history_timestamp_entity_id>
-      - entity: sensor.<charger_charge_history_start_time_entity_id>
-      - entity: sensor.<charger_charge_history_end_time_entity_id>
-      - entity: sensor.<charger_charge_history_duration_s_entity_id>
-      - entity: sensor.<charger_charge_history_raw_c_entity_id>

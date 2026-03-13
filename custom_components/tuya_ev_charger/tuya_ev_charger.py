@@ -116,15 +116,8 @@ class EVMetrics:
     downcounter: int | None
     selftest: str | None
     alarm: str | None
-    charge_history: str | None
-    charge_history_timestamp: str | None
-    charge_history_start_time: str | None
-    charge_history_end_time: str | None
-    charge_history_duration_s: int | None
-    charge_history_raw_c: float | None
     adjust_current_options: tuple[int, ...] | None
     product_variant: int | None
-    dp_num: int | None
     charger_info: dict[str, Any]
 
 
@@ -203,8 +196,6 @@ class TuyaEVChargerClient:
 
         raw_power = l1_data[2] if len(l1_data) > 2 else metrics_dict.get("p", 0)
         work_state_debug = _coerce_optional_text(dps.get(self._dp.work_state_debug)) or "UNKNOWN"
-        charge_history_payload = _parse_json_object(dps.get(self._dp.charge_history, "{}"))
-
         return EVMetrics(
             voltage_l1=_coerce_float(l1_data[0]) / 10.0,
             current_l1=_coerce_float(l1_data[1]) / 10.0,
@@ -219,15 +210,8 @@ class TuyaEVChargerClient:
             downcounter=_coerce_optional_int(dps.get(self._dp.downcounter)),
             selftest=_coerce_optional_text(dps.get(self._dp.selftest)),
             alarm=_coerce_optional_json_text(dps.get(self._dp.alarm)),
-            charge_history=_coerce_optional_json_text(dps.get(self._dp.charge_history)),
-            charge_history_timestamp=_coerce_optional_text(charge_history_payload.get("t")),
-            charge_history_start_time=_coerce_optional_text(charge_history_payload.get("s")),
-            charge_history_end_time=_coerce_optional_text(charge_history_payload.get("e")),
-            charge_history_duration_s=_coerce_optional_int(charge_history_payload.get("d")),
-            charge_history_raw_c=_coerce_optional_float(charge_history_payload.get("c")),
             adjust_current_options=_parse_int_list(dps.get(self._dp.adjust_current)),
             product_variant=_coerce_optional_int(dps.get(self._dp.product_variant)),
-            dp_num=_coerce_optional_int(dps.get(self._dp.dp_num)),
             charger_info=charger_info,
         )
 

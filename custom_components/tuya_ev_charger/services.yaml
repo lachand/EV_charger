@@ -47,44 +47,6 @@ pause_surplus:
           step: 1
           mode: box
 
-dry_run_surplus:
-  name: Dry run surplus decision
-  description: Simulate the current surplus decision without sending commands to the charger.
-  fields:
-    entry_id:
-      name: Entry ID
-      description: Optional config entry ID. Required when multiple chargers are configured.
-      selector:
-        text:
-
-set_surplus_profile:
-  name: Set surplus profile
-  description: Apply a predefined surplus tuning profile.
-  fields:
-    entry_id:
-      name: Entry ID
-      description: Optional config entry ID. Required when multiple chargers are configured.
-      selector:
-        text:
-    profile:
-      name: Profile
-      description: Preset profile to apply.
-      required: true
-      selector:
-        select:
-          options:
-            - balanced
-            - aggressive
-            - conservative
-    mode:
-      name: Surplus mode
-      description: Optional surplus mode override.
-      selector:
-        select:
-          options:
-            - classic
-            - zero_injection
-
 profile_assistant:
   name: Profile assistant
   description: Analyze DPS payload and suggest the closest charger profile mapping.

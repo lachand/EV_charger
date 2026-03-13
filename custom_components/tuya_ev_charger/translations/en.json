@@ -2,8 +2,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "Configure Tuya EV charger",
-        "description": "Enter the charger's local credentials.",
+        "title": "Tuya charger setup",
+        "description": "Enter local charger credentials.",
         "data": {
           "host": "Local IP address",
           "device_id": "Device ID",
@@ -14,7 +14,7 @@
       }
     },
     "error": {
-      "cannot_connect": "Unable to reach the charger with these settings.",
+      "cannot_connect": "Unable to reach charger with these settings.",
       "unknown": "Unexpected error."
     },
     "abort": {
@@ -24,47 +24,21 @@
   "options": {
     "step": {
       "init": {
-        "title": "Tuya EV charger options",
-        "description": "Adjust update behavior and solar surplus mode.",
+        "title": "Tuya charger options",
+        "description": "Simplified solar surplus mode.",
         "data": {
           "scan_interval": "Refresh interval (seconds)",
           "charger_profile": "Charger profile / DP mapping",
           "charger_profile_json": "Custom DP mapping (JSON, optional)",
           "surplus_mode_enabled": "Enable solar surplus mode",
-          "surplus_mode": "Surplus mode (classic/zero_injection)",
-          "tariff_mode": "Tariff mode (disabled/hphc/tempo/spot)",
           "surplus_sensor_entity_id": "Grid power sensor entity (W) (sensor.xxx)",
           "surplus_sensor_inverted": "Invert grid sensor sign",
-          "surplus_curtailment_sensor_entity_id": "Potential curtailed power sensor (W) (optional)",
+          "surplus_curtailment_sensor_entity_id": "Potential curtailed power entity (W) (optional)",
           "surplus_curtailment_sensor_inverted": "Invert curtailed power sensor sign",
-          "surplus_battery_soc_sensor_entity_id": "Battery SOC sensor (%) (optional)",
-          "surplus_forecast_mode_enabled": "Enable solar forecast mode",
-          "surplus_dry_run_continuous_enabled": "Enable continuous dry-run",
-          "surplus_departure_mode_enabled": "Enable departure target",
-          "surplus_departure_time": "Departure target time (HH:MM)",
-          "surplus_departure_target_energy_kwh": "Departure target energy (kWh)",
-          "surplus_forecast_sensor_entity_id": "Forecast surplus sensor entity (W) (optional)",
-          "tariff_sensor_entity_id": "Tariff label sensor entity (optional)",
-          "tariff_price_sensor_entity_id": "Spot price sensor entity (optional)",
-          "tariff_allowed_values": "Allowed tariff values (CSV, e.g. hc,offpeak)",
-          "tariff_max_price_eur_kwh": "Maximum spot price (EUR/kWh)",
-          "surplus_battery_soc_threshold_pct": "Minimum battery SOC threshold (%)",
-          "surplus_line_voltage": "Voltage reference (V)",
-          "surplus_start_threshold_w": "Charge start threshold (W)",
-          "surplus_stop_threshold_w": "Charge stop threshold (W)",
-          "surplus_target_offset_w": "Target surplus offset (W)",
-          "surplus_start_delay_s": "Start delay (s)",
-          "surplus_stop_delay_s": "Stop delay (s)",
-          "surplus_adjust_up_cooldown_s": "Current increase cooldown (s)",
-          "surplus_adjust_down_cooldown_s": "Current decrease cooldown (s)",
-          "surplus_ramp_step_a": "Current ramp step limit (A)",
-          "surplus_forecast_weight_pct": "Solar forecast weight (%)",
-          "surplus_forecast_smoothing_s": "Solar forecast smoothing (s)",
-          "surplus_forecast_drop_guard_w": "Solar forecast drop guard (W)",
-          "surplus_min_run_time_s": "Minimum session runtime (s)",
-          "surplus_max_session_duration_min": "Maximum session duration (min)",
-          "surplus_max_session_energy_kwh": "Maximum session energy (kWh)",
-          "surplus_max_session_end_time": "Latest session end time (HH:MM)"
+          "surplus_battery_soc_sensor_entity_id": "Battery SOC entity (optional)",
+          "surplus_battery_soc_high_threshold_pct": "Battery high threshold (%)",
+          "surplus_battery_soc_low_threshold_pct": "Battery low threshold (%)",
+          "surplus_forecast_sensor_entity_id": "1h solar forecast sensor entity (W) (optional)"
         }
       }
     }
@@ -82,22 +56,22 @@
     },
     "sensor": {
       "voltage_l1": {
-        "name": "L1 voltage"
+        "name": "Voltage L1"
       },
       "current_l1": {
-        "name": "L1 current"
+        "name": "Current L1"
       },
       "power_l1": {
-        "name": "L1 power"
+        "name": "Power L1"
       },
       "temperature": {
         "name": "Temperature"
       },
       "work_state": {
-        "name": "Operating state"
+        "name": "Work state"
       },
       "work_state_debug": {
-        "name": "Debug state"
+        "name": "Work state debug"
       },
       "downcounter": {
         "name": "Countdown"
@@ -108,169 +82,33 @@
       "alarm": {
         "name": "Alarm"
       },
-      "charge_history": {
-        "name": "Charge history"
-      },
-      "charge_history_timestamp": {
-        "name": "Charge history timestamp"
-      },
-      "charge_history_start_time": {
-        "name": "Charge history start"
-      },
-      "charge_history_end_time": {
-        "name": "Charge history end"
-      },
-      "charge_history_duration_s": {
-        "name": "Charge history duration"
-      },
-      "charge_history_raw_c": {
-        "name": "Charge history raw c"
-      },
       "adjust_current_options": {
         "name": "Available currents"
       },
       "product_variant": {
         "name": "Product variant"
-      },
-      "dp_num": {
-        "name": "DP count"
-      },
-      "surplus_available_power": {
-        "name": "Calculated available surplus"
-      },
-      "surplus_target_current": {
-        "name": "Surplus target current"
-      },
-      "surplus_forecast_sensor_power": {
-        "name": "Solar forecast sensor power"
-      },
-      "surplus_forecast_blended_power": {
-        "name": "Solar forecast blended surplus"
-      },
-      "surplus_last_start_reason": {
-        "name": "Last surplus start reason"
-      },
-      "surplus_last_stop_reason": {
-        "name": "Last surplus stop reason"
-      },
-      "surplus_last_decision_reason": {
-        "name": "Last surplus decision reason"
-      },
-      "surplus_session_energy": {
-        "name": "Surplus session energy"
-      },
-      "surplus_dry_run_action": {
-        "name": "Dry-run simulated action"
-      },
-      "surplus_dry_run_reason": {
-        "name": "Dry-run simulated reason"
-      },
-      "surplus_dry_run_target_current": {
-        "name": "Dry-run simulated current"
-      },
-      "surplus_departure_required_current": {
-        "name": "Departure required current"
-      },
-      "surplus_departure_remaining_energy": {
-        "name": "Departure remaining energy"
-      },
-      "surplus_energy_today": {
-        "name": "Charged energy today"
-      },
-      "surplus_energy_week": {
-        "name": "Charged energy this week"
-      },
-      "surplus_efficiency_today": {
-        "name": "Surplus efficiency today"
-      },
-      "surplus_efficiency_week": {
-        "name": "Surplus efficiency this week"
       }
     },
     "number": {
       "charge_current": {
         "name": "Current setpoint"
       },
-      "surplus_start_threshold_w": {
-        "name": "Surplus start threshold"
+      "surplus_battery_soc_high_threshold_pct": {
+        "name": "Surplus battery high threshold"
       },
-      "surplus_stop_threshold_w": {
-        "name": "Surplus stop threshold"
-      },
-      "surplus_target_offset_w": {
-        "name": "Surplus target offset"
-      },
-      "surplus_start_delay_s": {
-        "name": "Surplus start delay"
-      },
-      "surplus_stop_delay_s": {
-        "name": "Surplus stop delay"
-      },
-      "surplus_adjust_up_cooldown_s": {
-        "name": "Surplus increase cooldown"
-      },
-      "surplus_adjust_down_cooldown_s": {
-        "name": "Surplus decrease cooldown"
-      },
-      "surplus_ramp_step_a": {
-        "name": "Surplus current ramp step"
-      },
-      "surplus_battery_soc_threshold_pct": {
-        "name": "Surplus battery SOC threshold"
-      },
-      "surplus_line_voltage": {
-        "name": "Surplus line voltage"
-      },
-      "surplus_min_run_time_s": {
-        "name": "Surplus minimum runtime"
-      },
-      "surplus_max_session_duration_min": {
-        "name": "Surplus maximum duration"
-      },
-      "surplus_max_session_energy_kwh": {
-        "name": "Surplus maximum session energy"
-      },
-      "surplus_departure_target_energy_kwh": {
-        "name": "Departure target energy"
-      },
-      "tariff_max_price_eur_kwh": {
-        "name": "Tariff maximum spot price"
+      "surplus_battery_soc_low_threshold_pct": {
+        "name": "Surplus battery low threshold"
       }
     },
     "switch": {
       "charge_session": {
-        "name": "Charge session"
+        "name": "Charging session"
       },
       "nfc_enabled": {
         "name": "NFC"
       },
       "surplus_mode": {
         "name": "Solar surplus mode"
-      },
-      "surplus_departure_mode": {
-        "name": "Departure target enabled"
-      }
-    },
-    "select": {
-      "surplus_strategy": {
-        "name": "Solar surplus strategy",
-        "state": {
-          "off": "Off",
-          "classic": "Classic",
-          "zero_injection": "Zero injection"
-        }
-      },
-      "tariff_mode": {
-        "name": "Dynamic tariff mode",
-        "state": {
-          "disabled": "Disabled",
-          "hphc": "Peak/Off-peak",
-          "tempo": "Tempo",
-          "spot": "Spot"
-        }
-      },
-      "surplus_departure_time": {
-        "name": "Departure target time"
       }
     }
   }

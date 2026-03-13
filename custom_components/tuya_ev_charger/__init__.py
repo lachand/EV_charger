@@ -22,14 +22,6 @@ from .const import (
     CONF_LOCAL_KEY,
     CONF_PROTOCOL_VERSION,
     CONF_SCAN_INTERVAL,
-    CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
-    CONF_SURPLUS_ADJUST_UP_COOLDOWN_S,
-    CONF_SURPLUS_MODE,
-    CONF_SURPLUS_MODE_ENABLED,
-    CONF_SURPLUS_RAMP_STEP_A,
-    CONF_SURPLUS_START_THRESHOLD_W,
-    CONF_SURPLUS_STOP_THRESHOLD_W,
-    CONF_SURPLUS_TARGET_OFFSET_W,
     DEFAULT_CHARGER_PROFILE,
     DEFAULT_CHARGER_PROFILE_JSON,
     DEFAULT_SCAN_INTERVAL_SECONDS,
@@ -37,16 +29,9 @@ from .const import (
     MAX_SCAN_INTERVAL_SECONDS,
     MIN_SCAN_INTERVAL_SECONDS,
     PLATFORMS,
-    SERVICE_DRY_RUN_SURPLUS,
     SERVICE_FORCE_CHARGE_FOR,
     SERVICE_PAUSE_SURPLUS,
     SERVICE_PROFILE_ASSISTANT,
-    SERVICE_SET_SURPLUS_PROFILE,
-    SURPLUS_MODES,
-    SURPLUS_PROFILE_AGGRESSIVE,
-    SURPLUS_PROFILE_BALANCED,
-    SURPLUS_PROFILE_CONSERVATIVE,
-    SURPLUS_PROFILES,
 )
 from .coordinator import TuyaEVChargerDataUpdateCoordinator
 from .solar_surplus import SolarSurplusController
@@ -57,8 +42,6 @@ LOGGER = logging.getLogger(__name__)
 SERVICE_DATA_ENTRY_ID = "entry_id"
 SERVICE_DATA_DURATION_MINUTES = "duration_minutes"
 SERVICE_DATA_CURRENT_A = "current_a"
-SERVICE_DATA_PROFILE = "profile"
-SERVICE_DATA_MODE = "mode"
 SERVICE_DATA_APPLY = "apply"
 
 SERVICE_FORCE_CHARGE_SCHEMA = vol.Schema(
@@ -83,51 +66,12 @@ SERVICE_PAUSE_SURPLUS_SCHEMA = vol.Schema(
         ),
     }
 )
-SERVICE_DRY_RUN_SURPLUS_SCHEMA = vol.Schema(
-    {
-        vol.Optional(SERVICE_DATA_ENTRY_ID): str,
-    }
-)
-SERVICE_SET_SURPLUS_PROFILE_SCHEMA = vol.Schema(
-    {
-        vol.Optional(SERVICE_DATA_ENTRY_ID): str,
-        vol.Required(SERVICE_DATA_PROFILE): vol.In(SURPLUS_PROFILES),
-        vol.Optional(SERVICE_DATA_MODE): vol.In(SURPLUS_MODES),
-    }
-)
 SERVICE_PROFILE_ASSISTANT_SCHEMA = vol.Schema(
     {
         vol.Optional(SERVICE_DATA_ENTRY_ID): str,
         vol.Optional(SERVICE_DATA_APPLY, default=False): bool,
     }
 )
-
-SURPLUS_PROFILE_PRESETS: dict[str, dict[str, Any]] = {
-    SURPLUS_PROFILE_BALANCED: {
-        CONF_SURPLUS_START_THRESHOLD_W: 1600,
-        CONF_SURPLUS_STOP_THRESHOLD_W: 1200,
-        CONF_SURPLUS_TARGET_OFFSET_W: 0,
-        CONF_SURPLUS_ADJUST_UP_COOLDOWN_S: 20,
-        CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S: 10,
-        CONF_SURPLUS_RAMP_STEP_A: 1,
-    },
-    SURPLUS_PROFILE_AGGRESSIVE: {
-        CONF_SURPLUS_START_THRESHOLD_W: 1300,
-        CONF_SURPLUS_STOP_THRESHOLD_W: 1000,
-        CONF_SURPLUS_TARGET_OFFSET_W: -100,
-        CONF_SURPLUS_ADJUST_UP_COOLDOWN_S: 10,
-        CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S: 5,
-        CONF_SURPLUS_RAMP_STEP_A: 2,
-    },
-    SURPLUS_PROFILE_CONSERVATIVE: {
-        CONF_SURPLUS_START_THRESHOLD_W: 2200,
-        CONF_SURPLUS_STOP_THRESHOLD_W: 1800,
-        CONF_SURPLUS_TARGET_OFFSET_W: 200,
-        CONF_SURPLUS_ADJUST_UP_COOLDOWN_S: 30,
-        CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S: 20,
-        CONF_SURPLUS_RAMP_STEP_A: 1,
-    },
-}
 
 
 @dataclass(slots=True)
@@ -243,42 +187,6 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         duration_minutes = int(call.data[SERVICE_DATA_DURATION_MINUTES])
         await controller.async_pause_for(duration_s=duration_minutes * 60)
 
-    async def _handle_dry_run_surplus(call: ServiceCall) -> None:
-        entry = _resolve_entry_from_call(hass, call)
-        controller = _resolve_controller(entry)
-        report = await controller.async_dry_run_report()
-        payload = {
-            "entry_id": entry.entry_id,
-            "entry_title": entry.title,
-            "report": report,
-        }
-        hass.bus.async_fire(f"{DOMAIN}_dry_run_surplus", payload)
-        persistent_notification.async_create(
-            hass=hass,
-            title=f"Tuya EV Charger Dry Run ({entry.title})",
-            message=(
-                "Dry run surplus report:\n\n```json\n"
-                f"{json.dumps(payload, indent=2, ensure_ascii=True)}\n```"
-            ),
-            notification_id=f"{DOMAIN}_{entry.entry_id}_dry_run_surplus",
-        )
-
-    async def _handle_set_surplus_profile(call: ServiceCall) -> None:
-        entry = _resolve_entry_from_call(hass, call)
-        profile = str(call.data[SERVICE_DATA_PROFILE]).strip().lower()
-        if profile not in SURPLUS_PROFILE_PRESETS:
-            raise ServiceValidationError(f"Unknown surplus profile: {profile}")
-
-        new_options = dict(entry.options)
-        new_options.update(SURPLUS_PROFILE_PRESETS[profile])
-        new_options[CONF_SURPLUS_MODE_ENABLED] = True
-
-        mode = call.data.get(SERVICE_DATA_MODE)
-        if mode is not None:
-            new_options[CONF_SURPLUS_MODE] = str(mode).strip().lower()
-
-        hass.config_entries.async_update_entry(entry, options=new_options)
-
     async def _handle_profile_assistant(call: ServiceCall) -> None:
         entry = _resolve_entry_from_call(hass, call)
         controller = _resolve_controller(entry)
@@ -322,18 +230,6 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         SERVICE_PAUSE_SURPLUS,
         _handle_pause_surplus,
         schema=SERVICE_PAUSE_SURPLUS_SCHEMA,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_DRY_RUN_SURPLUS,
-        _handle_dry_run_surplus,
-        schema=SERVICE_DRY_RUN_SURPLUS_SCHEMA,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_SET_SURPLUS_PROFILE,
-        _handle_set_surplus_profile,
-        schema=SERVICE_SET_SURPLUS_PROFILE_SCHEMA,
     )
     hass.services.async_register(
         DOMAIN,

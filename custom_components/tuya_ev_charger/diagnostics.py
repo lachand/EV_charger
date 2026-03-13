@@ -16,8 +16,6 @@ from .const import (
     CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
     CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
     CONF_SURPLUS_SENSOR_ENTITY_ID,
-    CONF_TARIFF_PRICE_SENSOR_ENTITY_ID,
-    CONF_TARIFF_SENSOR_ENTITY_ID,
 )
 
 TO_REDACT = {
@@ -49,8 +47,6 @@ async def async_get_config_entry_diagnostics(
         CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
         CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
         CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
-        CONF_TARIFF_SENSOR_ENTITY_ID,
-        CONF_TARIFF_PRICE_SENSOR_ENTITY_ID,
     ):
         entity_id = str(entry.options.get(option_key, "")).strip()
         if not entity_id:

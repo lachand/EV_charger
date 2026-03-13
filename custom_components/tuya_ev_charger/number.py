@@ -9,14 +9,7 @@ from homeassistant.components.number import (
     NumberMode,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import (
-    PERCENTAGE,
-    UnitOfElectricCurrent,
-    UnitOfElectricPotential,
-    UnitOfEnergy,
-    UnitOfPower,
-    UnitOfTime,
-)
+from homeassistant.const import PERCENTAGE, UnitOfElectricCurrent
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity import EntityCategory
@@ -25,56 +18,14 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from . import TuyaEVChargerRuntimeData
 from .const import (
     ALLOWED_CURRENTS,
-    CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
-    CONF_SURPLUS_ADJUST_UP_COOLDOWN_S,
+    CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
+    CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
     CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-    CONF_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
-    CONF_SURPLUS_LINE_VOLTAGE,
-    CONF_SURPLUS_MAX_SESSION_DURATION_MIN,
-    CONF_SURPLUS_MAX_SESSION_ENERGY_KWH,
-    CONF_SURPLUS_MIN_RUN_TIME_S,
-    CONF_SURPLUS_RAMP_STEP_A,
-    CONF_SURPLUS_START_DELAY_S,
-    CONF_SURPLUS_START_THRESHOLD_W,
-    CONF_SURPLUS_STOP_DELAY_S,
-    CONF_SURPLUS_STOP_THRESHOLD_W,
-    CONF_SURPLUS_TARGET_OFFSET_W,
-    CONF_TARIFF_MAX_PRICE_EUR_KWH,
-    DEFAULT_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
-    DEFAULT_SURPLUS_ADJUST_UP_COOLDOWN_S,
+    DEFAULT_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
+    DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
     DEFAULT_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-    DEFAULT_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
-    DEFAULT_SURPLUS_LINE_VOLTAGE,
-    DEFAULT_SURPLUS_MAX_SESSION_DURATION_MIN,
-    DEFAULT_SURPLUS_MAX_SESSION_ENERGY_KWH,
-    DEFAULT_SURPLUS_MIN_RUN_TIME_S,
-    DEFAULT_SURPLUS_RAMP_STEP_A,
-    DEFAULT_SURPLUS_START_DELAY_S,
-    DEFAULT_SURPLUS_START_THRESHOLD_W,
-    DEFAULT_SURPLUS_STOP_DELAY_S,
-    DEFAULT_SURPLUS_STOP_THRESHOLD_W,
-    DEFAULT_SURPLUS_TARGET_OFFSET_W,
-    DEFAULT_TARIFF_MAX_PRICE_EUR_KWH,
-    MAX_SURPLUS_DELAY_S,
     MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-    MAX_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
-    MAX_SURPLUS_LINE_VOLTAGE,
-    MAX_SURPLUS_SESSION_DURATION_MIN,
-    MAX_SURPLUS_SESSION_ENERGY_KWH,
-    MAX_SURPLUS_RAMP_STEP_A,
-    MAX_SURPLUS_TARGET_OFFSET_W,
-    MAX_SURPLUS_THRESHOLD_W,
-    MAX_TARIFF_PRICE_EUR_KWH,
-    MIN_SURPLUS_DELAY_S,
     MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-    MIN_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
-    MIN_SURPLUS_LINE_VOLTAGE,
-    MIN_SURPLUS_SESSION_DURATION_MIN,
-    MIN_SURPLUS_SESSION_ENERGY_KWH,
-    MIN_SURPLUS_RAMP_STEP_A,
-    MIN_SURPLUS_TARGET_OFFSET_W,
-    MIN_SURPLUS_THRESHOLD_W,
-    MIN_TARIFF_PRICE_EUR_KWH,
 )
 from .entity import TuyaEVChargerEntity
 from .helpers import allowed_currents
@@ -94,210 +45,31 @@ CURRENT_SETPOINT_DESCRIPTION = NumberEntityDescription(
 @dataclass(frozen=True, kw_only=True)
 class SurplusOptionNumberDescription(NumberEntityDescription):
     option_key: str
-    default_value: float
-    minimum: float
-    maximum: float
-    enforce_int: bool = True
+    default_value: int
 
 
 SURPLUS_OPTION_NUMBER_DESCRIPTIONS: tuple[SurplusOptionNumberDescription, ...] = (
     SurplusOptionNumberDescription(
-        key="surplus_start_threshold_w",
-        translation_key="surplus_start_threshold_w",
-        option_key=CONF_SURPLUS_START_THRESHOLD_W,
-        default_value=DEFAULT_SURPLUS_START_THRESHOLD_W,
-        minimum=MIN_SURPLUS_THRESHOLD_W,
-        maximum=MAX_SURPLUS_THRESHOLD_W,
-        native_unit_of_measurement=UnitOfPower.WATT,
-        native_step=1.0,
-        icon="mdi:play-speed",
-        mode=NumberMode.BOX,
-        entity_category=EntityCategory.CONFIG,
-    ),
-    SurplusOptionNumberDescription(
-        key="surplus_stop_threshold_w",
-        translation_key="surplus_stop_threshold_w",
-        option_key=CONF_SURPLUS_STOP_THRESHOLD_W,
-        default_value=DEFAULT_SURPLUS_STOP_THRESHOLD_W,
-        minimum=MIN_SURPLUS_THRESHOLD_W,
-        maximum=MAX_SURPLUS_THRESHOLD_W,
-        native_unit_of_measurement=UnitOfPower.WATT,
-        native_step=1.0,
-        icon="mdi:stop-circle-outline",
-        mode=NumberMode.BOX,
-        entity_category=EntityCategory.CONFIG,
-    ),
-    SurplusOptionNumberDescription(
-        key="surplus_target_offset_w",
-        translation_key="surplus_target_offset_w",
-        option_key=CONF_SURPLUS_TARGET_OFFSET_W,
-        default_value=DEFAULT_SURPLUS_TARGET_OFFSET_W,
-        minimum=MIN_SURPLUS_TARGET_OFFSET_W,
-        maximum=MAX_SURPLUS_TARGET_OFFSET_W,
-        native_unit_of_measurement=UnitOfPower.WATT,
-        native_step=1.0,
-        icon="mdi:plus-minus-variant",
-        mode=NumberMode.BOX,
-        entity_category=EntityCategory.CONFIG,
-    ),
-    SurplusOptionNumberDescription(
-        key="surplus_start_delay_s",
-        translation_key="surplus_start_delay_s",
-        option_key=CONF_SURPLUS_START_DELAY_S,
-        default_value=DEFAULT_SURPLUS_START_DELAY_S,
-        minimum=MIN_SURPLUS_DELAY_S,
-        maximum=MAX_SURPLUS_DELAY_S,
-        native_unit_of_measurement=UnitOfTime.SECONDS,
-        native_step=1.0,
-        icon="mdi:timer-play-outline",
-        mode=NumberMode.BOX,
-        entity_category=EntityCategory.CONFIG,
-    ),
-    SurplusOptionNumberDescription(
-        key="surplus_stop_delay_s",
-        translation_key="surplus_stop_delay_s",
-        option_key=CONF_SURPLUS_STOP_DELAY_S,
-        default_value=DEFAULT_SURPLUS_STOP_DELAY_S,
-        minimum=MIN_SURPLUS_DELAY_S,
-        maximum=MAX_SURPLUS_DELAY_S,
-        native_unit_of_measurement=UnitOfTime.SECONDS,
-        native_step=1.0,
-        icon="mdi:timer-stop-outline",
-        mode=NumberMode.BOX,
-        entity_category=EntityCategory.CONFIG,
-    ),
-    SurplusOptionNumberDescription(
-        key="surplus_adjust_up_cooldown_s",
-        translation_key="surplus_adjust_up_cooldown_s",
-        option_key=CONF_SURPLUS_ADJUST_UP_COOLDOWN_S,
-        default_value=DEFAULT_SURPLUS_ADJUST_UP_COOLDOWN_S,
-        minimum=MIN_SURPLUS_DELAY_S,
-        maximum=MAX_SURPLUS_DELAY_S,
-        native_unit_of_measurement=UnitOfTime.SECONDS,
-        native_step=1.0,
-        icon="mdi:arrow-up-bold-circle-outline",
-        mode=NumberMode.BOX,
-        entity_category=EntityCategory.CONFIG,
-    ),
-    SurplusOptionNumberDescription(
-        key="surplus_adjust_down_cooldown_s",
-        translation_key="surplus_adjust_down_cooldown_s",
-        option_key=CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
-        default_value=DEFAULT_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
-        minimum=MIN_SURPLUS_DELAY_S,
-        maximum=MAX_SURPLUS_DELAY_S,
-        native_unit_of_measurement=UnitOfTime.SECONDS,
-        native_step=1.0,
-        icon="mdi:arrow-down-bold-circle-outline",
-        mode=NumberMode.BOX,
-        entity_category=EntityCategory.CONFIG,
-    ),
-    SurplusOptionNumberDescription(
-        key="surplus_ramp_step_a",
-        translation_key="surplus_ramp_step_a",
-        option_key=CONF_SURPLUS_RAMP_STEP_A,
-        default_value=DEFAULT_SURPLUS_RAMP_STEP_A,
-        minimum=MIN_SURPLUS_RAMP_STEP_A,
-        maximum=MAX_SURPLUS_RAMP_STEP_A,
-        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
-        native_step=1.0,
-        icon="mdi:stairs",
-        mode=NumberMode.BOX,
-        entity_category=EntityCategory.CONFIG,
-    ),
-    SurplusOptionNumberDescription(
-        key="surplus_battery_soc_threshold_pct",
-        translation_key="surplus_battery_soc_threshold_pct",
-        option_key=CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-        default_value=DEFAULT_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-        minimum=MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-        maximum=MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+        key="surplus_battery_soc_high_threshold_pct",
+        translation_key="surplus_battery_soc_high_threshold_pct",
+        option_key=CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
+        default_value=DEFAULT_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
         native_unit_of_measurement=PERCENTAGE,
         native_step=1.0,
-        icon="mdi:battery-heart-variant",
+        icon="mdi:battery-high",
         mode=NumberMode.BOX,
         entity_category=EntityCategory.CONFIG,
     ),
     SurplusOptionNumberDescription(
-        key="surplus_line_voltage",
-        translation_key="surplus_line_voltage",
-        option_key=CONF_SURPLUS_LINE_VOLTAGE,
-        default_value=DEFAULT_SURPLUS_LINE_VOLTAGE,
-        minimum=MIN_SURPLUS_LINE_VOLTAGE,
-        maximum=MAX_SURPLUS_LINE_VOLTAGE,
-        native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+        key="surplus_battery_soc_low_threshold_pct",
+        translation_key="surplus_battery_soc_low_threshold_pct",
+        option_key=CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
+        default_value=DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
+        native_unit_of_measurement=PERCENTAGE,
         native_step=1.0,
-        icon="mdi:sine-wave",
+        icon="mdi:battery-low",
         mode=NumberMode.BOX,
         entity_category=EntityCategory.CONFIG,
-    ),
-    SurplusOptionNumberDescription(
-        key="surplus_min_run_time_s",
-        translation_key="surplus_min_run_time_s",
-        option_key=CONF_SURPLUS_MIN_RUN_TIME_S,
-        default_value=DEFAULT_SURPLUS_MIN_RUN_TIME_S,
-        minimum=MIN_SURPLUS_DELAY_S,
-        maximum=MAX_SURPLUS_DELAY_S,
-        native_unit_of_measurement=UnitOfTime.SECONDS,
-        native_step=1.0,
-        icon="mdi:timer-sand",
-        mode=NumberMode.BOX,
-        entity_category=EntityCategory.CONFIG,
-    ),
-    SurplusOptionNumberDescription(
-        key="surplus_max_session_duration_min",
-        translation_key="surplus_max_session_duration_min",
-        option_key=CONF_SURPLUS_MAX_SESSION_DURATION_MIN,
-        default_value=DEFAULT_SURPLUS_MAX_SESSION_DURATION_MIN,
-        minimum=MIN_SURPLUS_SESSION_DURATION_MIN,
-        maximum=MAX_SURPLUS_SESSION_DURATION_MIN,
-        native_unit_of_measurement=UnitOfTime.MINUTES,
-        native_step=1.0,
-        icon="mdi:timer-cog-outline",
-        mode=NumberMode.BOX,
-        entity_category=EntityCategory.CONFIG,
-    ),
-    SurplusOptionNumberDescription(
-        key="surplus_max_session_energy_kwh",
-        translation_key="surplus_max_session_energy_kwh",
-        option_key=CONF_SURPLUS_MAX_SESSION_ENERGY_KWH,
-        default_value=DEFAULT_SURPLUS_MAX_SESSION_ENERGY_KWH,
-        minimum=MIN_SURPLUS_SESSION_ENERGY_KWH,
-        maximum=MAX_SURPLUS_SESSION_ENERGY_KWH,
-        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-        native_step=0.1,
-        icon="mdi:lightning-bolt-circle",
-        mode=NumberMode.BOX,
-        entity_category=EntityCategory.CONFIG,
-        enforce_int=False,
-    ),
-    SurplusOptionNumberDescription(
-        key="surplus_departure_target_energy_kwh",
-        translation_key="surplus_departure_target_energy_kwh",
-        option_key=CONF_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
-        default_value=DEFAULT_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
-        minimum=MIN_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
-        maximum=MAX_SURPLUS_DEPARTURE_TARGET_ENERGY_KWH,
-        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-        native_step=0.1,
-        icon="mdi:target",
-        mode=NumberMode.BOX,
-        entity_category=EntityCategory.CONFIG,
-        enforce_int=False,
-    ),
-    SurplusOptionNumberDescription(
-        key="tariff_max_price_eur_kwh",
-        translation_key="tariff_max_price_eur_kwh",
-        option_key=CONF_TARIFF_MAX_PRICE_EUR_KWH,
-        default_value=DEFAULT_TARIFF_MAX_PRICE_EUR_KWH,
-        minimum=MIN_TARIFF_PRICE_EUR_KWH,
-        maximum=MAX_TARIFF_PRICE_EUR_KWH,
-        native_unit_of_measurement="EUR/kWh",
-        native_step=0.01,
-        icon="mdi:cash-multiple",
-        mode=NumberMode.BOX,
-        entity_category=EntityCategory.CONFIG,
-        enforce_int=False,
     ),
 )
 
@@ -375,86 +147,91 @@ class TuyaEVChargerSurplusOptionNumber(TuyaEVChargerEntity, NumberEntity):
 
     @property
     def native_value(self) -> float:
-        value = _option_float(
+        default_value = self.entity_description.default_value
+        if self.entity_description.option_key == CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT:
+            default_value = _legacy_high_threshold_default(self._entry.options)
+
+        value = _option_int(
             self._entry.options,
             self.entity_description.option_key,
-            self.entity_description.default_value,
-            self.entity_description.minimum,
-            self.entity_description.maximum,
+            default_value,
+            MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+            MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
         )
         return float(value)
 
     @property
     def native_min_value(self) -> float:
-        return float(self.entity_description.minimum)
+        return float(MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT)
 
     @property
     def native_max_value(self) -> float:
-        return float(self.entity_description.maximum)
+        return float(MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT)
 
     async def async_set_native_value(self, value: float) -> None:
-        if self.entity_description.enforce_int:
-            coerced: float = int(value)
-            if float(coerced) != value:
-                raise HomeAssistantError("This value must be an integer.")
-        else:
-            coerced = float(value)
+        coerced = int(value)
+        if float(coerced) != value:
+            raise HomeAssistantError("This value must be an integer.")
 
-        if coerced < self.entity_description.minimum or coerced > self.entity_description.maximum:
+        if coerced < MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT or coerced > MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT:
             raise HomeAssistantError(
-                f"Value must be between {self.entity_description.minimum} and "
-                f"{self.entity_description.maximum}."
+                f"Value must be between {MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT} and "
+                f"{MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT}."
             )
 
         self._validate_hysteresis(coerced)
 
         new_options = dict(self._entry.options)
-        if self.entity_description.enforce_int:
-            new_options[self.entity_description.option_key] = int(coerced)
-        else:
-            new_options[self.entity_description.option_key] = round(float(coerced), 4)
+        new_options[self.entity_description.option_key] = coerced
         self.hass.config_entries.async_update_entry(self._entry, options=new_options)
         self.async_write_ha_state()
 
-    def _validate_hysteresis(self, new_value: float) -> None:
-        key = self.entity_description.option_key
-        start_threshold = int(
-            _option_float(
+    def _validate_hysteresis(self, new_value: int) -> None:
+        high = _option_int(
             self._entry.options,
-            CONF_SURPLUS_START_THRESHOLD_W,
-            DEFAULT_SURPLUS_START_THRESHOLD_W,
-            MIN_SURPLUS_THRESHOLD_W,
-            MAX_SURPLUS_THRESHOLD_W,
-            )
+            CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
+            _legacy_high_threshold_default(self._entry.options),
+            MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+            MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
         )
-        stop_threshold = int(
-            _option_float(
+        low = _option_int(
             self._entry.options,
-            CONF_SURPLUS_STOP_THRESHOLD_W,
-            DEFAULT_SURPLUS_STOP_THRESHOLD_W,
-            MIN_SURPLUS_THRESHOLD_W,
-            MAX_SURPLUS_THRESHOLD_W,
-            )
+            CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
+            DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
+            MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+            MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
         )
-        if key == CONF_SURPLUS_START_THRESHOLD_W:
-            start_threshold = int(new_value)
-        if key == CONF_SURPLUS_STOP_THRESHOLD_W:
-            stop_threshold = int(new_value)
-        if start_threshold <= stop_threshold:
+
+        if self.entity_description.option_key == CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT:
+            high = new_value
+        if self.entity_description.option_key == CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT:
+            low = new_value
+
+        if high <= low:
             raise HomeAssistantError(
-                "Start threshold must be strictly greater than stop threshold."
+                "High battery threshold must be strictly greater than low threshold."
             )
 
 
-def _option_float(
+def _legacy_high_threshold_default(options: Mapping[str, object]) -> int:
+    return _option_int(
+        options,
+        CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+        DEFAULT_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+        MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+        MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+    )
+
+
+def _option_int(
     options: Mapping[str, object],
     key: str,
-    default: float,
-    minimum: float,
-    maximum: float,
-) -> float:
+    default: int,
+    minimum: int,
+    maximum: int,
+) -> int:
     try:
-        value = float(options.get(key, default))
+        value = int(options.get(key, default))
     except (TypeError, ValueError):
         value = default
     return max(minimum, min(maximum, value))

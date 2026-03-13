@@ -56,8 +56,6 @@ class TuyaEVChargerSurplusRegulationActiveBinarySensor(
             "paused": snapshot.paused,
             "force_charge_active": snapshot.force_charge_active,
             "last_decision_reason": snapshot.last_decision_reason,
-            "last_start_reason": snapshot.last_start_reason,
-            "last_stop_reason": snapshot.last_stop_reason,
         }
 
     async def async_added_to_hass(self) -> None:

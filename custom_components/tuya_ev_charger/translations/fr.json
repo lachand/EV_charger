@@ -8,63 +8,37 @@
           "host": "Adresse IP locale",
           "device_id": "Device ID",
           "local_key": "Local key",
-          "protocol_version": "Version du protocole (défaut : 3.5)",
+          "protocol_version": "Version du protocole (defaut : 3.5)",
           "charger_profile": "Profil chargeur / mapping DP"
         }
       }
     },
     "error": {
-      "cannot_connect": "Impossible de joindre la borne avec ces paramètres.",
+      "cannot_connect": "Impossible de joindre la borne avec ces parametres.",
       "unknown": "Erreur inattendue."
     },
     "abort": {
-      "already_configured": "Cette borne est déjà configurée."
+      "already_configured": "Cette borne est deja configuree."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Options de la borne Tuya",
-        "description": "Ajustez le comportement de mise à jour et le mode surplus solaire.",
+        "description": "Mode surplus simplifie.",
         "data": {
-          "scan_interval": "Intervalle de rafraîchissement (secondes)",
+          "scan_interval": "Intervalle de rafraichissement (secondes)",
           "charger_profile": "Profil chargeur / mapping DP",
           "charger_profile_json": "Mapping DP custom (JSON, optionnel)",
           "surplus_mode_enabled": "Activer le mode surplus solaire",
-          "surplus_mode": "Mode surplus (classic/zero_injection)",
-          "tariff_mode": "Mode tarif (disabled/hphc/tempo/spot)",
-          "surplus_sensor_entity_id": "Entité capteur puissance réseau (W) (sensor.xxx)",
-          "surplus_sensor_inverted": "Inverser le signe capteur réseau",
-          "surplus_curtailment_sensor_entity_id": "Entité puissance bridée potentielle (W) (optionnel)",
-          "surplus_curtailment_sensor_inverted": "Inverser le signe capteur puissance bridée",
-          "surplus_battery_soc_sensor_entity_id": "Entité % batterie (optionnel)",
-          "surplus_forecast_mode_enabled": "Activer le mode prévision solaire",
-          "surplus_dry_run_continuous_enabled": "Activer dry-run continu",
-          "surplus_departure_mode_enabled": "Activer objectif départ",
-          "surplus_departure_time": "Heure de départ cible (HH:MM)",
-          "surplus_departure_target_energy_kwh": "Energie cible au départ (kWh)",
-          "surplus_forecast_sensor_entity_id": "Entité capteur prévision surplus (W) (optionnel)",
-          "tariff_sensor_entity_id": "Entité capteur de label tarifaire (optionnel)",
-          "tariff_price_sensor_entity_id": "Entité capteur prix spot (optionnel)",
-          "tariff_allowed_values": "Valeurs tarifaires autorisées (CSV, ex: hc,offpeak)",
-          "tariff_max_price_eur_kwh": "Prix spot max (EUR/kWh)",
-          "surplus_battery_soc_threshold_pct": "Seuil minimal % batterie",
-          "surplus_line_voltage": "Tension de calcul (V)",
-          "surplus_start_threshold_w": "Seuil démarrage charge (W)",
-          "surplus_stop_threshold_w": "Seuil arrêt charge (W)",
-          "surplus_target_offset_w": "Delta cible surplus (W)",
-          "surplus_start_delay_s": "Délai avant démarrage (s)",
-          "surplus_stop_delay_s": "Délai avant arrêt (s)",
-          "surplus_adjust_up_cooldown_s": "Cooldown augmentation intensité (s)",
-          "surplus_adjust_down_cooldown_s": "Cooldown réduction intensité (s)",
-          "surplus_ramp_step_a": "Pas max d'ajustement intensité (A)",
-          "surplus_forecast_weight_pct": "Poids prévision solaire (%)",
-          "surplus_forecast_smoothing_s": "Lissage prévision solaire (s)",
-          "surplus_forecast_drop_guard_w": "Garde anti-chute prévision (W)",
-          "surplus_min_run_time_s": "Durée minimale de session (s)",
-          "surplus_max_session_duration_min": "Durée max de session (min)",
-          "surplus_max_session_energy_kwh": "Energie max de session (kWh)",
-          "surplus_max_session_end_time": "Heure de fin max session (HH:MM)"
+          "surplus_sensor_entity_id": "Entite capteur puissance reseau (W) (sensor.xxx)",
+          "surplus_sensor_inverted": "Inverser le signe capteur reseau",
+          "surplus_curtailment_sensor_entity_id": "Entite puissance bridee potentielle (W) (optionnel)",
+          "surplus_curtailment_sensor_inverted": "Inverser le signe capteur puissance bridee",
+          "surplus_battery_soc_sensor_entity_id": "Entite % batterie (optionnel)",
+          "surplus_battery_soc_high_threshold_pct": "Seuil haut batterie (%)",
+          "surplus_battery_soc_low_threshold_pct": "Seuil bas batterie (%)",
+          "surplus_forecast_sensor_entity_id": "Entite capteur prevision solaire 1h (W) (optionnel)"
         }
       }
     }
@@ -72,12 +46,12 @@
   "entity": {
     "binary_sensor": {
       "surplus_regulation_active": {
-        "name": "Régulation surplus active"
+        "name": "Regulation surplus active"
       }
     },
     "button": {
       "reboot_charger": {
-        "name": "Redémarrer la borne"
+        "name": "Redemarrer la borne"
       }
     },
     "sensor": {
@@ -85,156 +59,45 @@
         "name": "Tension L1"
       },
       "current_l1": {
-        "name": "Intensité L1"
+        "name": "Intensite L1"
       },
       "power_l1": {
         "name": "Puissance L1"
       },
       "temperature": {
-        "name": "Température"
+        "name": "Temperature"
       },
       "work_state": {
-        "name": "État de fonctionnement"
+        "name": "Etat de fonctionnement"
       },
       "work_state_debug": {
-        "name": "État debug"
+        "name": "Etat debug"
       },
       "downcounter": {
-        "name": "Compte à rebours"
+        "name": "Compte a rebours"
       },
       "selftest": {
-        "name": "Résultat auto-test"
+        "name": "Resultat auto-test"
       },
       "alarm": {
         "name": "Alarme"
-      },
-      "charge_history": {
-        "name": "Historique charge"
-      },
-      "charge_history_timestamp": {
-        "name": "Historique charge horodatage"
-      },
-      "charge_history_start_time": {
-        "name": "Historique charge début"
-      },
-      "charge_history_end_time": {
-        "name": "Historique charge fin"
-      },
-      "charge_history_duration_s": {
-        "name": "Historique charge durée"
-      },
-      "charge_history_raw_c": {
-        "name": "Historique charge valeur brute c"
       },
       "adjust_current_options": {
         "name": "Courants disponibles"
       },
       "product_variant": {
         "name": "Variante produit"
-      },
-      "dp_num": {
-        "name": "Nombre de DP"
-      },
-      "surplus_available_power": {
-        "name": "Surplus disponible calculé"
-      },
-      "surplus_target_current": {
-        "name": "Consigne courant surplus"
-      },
-      "surplus_forecast_sensor_power": {
-        "name": "Prévision solaire capteur"
-      },
-      "surplus_forecast_blended_power": {
-        "name": "Prévision solaire surplus pondéré"
-      },
-      "surplus_last_start_reason": {
-        "name": "Dernière raison démarrage surplus"
-      },
-      "surplus_last_stop_reason": {
-        "name": "Dernière raison arrêt surplus"
-      },
-      "surplus_last_decision_reason": {
-        "name": "Dernière décision régulation surplus"
-      },
-      "surplus_session_energy": {
-        "name": "Energie session surplus"
-      },
-      "surplus_dry_run_action": {
-        "name": "Dry-run action simulée"
-      },
-      "surplus_dry_run_reason": {
-        "name": "Dry-run raison simulée"
-      },
-      "surplus_dry_run_target_current": {
-        "name": "Dry-run intensité simulée"
-      },
-      "surplus_departure_required_current": {
-        "name": "Intensité requise objectif départ"
-      },
-      "surplus_departure_remaining_energy": {
-        "name": "Energie restante objectif départ"
-      },
-      "surplus_energy_today": {
-        "name": "Energie chargée aujourd'hui"
-      },
-      "surplus_energy_week": {
-        "name": "Energie chargée semaine"
-      },
-      "surplus_efficiency_today": {
-        "name": "Efficacité surplus aujourd'hui"
-      },
-      "surplus_efficiency_week": {
-        "name": "Efficacité surplus semaine"
       }
     },
     "number": {
       "charge_current": {
-        "name": "Consigne d'intensité"
+        "name": "Consigne d'intensite"
       },
-      "surplus_start_threshold_w": {
-        "name": "Surplus seuil démarrage"
+      "surplus_battery_soc_high_threshold_pct": {
+        "name": "Seuil haut batterie surplus"
       },
-      "surplus_stop_threshold_w": {
-        "name": "Surplus seuil arrêt"
-      },
-      "surplus_target_offset_w": {
-        "name": "Surplus delta cible"
-      },
-      "surplus_start_delay_s": {
-        "name": "Surplus délai démarrage"
-      },
-      "surplus_stop_delay_s": {
-        "name": "Surplus délai arrêt"
-      },
-      "surplus_adjust_up_cooldown_s": {
-        "name": "Surplus cooldown montée"
-      },
-      "surplus_adjust_down_cooldown_s": {
-        "name": "Surplus cooldown descente"
-      },
-      "surplus_ramp_step_a": {
-        "name": "Surplus pas variation intensité"
-      },
-      "surplus_battery_soc_threshold_pct": {
-        "name": "Surplus seuil SOC batterie"
-      },
-      "surplus_line_voltage": {
-        "name": "Surplus tension de calcul"
-      },
-      "surplus_min_run_time_s": {
-        "name": "Surplus durée min session"
-      },
-      "surplus_max_session_duration_min": {
-        "name": "Surplus durée max session"
-      },
-      "surplus_max_session_energy_kwh": {
-        "name": "Surplus énergie max session"
-      },
-      "surplus_departure_target_energy_kwh": {
-        "name": "Objectif départ énergie cible"
-      },
-      "tariff_max_price_eur_kwh": {
-        "name": "Tarif prix spot max"
+      "surplus_battery_soc_low_threshold_pct": {
+        "name": "Seuil bas batterie surplus"
       }
     },
     "switch": {
@@ -246,31 +109,6 @@
       },
       "surplus_mode": {
         "name": "Mode surplus solaire"
-      },
-      "surplus_departure_mode": {
-        "name": "Objectif départ activé"
-      }
-    },
-    "select": {
-      "surplus_strategy": {
-        "name": "Stratégie surplus solaire",
-        "state": {
-          "off": "Off",
-          "classic": "Classique",
-          "zero_injection": "Zero injection"
-        }
-      },
-      "tariff_mode": {
-        "name": "Mode tarif dynamique",
-        "state": {
-          "disabled": "Désactivé",
-          "hphc": "HP/HC",
-          "tempo": "Tempo",
-          "spot": "Spot"
-        }
-      },
-      "surplus_departure_time": {
-        "name": "Objectif départ heure cible"
       }
     }
   }
