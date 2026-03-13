@@ -38,6 +38,12 @@
           "surplus_battery_soc_sensor_entity_id": "Entite % batterie (optionnel)",
           "surplus_battery_soc_high_threshold_pct": "Seuil haut batterie (%)",
           "surplus_battery_soc_low_threshold_pct": "Seuil bas batterie (%)",
+          "surplus_battery_net_discharge_sensor_entity_id": "Entite puissance decharge batterie nette (W) (optionnel)",
+          "surplus_battery_net_discharge_sensor_inverted": "Inverser le signe capteur decharge batterie nette",
+          "surplus_allow_battery_discharge_for_ev": "Autoriser la decharge batterie pour la voiture",
+          "surplus_max_battery_discharge_for_ev_w": "Puissance max decharge batterie autorisee (W)",
+          "surplus_start_threshold_w": "Seuil de demarrage surplus (W)",
+          "surplus_stop_threshold_w": "Seuil d'arret surplus (W)",
           "surplus_forecast_sensor_entity_id": "Entite capteur prevision solaire 1h (W) (optionnel)"
         }
       }
@@ -98,6 +104,15 @@
       },
       "surplus_battery_soc_low_threshold_pct": {
         "name": "Seuil bas batterie surplus"
+      },
+      "surplus_start_threshold_w": {
+        "name": "Seuil de demarrage surplus"
+      },
+      "surplus_stop_threshold_w": {
+        "name": "Seuil d'arret surplus"
+      },
+      "surplus_max_battery_discharge_for_ev_w": {
+        "name": "Decharge batterie max autorisee EV"
       }
     },
     "switch": {

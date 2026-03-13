@@ -15,6 +15,9 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     CHARGER_PROFILE_DEPOW_V2,
+    CONF_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
+    CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
+    CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
     CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
     CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
     CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
@@ -22,9 +25,15 @@ from .const import (
     CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
     CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
     CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
+    CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
     CONF_SURPLUS_MODE_ENABLED,
     CONF_SURPLUS_SENSOR_ENTITY_ID,
     CONF_SURPLUS_SENSOR_INVERTED,
+    CONF_SURPLUS_START_THRESHOLD_W,
+    CONF_SURPLUS_STOP_THRESHOLD_W,
+    DEFAULT_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
+    DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
+    DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
     DEFAULT_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
     DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
     DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
@@ -32,14 +41,21 @@ from .const import (
     DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
     DEFAULT_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
     DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
+    DEFAULT_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
     DEFAULT_SURPLUS_MODE_ENABLED,
     DEFAULT_SURPLUS_SENSOR_ENTITY_ID,
     DEFAULT_SURPLUS_SENSOR_INVERTED,
+    DEFAULT_SURPLUS_START_THRESHOLD_W,
+    DEFAULT_SURPLUS_STOP_THRESHOLD_W,
+    MAX_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
     DP_CHARGER_INFO,
     DP_CURRENT_TARGET,
     DP_DO_CHARGE,
     DP_METRICS,
     DP_WORK_STATE_DEBUG,
+    MAX_SURPLUS_THRESHOLD_W,
+    MIN_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
+    MIN_SURPLUS_THRESHOLD_W,
     MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
 )
@@ -49,10 +65,8 @@ from .tuya_ev_charger import EVMetrics, TuyaEVChargerClient
 
 LOGGER = logging.getLogger(__name__)
 
-# Fixed internal tuning. Keep the UI short and predictable.
+# Internal tuning. Policy thresholds (start/stop/discharge) are configurable.
 FIXED_LINE_VOLTAGE_V = 230
-FIXED_START_THRESHOLD_W = 1600
-FIXED_STOP_THRESHOLD_W = 1200
 FIXED_START_DELAY_S = 30
 FIXED_STOP_DELAY_S = 60
 FIXED_ADJUST_UP_COOLDOWN_S = 20
@@ -77,6 +91,12 @@ class SolarSurplusSettings:
     battery_soc_sensor_entity_id: str
     battery_soc_high_threshold_pct: int
     battery_soc_low_threshold_pct: int
+    battery_net_discharge_sensor_entity_id: str
+    battery_net_discharge_sensor_inverted: bool
+    allow_battery_discharge_for_ev: bool
+    max_battery_discharge_for_ev_w: int
+    start_threshold_w: int
+    stop_threshold_w: int
     forecast_sensor_entity_id: str
 
 
@@ -250,6 +270,7 @@ class SolarSurplusController:
             self._settings.grid_sensor_entity_id,
             self._settings.curtailment_sensor_entity_id,
             self._settings.battery_soc_sensor_entity_id,
+            self._settings.battery_net_discharge_sensor_entity_id,
             self._settings.forecast_sensor_entity_id,
         ):
             if entity_id and entity_id not in sensor_entities:
@@ -447,8 +468,8 @@ class SolarSurplusController:
                     next_current = _ramp_current(
                         current=current_target,
                         target=target_current,
+                        available_currents=available_currents,
                         ramp_step=FIXED_RAMP_STEP_A,
-                        minimum=min_current,
                     )
                     if next_current != current_target:
                         if await self._client.async_set_charge_current(next_current):
@@ -481,7 +502,7 @@ class SolarSurplusController:
             self._notify_state_listeners()
             return
 
-        if available_surplus_w < FIXED_START_THRESHOLD_W:
+        if available_surplus_w < float(self._settings.start_threshold_w):
             self._start_candidate_since = None
             self._set_decision("below_start_threshold")
             self._regulation_active = False
@@ -576,7 +597,7 @@ class SolarSurplusController:
             return session_limit
         if not battery_ready:
             return "battery_soc_below_threshold"
-        if available_surplus_w <= FIXED_STOP_THRESHOLD_W:
+        if available_surplus_w <= float(self._settings.stop_threshold_w):
             return "below_stop_threshold"
         if max_supported_current < min_current:
             return "insufficient_surplus_current"
@@ -655,6 +676,10 @@ class SolarSurplusController:
         if self._settings.curtailment_sensor_entity_id and battery_ready:
             reconstructed_surplus_w += self._read_curtailment_power_w()
 
+        discharge_over_limit_w = self._battery_discharge_over_limit_w()
+        if discharge_over_limit_w > 0:
+            reconstructed_surplus_w -= discharge_over_limit_w
+
         return reconstructed_surplus_w
 
     def _apply_forecast_model(
@@ -713,6 +738,27 @@ class SolarSurplusController:
         if self._settings.curtailment_sensor_inverted:
             value = -value
         return max(0.0, value)
+
+    def _read_battery_net_discharge_w(self) -> float | None:
+        if not self._settings.battery_net_discharge_sensor_entity_id:
+            return None
+        value = self._read_sensor_power_w(self._settings.battery_net_discharge_sensor_entity_id)
+        if value is None:
+            return None
+        if self._settings.battery_net_discharge_sensor_inverted:
+            value = -value
+        return max(0.0, value)
+
+    def _battery_discharge_over_limit_w(self) -> float:
+        measured_net_discharge_w = self._read_battery_net_discharge_w()
+        if measured_net_discharge_w is None:
+            return 0.0
+        return max(0.0, measured_net_discharge_w - self._allowed_battery_discharge_w())
+
+    def _allowed_battery_discharge_w(self) -> float:
+        if not self._settings.allow_battery_discharge_for_ev:
+            return 0.0
+        return max(0.0, float(self._settings.max_battery_discharge_for_ev_w))
 
     def _is_battery_ready(self) -> bool:
         if not self._settings.battery_soc_sensor_entity_id:
@@ -849,6 +895,29 @@ def _settings_from_entry(entry: ConfigEntry) -> SolarSurplusSettings:
 
     if low >= high:
         low = max(MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, high - 1)
+    max_battery_discharge_for_ev_w = _option_int(
+        options,
+        CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
+        DEFAULT_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
+        MIN_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
+        MAX_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
+    )
+    start_threshold_w = _option_int(
+        options,
+        CONF_SURPLUS_START_THRESHOLD_W,
+        DEFAULT_SURPLUS_START_THRESHOLD_W,
+        MIN_SURPLUS_THRESHOLD_W,
+        MAX_SURPLUS_THRESHOLD_W,
+    )
+    stop_threshold_w = _option_int(
+        options,
+        CONF_SURPLUS_STOP_THRESHOLD_W,
+        DEFAULT_SURPLUS_STOP_THRESHOLD_W,
+        MIN_SURPLUS_THRESHOLD_W,
+        MAX_SURPLUS_THRESHOLD_W,
+    )
+    if stop_threshold_w > start_threshold_w:
+        stop_threshold_w = start_threshold_w
 
     return SolarSurplusSettings(
         mode_enabled=_option_bool(
@@ -883,6 +952,24 @@ def _settings_from_entry(entry: ConfigEntry) -> SolarSurplusSettings:
         ),
         battery_soc_high_threshold_pct=high,
         battery_soc_low_threshold_pct=low,
+        battery_net_discharge_sensor_entity_id=_option_str(
+            options,
+            CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
+            DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
+        ),
+        battery_net_discharge_sensor_inverted=_option_bool(
+            options,
+            CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
+            DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
+        ),
+        allow_battery_discharge_for_ev=_option_bool(
+            options,
+            CONF_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
+            DEFAULT_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
+        ),
+        max_battery_discharge_for_ev_w=max_battery_discharge_for_ev_w,
+        start_threshold_w=start_threshold_w,
+        stop_threshold_w=stop_threshold_w,
         forecast_sensor_entity_id=_option_str(
             options,
             CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
@@ -952,12 +1039,31 @@ def _current_supported_by_surplus(
     return max(candidates)
 
 
-def _ramp_current(current: int, target: int, ramp_step: int, minimum: int) -> int:
+def _ramp_current(
+    current: int,
+    target: int,
+    available_currents: tuple[int, ...],
+    ramp_step: int,
+) -> int:
     if target == current:
         return current
-    if target > current:
-        return min(target, current + ramp_step)
-    return max(minimum, max(target, current - ramp_step))
+
+    ordered = tuple(sorted(set(available_currents)))
+    if not ordered:
+        return current
+
+    steps = max(1, ramp_step)
+
+    if current not in ordered:
+        current = min(ordered, key=lambda candidate: abs(candidate - current))
+    if target not in ordered:
+        target = min(ordered, key=lambda candidate: abs(candidate - target))
+
+    current_index = ordered.index(current)
+    target_index = ordered.index(target)
+    if target_index > current_index:
+        return ordered[min(current_index + steps, target_index)]
+    return ordered[max(current_index - steps, target_index)]
 
 
 def _parse_end_time(raw: str) -> int | None:

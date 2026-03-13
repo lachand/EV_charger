@@ -38,6 +38,12 @@
           "surplus_battery_soc_sensor_entity_id": "Battery SOC entity (optional)",
           "surplus_battery_soc_high_threshold_pct": "Battery high threshold (%)",
           "surplus_battery_soc_low_threshold_pct": "Battery low threshold (%)",
+          "surplus_battery_net_discharge_sensor_entity_id": "Battery net discharge power entity (W) (optional)",
+          "surplus_battery_net_discharge_sensor_inverted": "Invert net battery discharge sensor sign",
+          "surplus_allow_battery_discharge_for_ev": "Allow battery discharge for EV charging",
+          "surplus_max_battery_discharge_for_ev_w": "Max allowed battery discharge power for EV (W)",
+          "surplus_start_threshold_w": "Surplus start threshold (W)",
+          "surplus_stop_threshold_w": "Surplus stop threshold (W)",
           "surplus_forecast_sensor_entity_id": "1h solar forecast sensor entity (W) (optional)"
         }
       }
@@ -98,6 +104,15 @@
       },
       "surplus_battery_soc_low_threshold_pct": {
         "name": "Surplus battery low threshold"
+      },
+      "surplus_start_threshold_w": {
+        "name": "Surplus start threshold"
+      },
+      "surplus_stop_threshold_w": {
+        "name": "Surplus stop threshold"
+      },
+      "surplus_max_battery_discharge_for_ev_w": {
+        "name": "Max EV battery discharge"
       }
     },
     "switch": {

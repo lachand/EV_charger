@@ -57,6 +57,9 @@ User entities:
 - `binary_sensor.surplus_regulation_active`
 - `number.surplus_battery_soc_high_threshold_pct`
 - `number.surplus_battery_soc_low_threshold_pct`
+- `number.surplus_start_threshold_w`
+- `number.surplus_stop_threshold_w`
+- `number.surplus_max_battery_discharge_for_ev_w`
 
 ### Simplified behavior
 
@@ -66,6 +69,9 @@ User entities:
 - Battery hysteresis:
 - above high threshold: curtailed/battery contribution allowed
 - below low threshold: curtailed/battery contribution blocked
+- Optional battery net-discharge guard:
+- configurable max discharge budget (W) for EV charging
+- discharge above budget is subtracted from available surplus (downshift if possible)
 - Forecast is optional and used only as anti-drop guard (avoid stop on short cloud transient).
 - The rest is fixed internally (voltage, ramp, delays, cooldowns, protections).
 
@@ -80,6 +86,11 @@ User entities:
 - `surplus_battery_soc_sensor_entity_id` (optional)
 - `surplus_battery_soc_high_threshold_pct`
 - `surplus_battery_soc_low_threshold_pct`
+- `surplus_battery_net_discharge_sensor_entity_id` + `surplus_battery_net_discharge_sensor_inverted` (optional)
+- `surplus_allow_battery_discharge_for_ev`
+- `surplus_max_battery_discharge_for_ev_w`
+- `surplus_start_threshold_w`
+- `surplus_stop_threshold_w`
 - `surplus_forecast_sensor_entity_id` (optional)
 
 ## Home Assistant services
