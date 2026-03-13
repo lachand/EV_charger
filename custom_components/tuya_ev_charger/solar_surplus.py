@@ -837,6 +837,8 @@ def _settings_from_entry(entry: ConfigEntry) -> SolarSurplusSettings:
         MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
         MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     )
+    if high <= MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT:
+        high = MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT + 1
     low = _option_int(
         options,
         CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,

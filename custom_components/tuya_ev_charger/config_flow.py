@@ -257,7 +257,7 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                             CONF_SURPLUS_SENSOR_ENTITY_ID,
                             DEFAULT_SURPLUS_SENSOR_ENTITY_ID,
                         ),
-                    ): _optional_sensor_selector(),
+                    ): _sensor_selector(),
                     vol.Required(
                         CONF_SURPLUS_SENSOR_INVERTED,
                         default=_option_bool(
@@ -273,7 +273,7 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                             CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
                             DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
                         ),
-                    ): _optional_sensor_selector(),
+                    ): _sensor_selector(),
                     vol.Required(
                         CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
                         default=_option_bool(
@@ -289,7 +289,7 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                             CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
                             DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
                         ),
-                    ): _optional_sensor_selector(),
+                    ): _sensor_selector(),
                     vol.Required(
                         CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
                         default=high_threshold,
@@ -317,7 +317,7 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                             CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
                             DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
                         ),
-                    ): _optional_sensor_selector(),
+                    ): _sensor_selector(),
                 }
             ),
         )
@@ -400,10 +400,6 @@ def _sensor_selector() -> selector.EntitySelector:
             multiple=False,
         )
     )
-
-
-def _optional_sensor_selector() -> vol.Any:
-    return vol.Any(None, "", _sensor_selector())
 
 
 def _normalize_optional_entity_value(data: dict[str, Any], key: str) -> None:

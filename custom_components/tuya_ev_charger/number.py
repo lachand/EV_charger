@@ -147,18 +147,10 @@ class TuyaEVChargerSurplusOptionNumber(TuyaEVChargerEntity, NumberEntity):
 
     @property
     def native_value(self) -> float:
-        default_value = self.entity_description.default_value
+        high, low = _current_soc_thresholds(self._entry.options)
         if self.entity_description.option_key == CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT:
-            default_value = _legacy_high_threshold_default(self._entry.options)
-
-        value = _option_int(
-            self._entry.options,
-            self.entity_description.option_key,
-            default_value,
-            MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-            MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-        )
-        return float(value)
+            return float(high)
+        return float(low)
 
     @property
     def native_min_value(self) -> float:
@@ -172,45 +164,32 @@ class TuyaEVChargerSurplusOptionNumber(TuyaEVChargerEntity, NumberEntity):
         coerced = int(value)
         if float(coerced) != value:
             raise HomeAssistantError("This value must be an integer.")
-
-        if coerced < MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT or coerced > MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT:
-            raise HomeAssistantError(
-                f"Value must be between {MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT} and "
-                f"{MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT}."
-            )
-
-        self._validate_hysteresis(coerced)
-
-        new_options = dict(self._entry.options)
-        new_options[self.entity_description.option_key] = coerced
-        self.hass.config_entries.async_update_entry(self._entry, options=new_options)
-        self.async_write_ha_state()
-
-    def _validate_hysteresis(self, new_value: int) -> None:
-        high = _option_int(
-            self._entry.options,
-            CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
-            _legacy_high_threshold_default(self._entry.options),
-            MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-            MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-        )
-        low = _option_int(
-            self._entry.options,
-            CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
-            DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
-            MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-            MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-        )
+        high, low = _current_soc_thresholds(self._entry.options)
 
         if self.entity_description.option_key == CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT:
-            high = new_value
-        if self.entity_description.option_key == CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT:
-            low = new_value
-
-        if high <= low:
-            raise HomeAssistantError(
-                "High battery threshold must be strictly greater than low threshold."
+            high = max(
+                MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT + 1,
+                min(MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, coerced),
             )
+            if low >= high:
+                low = max(MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, high - 1)
+        else:
+            low = max(
+                MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+                min(MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, coerced),
+            )
+            if low >= high:
+                high = min(MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, low + 1)
+                if low >= high:
+                    low = max(MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, high - 1)
+
+        new_options = dict(self._entry.options)
+        new_options[CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT] = high
+        new_options[CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT] = low
+        # Keep legacy key aligned for backward compatibility.
+        new_options[CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT] = high
+        self.hass.config_entries.async_update_entry(self._entry, options=new_options)
+        self.async_write_ha_state()
 
 
 def _legacy_high_threshold_default(options: Mapping[str, object]) -> int:
@@ -221,6 +200,29 @@ def _legacy_high_threshold_default(options: Mapping[str, object]) -> int:
         MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
         MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     )
+
+
+def _current_soc_thresholds(options: Mapping[str, object]) -> tuple[int, int]:
+    high = _option_int(
+        options,
+        CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
+        _legacy_high_threshold_default(options),
+        MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+        MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+    )
+    if high <= MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT:
+        high = MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT + 1
+
+    low = _option_int(
+        options,
+        CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
+        DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
+        MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+        MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+    )
+    if low >= high:
+        low = max(MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, high - 1)
+    return high, low
 
 
 def _option_int(
