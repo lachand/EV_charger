@@ -96,6 +96,18 @@
       },
       "surplus_last_decision_reason": {
         "name": "Derniere raison decision surplus"
+      },
+      "surplus_raw_w": {
+        "name": "Surplus brut"
+      },
+      "surplus_effective_w": {
+        "name": "Surplus effectif"
+      },
+      "surplus_battery_discharge_over_limit_w": {
+        "name": "Depassement decharge batterie"
+      },
+      "surplus_target_current_a": {
+        "name": "Courant cible surplus"
       }
     },
     "number": {
@@ -127,6 +139,11 @@
       },
       "surplus_mode": {
         "name": "Mode surplus solaire"
+      }
+    },
+    "select": {
+      "surplus_profile": {
+        "name": "Profil surplus"
       }
     }
   }

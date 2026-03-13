@@ -166,7 +166,8 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
         user_input: dict[str, Any] | None = None,
     ) -> FlowResult:
         if user_input is not None:
-            cleaned_input = dict(user_input)
+            cleaned_input = dict(self._config_entry.options)
+            cleaned_input.update(user_input)
             _normalize_optional_entity_value(cleaned_input, CONF_SURPLUS_SENSOR_ENTITY_ID)
             _normalize_optional_entity_value(
                 cleaned_input,

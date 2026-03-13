@@ -61,3 +61,23 @@ profile_assistant:
       description: If true, automatically apply the suggested charger profile.
       selector:
         boolean:
+
+set_surplus_profile:
+  name: Set surplus profile
+  description: Apply a predefined solar surplus preset (eco, balanced, fast).
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID. Required when multiple chargers are configured.
+      selector:
+        text:
+    profile:
+      name: Profile
+      description: Surplus preset to apply.
+      required: true
+      selector:
+        select:
+          options:
+            - eco
+            - balanced
+            - fast

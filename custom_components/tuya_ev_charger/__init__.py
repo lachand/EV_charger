@@ -32,9 +32,15 @@ from .const import (
     SERVICE_FORCE_CHARGE_FOR,
     SERVICE_PAUSE_SURPLUS,
     SERVICE_PROFILE_ASSISTANT,
+    SERVICE_SET_SURPLUS_PROFILE,
 )
 from .coordinator import TuyaEVChargerDataUpdateCoordinator
 from .solar_surplus import SolarSurplusController
+from .surplus_profiles import (
+    apply_surplus_profile,
+    is_supported_surplus_profile,
+    normalize_surplus_profile,
+)
 from .tuya_ev_charger import TuyaEVChargerClient
 
 LOGGER = logging.getLogger(__name__)
@@ -43,6 +49,7 @@ SERVICE_DATA_ENTRY_ID = "entry_id"
 SERVICE_DATA_DURATION_MINUTES = "duration_minutes"
 SERVICE_DATA_CURRENT_A = "current_a"
 SERVICE_DATA_APPLY = "apply"
+SERVICE_DATA_PROFILE = "profile"
 
 SERVICE_FORCE_CHARGE_SCHEMA = vol.Schema(
     {
@@ -70,6 +77,12 @@ SERVICE_PROFILE_ASSISTANT_SCHEMA = vol.Schema(
     {
         vol.Optional(SERVICE_DATA_ENTRY_ID): str,
         vol.Optional(SERVICE_DATA_APPLY, default=False): bool,
+    }
+)
+SERVICE_SET_SURPLUS_PROFILE_SCHEMA = vol.Schema(
+    {
+        vol.Optional(SERVICE_DATA_ENTRY_ID): str,
+        vol.Required(SERVICE_DATA_PROFILE): vol.All(str, vol.Length(min=1)),
     }
 )
 
@@ -219,6 +232,17 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             notification_id=f"{DOMAIN}_{entry.entry_id}_profile_assistant",
         )
 
+    async def _handle_set_surplus_profile(call: ServiceCall) -> None:
+        entry = _resolve_entry_from_call(hass, call)
+        raw_profile = call.data[SERVICE_DATA_PROFILE]
+        if not is_supported_surplus_profile(raw_profile):
+            raise ServiceValidationError(
+                f"Unsupported surplus profile '{raw_profile}'. Use eco, balanced or fast."
+            )
+        normalized_profile = normalize_surplus_profile(raw_profile)
+        new_options = apply_surplus_profile(dict(entry.options), normalized_profile)
+        hass.config_entries.async_update_entry(entry, options=new_options)
+
     hass.services.async_register(
         DOMAIN,
         SERVICE_FORCE_CHARGE_FOR,
@@ -236,6 +260,12 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         SERVICE_PROFILE_ASSISTANT,
         _handle_profile_assistant,
         schema=SERVICE_PROFILE_ASSISTANT_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_SURPLUS_PROFILE,
+        _handle_set_surplus_profile,
+        schema=SERVICE_SET_SURPLUS_PROFILE_SCHEMA,
     )
     domain_data["services_registered"] = True
 

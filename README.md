@@ -56,11 +56,16 @@ User entities:
 - `switch.surplus_mode`
 - `binary_sensor.surplus_regulation_active`
 - `sensor.surplus_last_decision_reason`
+- `sensor.surplus_raw_w`
+- `sensor.surplus_effective_w`
+- `sensor.surplus_battery_discharge_over_limit_w`
+- `sensor.surplus_target_current_a`
 - `number.surplus_battery_soc_high_threshold_pct`
 - `number.surplus_battery_soc_low_threshold_pct`
 - `number.surplus_start_threshold_w`
 - `number.surplus_stop_threshold_w`
 - `number.surplus_max_battery_discharge_for_ev_w`
+- `select.surplus_profile`
 
 ### Simplified behavior
 
@@ -74,6 +79,10 @@ User entities:
 - configurable max discharge budget (W) for EV charging
 - discharge above budget is subtracted from available surplus (downshift if possible)
 - Forecast is optional and used only as anti-drop guard (avoid stop on short cloud transient).
+- Quick profiles:
+- `eco`: conservative, avoids battery discharge
+- `balanced`: default behavior
+- `fast`: reacts faster and starts with lower surplus
 - The rest is fixed internally (voltage, ramp, delays, cooldowns, protections).
 
 ## Options
@@ -99,6 +108,7 @@ User entities:
 - `tuya_ev_charger.force_charge_for`
 - `tuya_ev_charger.pause_surplus`
 - `tuya_ev_charger.profile_assistant`
+- `tuya_ev_charger.set_surplus_profile`
 
 ## Exposed entities
 

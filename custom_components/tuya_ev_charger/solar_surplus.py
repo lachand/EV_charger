@@ -15,6 +15,8 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     CHARGER_PROFILE_DEPOW_V2,
+    CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
+    CONF_SURPLUS_ADJUST_UP_COOLDOWN_S,
     CONF_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
     CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
     CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
@@ -31,6 +33,8 @@ from .const import (
     CONF_SURPLUS_SENSOR_INVERTED,
     CONF_SURPLUS_START_THRESHOLD_W,
     CONF_SURPLUS_STOP_THRESHOLD_W,
+    DEFAULT_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
+    DEFAULT_SURPLUS_ADJUST_UP_COOLDOWN_S,
     DEFAULT_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
     DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
     DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
@@ -55,7 +59,9 @@ from .const import (
     DP_WORK_STATE_DEBUG,
     MAX_SURPLUS_THRESHOLD_W,
     MIN_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
+    MIN_SURPLUS_DELAY_S,
     MIN_SURPLUS_THRESHOLD_W,
+    MAX_SURPLUS_DELAY_S,
     MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
 )
@@ -69,8 +75,6 @@ LOGGER = logging.getLogger(__name__)
 FIXED_LINE_VOLTAGE_V = 230
 FIXED_START_DELAY_S = 30
 FIXED_STOP_DELAY_S = 60
-FIXED_ADJUST_UP_COOLDOWN_S = 20
-FIXED_ADJUST_DOWN_COOLDOWN_S = 10
 FIXED_RAMP_STEP_A = 1
 FIXED_MIN_RUN_TIME_S = 0
 FIXED_MAX_SESSION_DURATION_MIN = 0
@@ -97,6 +101,8 @@ class SolarSurplusSettings:
     max_battery_discharge_for_ev_w: int
     start_threshold_w: int
     stop_threshold_w: int
+    adjust_up_cooldown_s: int
+    adjust_down_cooldown_s: int
     forecast_sensor_entity_id: str
 
 
@@ -107,6 +113,10 @@ class SolarSurplusSnapshot:
     paused: bool
     force_charge_active: bool
     last_decision_reason: str
+    raw_surplus_w: float | None
+    effective_surplus_w: float | None
+    battery_discharge_over_limit_w: float | None
+    target_current_a: int | None
 
 
 class SolarSurplusController:
@@ -144,7 +154,10 @@ class SolarSurplusController:
 
         self._regulation_active = False
         self._last_decision_reason = "startup"
+        self._last_raw_surplus_w: float | None = None
         self._last_available_surplus_w: float | None = None
+        self._last_battery_discharge_over_limit_w: float | None = None
+        self._last_target_current_a: int | None = None
         self._forecast_ema_surplus_w: float | None = None
         self._forecast_last_sample_ts: float | None = None
         self._battery_soc_hysteresis_enabled: bool | None = None
@@ -158,6 +171,10 @@ class SolarSurplusController:
             paused=self._is_pause_active(now),
             force_charge_active=self._is_force_charge_active(now),
             last_decision_reason=self._last_decision_reason,
+            raw_surplus_w=self._last_raw_surplus_w,
+            effective_surplus_w=self._last_available_surplus_w,
+            battery_discharge_over_limit_w=self._last_battery_discharge_over_limit_w,
+            target_current_a=self._last_target_current_a,
         )
 
     def async_add_update_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
@@ -321,7 +338,7 @@ class SolarSurplusController:
         if data is None:
             self._set_decision("no_coordinator_data")
             self._regulation_active = False
-            self._last_available_surplus_w = None
+            self._clear_surplus_debug_state()
             self._notify_state_listeners()
             return
 
@@ -335,11 +352,13 @@ class SolarSurplusController:
         if not available_currents:
             self._set_decision("no_allowed_currents")
             self._regulation_active = False
+            self._clear_surplus_debug_state()
             self._notify_state_listeners()
             return
         min_current = min(available_currents)
 
         if self._is_force_charge_active(now):
+            self._clear_surplus_debug_state()
             await self._async_apply_force_charge(now, data, available_currents, min_current)
             self._regulation_active = True
             self._notify_state_listeners()
@@ -348,13 +367,14 @@ class SolarSurplusController:
         if not self._settings.mode_enabled:
             self._set_decision("mode_disabled")
             self._regulation_active = False
-            self._last_available_surplus_w = None
+            self._clear_surplus_debug_state()
             self._notify_state_listeners()
             return
 
         if self._is_pause_active(now):
             self._set_decision("surplus_paused_active")
             self._regulation_active = False
+            self._clear_surplus_debug_state()
             if is_charging and self._session_active:
                 if await self._client.async_set_charge_enabled(False):
                     self._register_stop(now)
@@ -365,7 +385,7 @@ class SolarSurplusController:
         if not self._settings.grid_sensor_entity_id:
             self._set_decision("missing_grid_sensor")
             self._regulation_active = False
-            self._last_available_surplus_w = None
+            self._clear_surplus_debug_state()
             self._notify_state_listeners()
             return
 
@@ -373,7 +393,7 @@ class SolarSurplusController:
         if grid_power_w is None:
             self._set_decision("grid_sensor_unavailable")
             self._regulation_active = False
-            self._last_available_surplus_w = None
+            self._clear_surplus_debug_state()
             self._start_candidate_since = None
             self._stop_candidate_since = None
             self._notify_state_listeners()
@@ -399,6 +419,7 @@ class SolarSurplusController:
             if max_supported_current >= min_current
             else None
         )
+        self._last_target_current_a = target_current
 
         if is_charging and not self._session_active:
             self._start_session(now)
@@ -460,9 +481,9 @@ class SolarSurplusController:
                     else self._last_decrease_action_ts
                 )
                 cooldown_s = (
-                    FIXED_ADJUST_UP_COOLDOWN_S
+                    self._settings.adjust_up_cooldown_s
                     if increasing
-                    else FIXED_ADJUST_DOWN_COOLDOWN_S
+                    else self._settings.adjust_down_cooldown_s
                 )
                 if now - last_action_ts >= cooldown_s:
                     next_current = _ramp_current(
@@ -650,23 +671,27 @@ class SolarSurplusController:
         now: float,
         update_state: bool,
     ) -> float:
-        raw_surplus_w = self._raw_surplus_w(
+        raw_surplus_w, discharge_over_limit_w = self._raw_surplus_w(
             data=data,
             grid_power_w=grid_power_w,
             battery_ready=battery_ready,
         )
-        return self._apply_forecast_model(
+        effective_surplus_w = self._apply_forecast_model(
             now=now,
             raw_surplus_w=raw_surplus_w,
             update_state=update_state,
         )
+        if update_state:
+            self._last_raw_surplus_w = raw_surplus_w
+            self._last_battery_discharge_over_limit_w = discharge_over_limit_w
+        return effective_surplus_w
 
     def _raw_surplus_w(
         self,
         data: EVMetrics,
         grid_power_w: float,
         battery_ready: bool,
-    ) -> float:
+    ) -> tuple[float, float]:
         # Positive grid power means import. Reconstruct natural surplus by
         # adding EV consumption back into the grid balance.
         ev_power_w = _ev_power_w(data)
@@ -680,7 +705,7 @@ class SolarSurplusController:
         if discharge_over_limit_w > 0:
             reconstructed_surplus_w -= discharge_over_limit_w
 
-        return reconstructed_surplus_w
+        return reconstructed_surplus_w, discharge_over_limit_w
 
     def _apply_forecast_model(
         self,
@@ -858,6 +883,12 @@ class SolarSurplusController:
     def _set_decision(self, reason: str) -> None:
         self._last_decision_reason = reason
 
+    def _clear_surplus_debug_state(self) -> None:
+        self._last_raw_surplus_w = None
+        self._last_available_surplus_w = None
+        self._last_battery_discharge_over_limit_w = None
+        self._last_target_current_a = None
+
     def _notify_state_listeners(self) -> None:
         for listener in tuple(self._listeners):
             try:
@@ -918,6 +949,20 @@ def _settings_from_entry(entry: ConfigEntry) -> SolarSurplusSettings:
     )
     if stop_threshold_w > start_threshold_w:
         stop_threshold_w = start_threshold_w
+    adjust_up_cooldown_s = _option_int(
+        options,
+        CONF_SURPLUS_ADJUST_UP_COOLDOWN_S,
+        DEFAULT_SURPLUS_ADJUST_UP_COOLDOWN_S,
+        MIN_SURPLUS_DELAY_S,
+        MAX_SURPLUS_DELAY_S,
+    )
+    adjust_down_cooldown_s = _option_int(
+        options,
+        CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
+        DEFAULT_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
+        MIN_SURPLUS_DELAY_S,
+        MAX_SURPLUS_DELAY_S,
+    )
 
     return SolarSurplusSettings(
         mode_enabled=_option_bool(
@@ -970,6 +1015,8 @@ def _settings_from_entry(entry: ConfigEntry) -> SolarSurplusSettings:
         max_battery_discharge_for_ev_w=max_battery_discharge_for_ev_w,
         start_threshold_w=start_threshold_w,
         stop_threshold_w=stop_threshold_w,
+        adjust_up_cooldown_s=adjust_up_cooldown_s,
+        adjust_down_cooldown_s=adjust_down_cooldown_s,
         forecast_sensor_entity_id=_option_str(
             options,
             CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
