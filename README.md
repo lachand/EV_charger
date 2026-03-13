@@ -55,6 +55,7 @@ User entities:
 - `number.charge_current`
 - `switch.surplus_mode`
 - `binary_sensor.surplus_regulation_active`
+- `sensor.surplus_last_decision_reason`
 - `number.surplus_battery_soc_high_threshold_pct`
 - `number.surplus_battery_soc_low_threshold_pct`
 - `number.surplus_start_threshold_w`

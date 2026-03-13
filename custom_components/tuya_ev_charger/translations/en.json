@@ -93,6 +93,9 @@
       },
       "product_variant": {
         "name": "Product variant"
+      },
+      "surplus_last_decision_reason": {
+        "name": "Surplus last decision reason"
       }
     },
     "number": {
