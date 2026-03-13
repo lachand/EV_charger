@@ -18,6 +18,8 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from . import TuyaEVChargerRuntimeData
 from .const import (
     ALLOWED_CURRENTS,
+    CARD_ROLE_CHARGE_CURRENT,
+    CARD_ROLE_INDEX,
     CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
     CONF_SURPLUS_START_THRESHOLD_W,
     CONF_SURPLUS_STOP_THRESHOLD_W,
@@ -148,7 +150,12 @@ class TuyaEVChargerCurrentNumber(TuyaEVChargerEntity, NumberEntity):
     entity_description = CURRENT_SETPOINT_DESCRIPTION
 
     def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
-        super().__init__(entry=entry, runtime_data=runtime_data)
+        super().__init__(
+            entry=entry,
+            runtime_data=runtime_data,
+            card_role=CARD_ROLE_CHARGE_CURRENT,
+            card_index=CARD_ROLE_INDEX[CARD_ROLE_CHARGE_CURRENT],
+        )
         self._attr_unique_id = f"{runtime_data.client.device_id}_charge_current"
 
     @property

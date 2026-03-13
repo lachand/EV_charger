@@ -10,6 +10,7 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TuyaEVChargerRuntimeData
+from .const import CARD_ROLE_INDEX, CARD_ROLE_REGULATION_ACTIVE
 from .entity import TuyaEVChargerEntity
 
 
@@ -34,7 +35,12 @@ class TuyaEVChargerSurplusRegulationActiveBinarySensor(
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
-        super().__init__(entry=entry, runtime_data=runtime_data)
+        super().__init__(
+            entry=entry,
+            runtime_data=runtime_data,
+            card_role=CARD_ROLE_REGULATION_ACTIVE,
+            card_index=CARD_ROLE_INDEX[CARD_ROLE_REGULATION_ACTIVE],
+        )
         self._attr_unique_id = f"{runtime_data.client.device_id}_surplus_regulation_active"
         self._unsub_listener: Callable[[], None] | None = None
 
@@ -49,14 +55,16 @@ class TuyaEVChargerSurplusRegulationActiveBinarySensor(
     def extra_state_attributes(self) -> dict[str, Any]:
         controller = self._runtime_data.solar_surplus_controller
         if controller is None:
-            return {}
+            return self._with_technical_attributes()
         snapshot = controller.snapshot
-        return {
-            "mode_enabled": snapshot.mode_enabled,
-            "paused": snapshot.paused,
-            "force_charge_active": snapshot.force_charge_active,
-            "last_decision_reason": snapshot.last_decision_reason,
-        }
+        return self._with_technical_attributes(
+            {
+                "mode_enabled": snapshot.mode_enabled,
+                "paused": snapshot.paused,
+                "force_charge_active": snapshot.force_charge_active,
+                "last_decision_reason": snapshot.last_decision_reason,
+            }
+        )
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()

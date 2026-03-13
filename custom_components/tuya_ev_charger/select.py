@@ -9,6 +9,8 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TuyaEVChargerRuntimeData
 from .const import (
+    CARD_ROLE_INDEX,
+    CARD_ROLE_SURPLUS_PROFILE,
     CONF_SURPLUS_PROFILE,
     DEFAULT_SURPLUS_PROFILE,
     SURPLUS_PROFILES,
@@ -34,7 +36,12 @@ class TuyaEVChargerSurplusProfileSelect(TuyaEVChargerEntity, SelectEntity):
     _attr_options = list(SURPLUS_PROFILES)
 
     def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
-        super().__init__(entry=entry, runtime_data=runtime_data)
+        super().__init__(
+            entry=entry,
+            runtime_data=runtime_data,
+            card_role=CARD_ROLE_SURPLUS_PROFILE,
+            card_index=CARD_ROLE_INDEX[CARD_ROLE_SURPLUS_PROFILE],
+        )
         self._attr_unique_id = f"{runtime_data.client.device_id}_surplus_profile"
 
     @property

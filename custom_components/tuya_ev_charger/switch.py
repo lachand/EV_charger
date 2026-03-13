@@ -9,6 +9,9 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TuyaEVChargerRuntimeData
 from .const import (
+    CARD_ROLE_CHARGE_SESSION,
+    CARD_ROLE_INDEX,
+    CARD_ROLE_SURPLUS_MODE,
     CONF_SURPLUS_MODE_ENABLED,
     DEFAULT_SURPLUS_MODE_ENABLED,
 )
@@ -35,7 +38,12 @@ class TuyaEVChargerChargeSessionSwitch(TuyaEVChargerEntity, SwitchEntity):
     _attr_icon = "mdi:ev-station"
 
     def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
-        super().__init__(entry=entry, runtime_data=runtime_data)
+        super().__init__(
+            entry=entry,
+            runtime_data=runtime_data,
+            card_role=CARD_ROLE_CHARGE_SESSION,
+            card_index=CARD_ROLE_INDEX[CARD_ROLE_CHARGE_SESSION],
+        )
         self._attr_unique_id = f"{runtime_data.client.device_id}_charge_session"
 
     @property
@@ -91,7 +99,12 @@ class TuyaEVChargerSurplusModeSwitch(TuyaEVChargerEntity, SwitchEntity):
     _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
-        super().__init__(entry=entry, runtime_data=runtime_data)
+        super().__init__(
+            entry=entry,
+            runtime_data=runtime_data,
+            card_role=CARD_ROLE_SURPLUS_MODE,
+            card_index=CARD_ROLE_INDEX[CARD_ROLE_SURPLUS_MODE],
+        )
         self._attr_unique_id = f"{runtime_data.client.device_id}_surplus_mode"
 
     @property

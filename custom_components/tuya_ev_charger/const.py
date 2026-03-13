@@ -6,6 +6,40 @@ from homeassistant.const import Platform
 
 DOMAIN = "tuya_ev_charger"
 
+ATTR_CHARGER_TOKEN = "tuya_ev_charger_token"
+ATTR_CHARGER_ENTRY_ID = "tuya_ev_charger_entry_id"
+ATTR_CHARGER_DEVICE_ID = "tuya_ev_charger_device_id"
+ATTR_CARD_ROLE = "tuya_ev_charger_card_role"
+ATTR_CARD_INDEX = "tuya_ev_charger_card_index"
+
+CARD_ROLE_POWER = "power"
+CARD_ROLE_CURRENT = "current"
+CARD_ROLE_CHARGE_CURRENT = "charge_current"
+CARD_ROLE_CHARGE_SESSION = "charge_session"
+CARD_ROLE_SURPLUS_MODE = "surplus_mode"
+CARD_ROLE_SURPLUS_PROFILE = "surplus_profile"
+CARD_ROLE_REGULATION_ACTIVE = "regulation_active"
+CARD_ROLE_LAST_DECISION = "last_decision"
+CARD_ROLE_SURPLUS_RAW = "surplus_raw"
+CARD_ROLE_SURPLUS_EFFECTIVE = "surplus_effective"
+CARD_ROLE_SURPLUS_DISCHARGE_OVER_LIMIT = "surplus_discharge_over_limit"
+CARD_ROLE_SURPLUS_TARGET_CURRENT = "surplus_target_current"
+
+CARD_ROLE_INDEX: dict[str, int] = {
+    CARD_ROLE_POWER: 10,
+    CARD_ROLE_CURRENT: 20,
+    CARD_ROLE_CHARGE_CURRENT: 30,
+    CARD_ROLE_CHARGE_SESSION: 40,
+    CARD_ROLE_SURPLUS_MODE: 50,
+    CARD_ROLE_SURPLUS_PROFILE: 60,
+    CARD_ROLE_REGULATION_ACTIVE: 70,
+    CARD_ROLE_LAST_DECISION: 80,
+    CARD_ROLE_SURPLUS_RAW: 90,
+    CARD_ROLE_SURPLUS_EFFECTIVE: 100,
+    CARD_ROLE_SURPLUS_DISCHARGE_OVER_LIMIT: 110,
+    CARD_ROLE_SURPLUS_TARGET_CURRENT: 120,
+}
+
 CONF_CHARGER_PROFILE = "charger_profile"
 CONF_CHARGER_PROFILE_JSON = "charger_profile_json"
 CONF_DEVICE_ID = "device_id"

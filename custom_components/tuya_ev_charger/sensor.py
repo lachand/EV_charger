@@ -22,6 +22,16 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TuyaEVChargerRuntimeData
+from .const import (
+    CARD_ROLE_CURRENT,
+    CARD_ROLE_INDEX,
+    CARD_ROLE_LAST_DECISION,
+    CARD_ROLE_POWER,
+    CARD_ROLE_SURPLUS_DISCHARGE_OVER_LIMIT,
+    CARD_ROLE_SURPLUS_EFFECTIVE,
+    CARD_ROLE_SURPLUS_RAW,
+    CARD_ROLE_SURPLUS_TARGET_CURRENT,
+)
 from .entity import TuyaEVChargerEntity
 from .solar_surplus import SolarSurplusSnapshot
 from .tuya_ev_charger import EVMetrics
@@ -35,6 +45,20 @@ class TuyaEVChargerSensorDescription(SensorEntityDescription):
 @dataclass(frozen=True, kw_only=True)
 class TuyaEVChargerSurplusControllerSensorDescription(SensorEntityDescription):
     value_fn: Callable[[SolarSurplusSnapshot], float | int | str | None]
+
+
+CARD_ROLE_BY_SENSOR_KEY: dict[str, str] = {
+    "current_l1": CARD_ROLE_CURRENT,
+    "power_l1": CARD_ROLE_POWER,
+}
+
+CARD_ROLE_BY_SURPLUS_SENSOR_KEY: dict[str, str] = {
+    "surplus_last_decision_reason": CARD_ROLE_LAST_DECISION,
+    "surplus_raw_w": CARD_ROLE_SURPLUS_RAW,
+    "surplus_effective_w": CARD_ROLE_SURPLUS_EFFECTIVE,
+    "surplus_battery_discharge_over_limit_w": CARD_ROLE_SURPLUS_DISCHARGE_OVER_LIMIT,
+    "surplus_target_current_a": CARD_ROLE_SURPLUS_TARGET_CURRENT,
+}
 
 
 SENSOR_DESCRIPTIONS: tuple[TuyaEVChargerSensorDescription, ...] = (
@@ -212,7 +236,14 @@ class TuyaEVChargerSensor(TuyaEVChargerEntity, SensorEntity):
         runtime_data: TuyaEVChargerRuntimeData,
         description: TuyaEVChargerSensorDescription,
     ) -> None:
-        super().__init__(entry=entry, runtime_data=runtime_data)
+        card_role = CARD_ROLE_BY_SENSOR_KEY.get(description.key)
+        card_index = CARD_ROLE_INDEX.get(card_role) if card_role is not None else None
+        super().__init__(
+            entry=entry,
+            runtime_data=runtime_data,
+            card_role=card_role,
+            card_index=card_index,
+        )
         self.entity_description = description
         self._attr_unique_id = f"{runtime_data.client.device_id}_{description.key}"
 
@@ -233,7 +264,14 @@ class TuyaEVChargerSurplusControllerSensor(TuyaEVChargerEntity, SensorEntity):
         runtime_data: TuyaEVChargerRuntimeData,
         description: TuyaEVChargerSurplusControllerSensorDescription,
     ) -> None:
-        super().__init__(entry=entry, runtime_data=runtime_data)
+        card_role = CARD_ROLE_BY_SURPLUS_SENSOR_KEY.get(description.key)
+        card_index = CARD_ROLE_INDEX.get(card_role) if card_role is not None else None
+        super().__init__(
+            entry=entry,
+            runtime_data=runtime_data,
+            card_role=card_role,
+            card_index=card_index,
+        )
         self.entity_description = description
         self._attr_unique_id = f"{runtime_data.client.device_id}_{description.key}"
         self._unsub_listener: Callable[[], None] | None = None
