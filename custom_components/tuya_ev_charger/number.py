@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any
 
 from homeassistant.components.number import (
     NumberEntity,
@@ -172,6 +173,12 @@ class TuyaEVChargerCurrentNumber(TuyaEVChargerEntity, NumberEntity):
     @property
     def native_max_value(self) -> float:
         return float(max(self._allowed_currents()))
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return self._with_technical_attributes(
+            {"allowed_currents": list(self._allowed_currents())}
+        )
 
     async def async_set_native_value(self, value: float) -> None:
         amperage = int(value)
