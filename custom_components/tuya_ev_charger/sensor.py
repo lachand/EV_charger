@@ -23,14 +23,19 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TuyaEVChargerRuntimeData
 from .const import (
+    CARD_ROLE_ALARM,
     CARD_ROLE_CURRENT,
     CARD_ROLE_INDEX,
     CARD_ROLE_LAST_DECISION,
     CARD_ROLE_POWER,
+    CARD_ROLE_SELFTEST,
     CARD_ROLE_SURPLUS_DISCHARGE_OVER_LIMIT,
     CARD_ROLE_SURPLUS_EFFECTIVE,
     CARD_ROLE_SURPLUS_RAW,
     CARD_ROLE_SURPLUS_TARGET_CURRENT,
+    CARD_ROLE_TEMPERATURE,
+    CARD_ROLE_VOLTAGE,
+    CARD_ROLE_WORK_STATE,
 )
 from .entity import TuyaEVChargerEntity
 from .solar_surplus import SolarSurplusSnapshot
@@ -50,6 +55,11 @@ class TuyaEVChargerSurplusControllerSensorDescription(SensorEntityDescription):
 CARD_ROLE_BY_SENSOR_KEY: dict[str, str] = {
     "current_l1": CARD_ROLE_CURRENT,
     "power_l1": CARD_ROLE_POWER,
+    "voltage_l1": CARD_ROLE_VOLTAGE,
+    "temperature": CARD_ROLE_TEMPERATURE,
+    "work_state": CARD_ROLE_WORK_STATE,
+    "selftest": CARD_ROLE_SELFTEST,
+    "alarm": CARD_ROLE_ALARM,
 }
 
 CARD_ROLE_BY_SURPLUS_SENSOR_KEY: dict[str, str] = {

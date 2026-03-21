@@ -10,6 +10,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TuyaEVChargerRuntimeData
+from .const import CARD_ROLE_INDEX, CARD_ROLE_REBOOT
 from .entity import TuyaEVChargerEntity
 
 LOGGER = logging.getLogger(__name__)
@@ -29,7 +30,12 @@ class TuyaEVChargerRebootButton(TuyaEVChargerEntity, ButtonEntity):
     _attr_icon = "mdi:restart-alert"
 
     def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
-        super().__init__(entry=entry, runtime_data=runtime_data)
+        super().__init__(
+            entry=entry,
+            runtime_data=runtime_data,
+            card_role=CARD_ROLE_REBOOT,
+            card_index=CARD_ROLE_INDEX[CARD_ROLE_REBOOT],
+        )
         self._attr_unique_id = f"{runtime_data.client.device_id}_reboot_charger"
 
     async def async_press(self) -> None:

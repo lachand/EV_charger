@@ -21,6 +21,8 @@ from .const import (
     ALLOWED_CURRENTS,
     CARD_ROLE_CHARGE_CURRENT,
     CARD_ROLE_INDEX,
+    CARD_ROLE_SURPLUS_START_THRESHOLD,
+    CARD_ROLE_SURPLUS_STOP_THRESHOLD,
     CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
     CONF_SURPLUS_START_THRESHOLD_W,
     CONF_SURPLUS_STOP_THRESHOLD_W,
@@ -210,7 +212,17 @@ class TuyaEVChargerSurplusOptionNumber(TuyaEVChargerEntity, NumberEntity):
         runtime_data: TuyaEVChargerRuntimeData,
         description: SurplusOptionNumberDescription,
     ) -> None:
-        super().__init__(entry=entry, runtime_data=runtime_data)
+        _role_by_key: dict[str, str] = {
+            "surplus_start_threshold_w": CARD_ROLE_SURPLUS_START_THRESHOLD,
+            "surplus_stop_threshold_w": CARD_ROLE_SURPLUS_STOP_THRESHOLD,
+        }
+        card_role = _role_by_key.get(description.key)
+        super().__init__(
+            entry=entry,
+            runtime_data=runtime_data,
+            card_role=card_role,
+            card_index=CARD_ROLE_INDEX[card_role] if card_role is not None else None,
+        )
         self.entity_description = description
         self._attr_unique_id = f"{runtime_data.client.device_id}_{description.key}"
 
