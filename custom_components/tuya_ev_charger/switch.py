@@ -11,6 +11,7 @@ from . import TuyaEVChargerRuntimeData
 from .const import (
     CARD_ROLE_CHARGE_SESSION,
     CARD_ROLE_INDEX,
+    CARD_ROLE_SCHEDULE_ENABLED,
     CARD_ROLE_SURPLUS_MODE,
     CONF_SURPLUS_MODE_ENABLED,
     DEFAULT_SURPLUS_MODE_ENABLED,
@@ -29,6 +30,7 @@ async def async_setup_entry(
             TuyaEVChargerChargeSessionSwitch(entry, runtime_data),
             TuyaEVChargerNfcSwitch(entry, runtime_data),
             TuyaEVChargerSurplusModeSwitch(entry, runtime_data),
+            TuyaEVChargerScheduleSwitch(entry, runtime_data),
         ]
     )
 
@@ -121,6 +123,39 @@ class TuyaEVChargerSurplusModeSwitch(TuyaEVChargerEntity, SwitchEntity):
 
     async def async_turn_off(self, **kwargs: object) -> None:
         await self._async_set_mode(False)
+
+class TuyaEVChargerScheduleSwitch(TuyaEVChargerEntity, SwitchEntity):
+    _attr_translation_key = "schedule_enabled"
+    _attr_icon = "mdi:clock-outline"
+
+    def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
+        super().__init__(
+            entry=entry,
+            runtime_data=runtime_data,
+            card_role=CARD_ROLE_SCHEDULE_ENABLED,
+            card_index=CARD_ROLE_INDEX[CARD_ROLE_SCHEDULE_ENABLED],
+        )
+        self._attr_unique_id = f"{runtime_data.client.device_id}_schedule_enabled"
+
+    @property
+    def is_on(self) -> bool:
+        data = self.coordinator.data
+        return bool(data and data.schedule_enabled)
+
+    async def async_turn_on(self, **kwargs: object) -> None:
+        await self._async_set(True)
+
+    async def async_turn_off(self, **kwargs: object) -> None:
+        await self._async_set(False)
+
+    async def _async_set(self, enabled: bool) -> None:
+        data = self.coordinator.data
+        start = (data.schedule_start if data else None) or "00:00"
+        end = (data.schedule_end if data else None) or "00:00"
+        if not await self._runtime_data.client.async_set_schedule(enabled, start, end):
+            raise HomeAssistantError("Unable to update charging schedule.")
+        await self.coordinator.async_request_refresh()
+
 
     async def _async_set_mode(self, enabled: bool) -> None:
         if enabled == self.is_on:

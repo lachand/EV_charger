@@ -139,6 +139,17 @@
       },
       "surplus_mode": {
         "name": "Solar surplus mode"
+      },
+      "schedule_enabled": {
+        "name": "Scheduled charging"
+      }
+    },
+    "time": {
+      "schedule_start": {
+        "name": "Schedule start time"
+      },
+      "schedule_end": {
+        "name": "Schedule end time"
       }
     },
     "select": {

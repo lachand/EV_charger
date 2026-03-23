@@ -29,6 +29,7 @@ from .const import (
     DP_NUM,
     DP_PRODUCT_VARIANT,
     DP_REBOOT,
+    DP_SCHEDULE,
     DP_SELFTEST,
     DP_WORK_STATE,
     DP_WORK_STATE_DEBUG,
@@ -119,6 +120,9 @@ class EVMetrics:
     adjust_current_options: tuple[int, ...] | None
     product_variant: int | None
     charger_info: dict[str, Any]
+    schedule_enabled: bool
+    schedule_start: str | None
+    schedule_end: str | None
 
 
 class TuyaEVChargerClient:
@@ -190,6 +194,7 @@ class TuyaEVChargerClient:
 
         metrics_dict = _parse_json_object(dps.get(self._dp.metrics, "{}"))
         charger_info = _parse_json_object(dps.get(self._dp.charger_info, "{}"))
+        schedule_dict = _parse_json_object(dps.get(DP_SCHEDULE, "{}"))
         l1_data = metrics_dict.get("L1", [0, 0, 0])
         if not isinstance(l1_data, list) or len(l1_data) < 3:
             l1_data = [0, 0, 0]
@@ -213,7 +218,17 @@ class TuyaEVChargerClient:
             adjust_current_options=_parse_int_list(dps.get(self._dp.adjust_current)),
             product_variant=_coerce_optional_int(dps.get(self._dp.product_variant)),
             charger_info=charger_info,
+            schedule_enabled=schedule_dict.get("m", 0) == 2,
+            schedule_start=_coerce_optional_text(schedule_dict.get("ss")),
+            schedule_end=_coerce_optional_text(schedule_dict.get("se")),
         )
+
+    async def async_set_schedule(self, enabled: bool, start: str, end: str) -> bool:
+        payload = json.dumps(
+            {"m": 2 if enabled else 0, "dt": 0, "ss": start, "se": end},
+            separators=(",", ":"),
+        )
+        return await self._async_send_command(DP_SCHEDULE, payload, verify=False)
 
     async def async_get_raw_dps(self) -> dict[str, Any] | None:
         return await self._async_get_dps_payload()

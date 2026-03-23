@@ -139,6 +139,17 @@
       },
       "surplus_mode": {
         "name": "Mode surplus solaire"
+      },
+      "schedule_enabled": {
+        "name": "Charge programmée"
+      }
+    },
+    "time": {
+      "schedule_start": {
+        "name": "Heure de début de plage"
+      },
+      "schedule_end": {
+        "name": "Heure de fin de plage"
       }
     },
     "select": {

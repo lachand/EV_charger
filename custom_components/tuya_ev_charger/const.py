@@ -32,6 +32,9 @@ CARD_ROLE_ALARM = "alarm"
 CARD_ROLE_REBOOT = "reboot"
 CARD_ROLE_SURPLUS_START_THRESHOLD = "surplus_start_threshold"
 CARD_ROLE_SURPLUS_STOP_THRESHOLD = "surplus_stop_threshold"
+CARD_ROLE_SCHEDULE_ENABLED = "schedule_enabled"
+CARD_ROLE_SCHEDULE_START = "schedule_start"
+CARD_ROLE_SCHEDULE_END = "schedule_end"
 
 CARD_ROLE_INDEX: dict[str, int] = {
     CARD_ROLE_POWER: 10,
@@ -54,6 +57,9 @@ CARD_ROLE_INDEX: dict[str, int] = {
     CARD_ROLE_REBOOT: 180,
     CARD_ROLE_SURPLUS_START_THRESHOLD: 190,
     CARD_ROLE_SURPLUS_STOP_THRESHOLD: 200,
+    CARD_ROLE_SCHEDULE_ENABLED: 210,
+    CARD_ROLE_SCHEDULE_START: 220,
+    CARD_ROLE_SCHEDULE_END: 230,
 }
 
 CONF_CHARGER_PROFILE = "charger_profile"
@@ -217,6 +223,7 @@ PLATFORMS: tuple[Platform, ...] = (
     Platform.NUMBER,
     Platform.SELECT,
     Platform.SWITCH,
+    Platform.TIME,
 )
 
 ALLOWED_CURRENTS: tuple[int, ...] = (6, 8, 10, 13, 16)
@@ -224,6 +231,7 @@ ALLOWED_CURRENTS: tuple[int, ...] = (6, 8, 10, 13, 16)
 DP_WORK_STATE = "101"
 DP_CHARGER_INFO = "106"
 DP_METRICS = "102"
+DP_SCHEDULE = "151"
 DP_SELFTEST = "103"
 DP_ALARM = "104"
 DP_CHARGE_HISTORY = "105"
