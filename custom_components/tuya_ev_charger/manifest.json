@@ -8,5 +8,5 @@
   "issue_tracker": "https://github.com/lachand/EV_charger/issues",
   "loggers": ["tinytuya"],
   "requirements": ["tinytuya>=1.16.0"],
-  "version": "1.0.6-beta18"
+  "version": "1.0.6-beta19"
 }
