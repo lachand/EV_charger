@@ -124,6 +124,15 @@ class TuyaEVChargerSurplusModeSwitch(TuyaEVChargerEntity, SwitchEntity):
     async def async_turn_off(self, **kwargs: object) -> None:
         await self._async_set_mode(False)
 
+    async def _async_set_mode(self, enabled: bool) -> None:
+        if enabled == self.is_on:
+            return
+        new_options = dict(self._entry.options)
+        new_options[CONF_SURPLUS_MODE_ENABLED] = enabled
+        self.hass.config_entries.async_update_entry(self._entry, options=new_options)
+        self.async_write_ha_state()
+
+
 class TuyaEVChargerScheduleSwitch(TuyaEVChargerEntity, SwitchEntity):
     _attr_translation_key = "schedule_enabled"
     _attr_icon = "mdi:clock-outline"
@@ -155,12 +164,3 @@ class TuyaEVChargerScheduleSwitch(TuyaEVChargerEntity, SwitchEntity):
         if not await self._runtime_data.client.async_set_schedule(enabled, start, end):
             raise HomeAssistantError("Unable to update charging schedule.")
         await self.coordinator.async_request_refresh()
-
-
-    async def _async_set_mode(self, enabled: bool) -> None:
-        if enabled == self.is_on:
-            return
-        new_options = dict(self._entry.options)
-        new_options[CONF_SURPLUS_MODE_ENABLED] = enabled
-        self.hass.config_entries.async_update_entry(self._entry, options=new_options)
-        self.async_write_ha_state()
