@@ -4,7 +4,11 @@ import re
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.device_registry import (
+    CONNECTION_NETWORK_MAC,
+    DeviceInfo,
+    format_mac,
+)
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import TuyaEVChargerRuntimeData
@@ -14,6 +18,7 @@ from .const import (
     ATTR_CHARGER_DEVICE_ID,
     ATTR_CHARGER_ENTRY_ID,
     ATTR_CHARGER_TOKEN,
+    CONF_MAC,
     DOMAIN,
 )
 from .coordinator import TuyaEVChargerDataUpdateCoordinator
@@ -60,7 +65,7 @@ class TuyaEVChargerEntity(CoordinatorEntity[TuyaEVChargerDataUpdateCoordinator])
         )
         hw_version = str(data.product_variant) if data and data.product_variant is not None else None
 
-        return DeviceInfo(
+        device_info = DeviceInfo(
             identifiers={(DOMAIN, self._runtime_data.client.device_id)},
             name=self._entry.title,
             manufacturer=manufacturer,
@@ -70,6 +75,14 @@ class TuyaEVChargerEntity(CoordinatorEntity[TuyaEVChargerDataUpdateCoordinator])
             hw_version=hw_version,
             configuration_url=f"http://{self._runtime_data.client.host}",
         )
+
+        # Register the MAC so Home Assistant DHCP discovery can auto-update the
+        # charger's IP when its lease changes.
+        raw_mac = self._entry.data.get(CONF_MAC)
+        if raw_mac:
+            device_info["connections"] = {(CONNECTION_NETWORK_MAC, format_mac(str(raw_mac)))}
+
+        return device_info
 
     def _technical_state_attributes(self) -> dict[str, Any]:
         attrs: dict[str, Any] = {

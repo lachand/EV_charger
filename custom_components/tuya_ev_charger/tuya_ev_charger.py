@@ -166,6 +166,11 @@ class TuyaEVChargerClient:
         )
         self._device.set_socketTimeout(5)
 
+    async def async_update_host(self, host: str) -> None:
+        """Point the client at a new IP (after a DHCP change) and reconnect."""
+        self._host = host
+        await self.async_connect()
+
     async def async_set_charge_current(self, amperage: int) -> bool:
         if amperage < min(ALLOWED_CURRENTS) or amperage > max(ALLOWED_CURRENTS):
             raise ValueError(

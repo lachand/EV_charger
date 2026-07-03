@@ -13,6 +13,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryNotReady, ServiceValidationError
+from homeassistant.helpers.device_registry import format_mac
 
 from .const import (
     CHARGER_PROFILES,
@@ -20,6 +21,7 @@ from .const import (
     CONF_CHARGER_PROFILE_JSON,
     CONF_DEVICE_ID,
     CONF_LOCAL_KEY,
+    CONF_MAC,
     CONF_PROTOCOL_VERSION,
     CONF_SCAN_INTERVAL,
     DEFAULT_CHARGER_PROFILE,
@@ -141,15 +143,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = TuyaEVChargerDataUpdateCoordinator(
         hass=hass,
         client=client,
+        entry=entry,
         update_interval=timedelta(seconds=_scan_interval_seconds(entry)),
     )
 
     try:
+        # The coordinator relocates the charger by device_id if its DHCP IP
+        # changed, so the first refresh can succeed even from a stale host.
         await coordinator.async_config_entry_first_refresh()
     except Exception as err:
         raise ConfigEntryNotReady(
             f"Unable to fetch initial charger state for {entry.title}: {err}"
         ) from err
+
+    # Persist any relocated IP and learn the MAC (used by DHCP auto-discovery).
+    # Done before the update listener is registered so it does not trigger a reload.
+    await _async_reconcile_network_info(hass, entry, coordinator)
 
     runtime_data = TuyaEVChargerRuntimeData(client=client, coordinator=coordinator)
     runtime_data.solar_surplus_controller = SolarSurplusController(
@@ -166,6 +175,42 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await _async_register_services(hass)
     LOGGER.debug("Tuya EV charger integration initialized: %s", entry.title)
     return True
+
+
+async def _async_reconcile_network_info(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    coordinator: TuyaEVChargerDataUpdateCoordinator,
+) -> None:
+    """Sync the config entry with the charger's real network identity.
+
+    Persists a host relocated in-memory by the coordinator and, when a relocation
+    scan happened, records the MAC so Home Assistant DHCP discovery can auto-update
+    the IP later. Uses only data the coordinator already gathered (no extra scan),
+    and must run before the update listener is registered to avoid an entry reload.
+    """
+    updates: dict[str, str] = {}
+
+    live_host = coordinator.client.host
+    if live_host and live_host != entry.data.get(CONF_HOST):
+        updates[CONF_HOST] = live_host
+
+    if not _normalized_mac(entry.data.get(CONF_MAC)) and coordinator.last_discovery:
+        mac = _normalized_mac(coordinator.last_discovery.get("mac"))
+        if mac:
+            updates[CONF_MAC] = mac
+
+    if updates:
+        hass.config_entries.async_update_entry(
+            entry, data={**entry.data, **updates}
+        )
+
+
+def _normalized_mac(value: Any) -> str | None:
+    text = str(value or "").strip()
+    if not text or ":" not in text:
+        return None
+    return format_mac(text)
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:

@@ -15,10 +15,12 @@
     },
     "error": {
       "cannot_connect": "Impossible de joindre la borne avec ces parametres.",
+      "no_devices_found": "Aucun appareil Tuya trouve sur le reseau. Saisissez les identifiants manuellement.",
       "unknown": "Erreur inattendue."
     },
     "abort": {
-      "already_configured": "Cette borne est deja configuree."
+      "already_configured": "Cette borne est deja configuree.",
+      "not_tuya_ev_charger": "L'appareil dont l'IP a change n'est pas une borne Tuya configuree."
     }
   },
   "options": {

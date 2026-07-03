@@ -33,7 +33,8 @@
       "unknown": "Unexpected error."
     },
     "abort": {
-      "already_configured": "This charger is already configured."
+      "already_configured": "This charger is already configured.",
+      "not_tuya_ev_charger": "The device that changed IP is not a configured Tuya charger."
     }
   },
   "options": {
