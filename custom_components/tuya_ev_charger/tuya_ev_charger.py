@@ -172,19 +172,13 @@ class TuyaEVChargerClient:
                 f"Current setpoint {amperage}A is out of supported range "
                 f"({min(ALLOWED_CURRENTS)}-{max(ALLOWED_CURRENTS)}A)."
             )
-        return await self._async_send_command(
-            self._dp.current_target, amperage, skip_if_unchanged=True
-        )
+        return await self._async_send_command(self._dp.current_target, amperage)
 
     async def async_set_charge_enabled(self, enabled: bool) -> bool:
-        return await self._async_send_command(
-            self._dp.do_charge, enabled, skip_if_unchanged=True
-        )
+        return await self._async_send_command(self._dp.do_charge, enabled)
 
     async def async_set_nfc_enabled(self, enabled: bool) -> bool:
-        return await self._async_send_command(
-            self._dp.nfc_cfg, enabled, skip_if_unchanged=True
-        )
+        return await self._async_send_command(self._dp.nfc_cfg, enabled)
 
     async def async_reboot(self) -> bool:
         # Depending on firmware variants, reboot may accept bool, int, or string payloads.
@@ -239,25 +233,8 @@ class TuyaEVChargerClient:
     async def async_get_raw_dps(self) -> dict[str, Any] | None:
         return await self._async_get_dps_payload()
 
-    async def _async_send_command(
-        self,
-        dp_id: str,
-        value: Any,
-        verify: bool = True,
-        skip_if_unchanged: bool = False,
-    ) -> bool:
+    async def _async_send_command(self, dp_id: str, value: Any, verify: bool = True) -> bool:
         device = self._get_device()
-
-        # Writing a DP makes the charger beep even when the value is unchanged.
-        # evcc re-asserts the same current/enable state roughly once a minute, so
-        # skip the write entirely when the charger already reports the target
-        # value to avoid the periodic beep.
-        if skip_if_unchanged:
-            dps = await self._async_get_dps_payload()
-            if dps is not None and _values_match(dps.get(dp_id), value):
-                LOGGER.debug("Skipping unchanged write for DP %s (=%r).", dp_id, value)
-                return True
-
         response: Any = await asyncio.to_thread(device.set_value, dp_id, value)
         if not (isinstance(response, dict) and "Error" not in response):
             LOGGER.error("Command rejected for DP %s: %s", dp_id, response)
