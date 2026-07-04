@@ -12,8 +12,9 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     REDISCOVERY_COOLDOWN_SECONDS,
+    REDISCOVERY_SCAN_SECONDS,
 )
-from .discovery import async_find_device_by_id
+from .discovery import async_scan_devices_by_id
 from .tuya_ev_charger import EVMetrics, TuyaEVChargerClient
 
 LOGGER = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
             return metrics
 
         # Communication failed: after a power cycle the charger's DHCP IP may
-        # have changed. Relocate it by device_id and retry once before failing.
+        # have changed. Relocate it (scan + live read) and retry once before failing.
         if await self._async_try_rediscover_host():
             metrics = await self._async_fetch_metrics()
             if metrics is not None:
@@ -62,36 +63,73 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
             return None
 
     async def _async_try_rediscover_host(self) -> bool:
-        """Relocate the charger by device_id when its IP changed.
+        """Relocate the charger when its IP changed, confirming by a live read.
 
-        Only the in-memory client host is updated, so recovery is immediate and
-        does not trigger a config-entry reload; the new IP is persisted to the
-        entry lazily on the next setup. Throttled so a genuinely offline charger
-        does not trigger a scan on every poll.
+        Scans the LAN for Tuya devices, then probes candidate IPs with our own
+        local_key (a real status/voltage read). The device that answers is our
+        charger, whatever its advertised MAC or device_id. Candidates advertising
+        our device_id are tried first. Only the in-memory client host is updated
+        (immediate recovery, no config-entry reload); the new IP is persisted
+        lazily on the next setup. Throttled so an offline charger does not scan
+        on every poll.
         """
         now = self.hass.loop.time()
         if now - self._last_rediscovery_at < REDISCOVERY_COOLDOWN_SECONDS:
             return False
         self._last_rediscovery_at = now
 
-        device_id = str(self.entry.data.get(CONF_DEVICE_ID, "")).strip()
-        if not device_id:
-            return False
-
-        info = await async_find_device_by_id(self.hass, device_id)
-        if info is None:
-            return False
-        self.last_discovery = info
-
-        new_host = str(info.get("ip", "")).strip()
-        if not new_host or new_host == self.client.host:
-            return False
-
-        LOGGER.info(
-            "Charger %s moved from %s to %s; updating host.",
-            device_id,
-            self.client.host,
-            new_host,
+        candidates = await async_scan_devices_by_id(
+            self.hass, scantime=REDISCOVERY_SCAN_SECONDS
         )
-        await self.client.async_update_host(new_host)
-        return True
+        if not candidates:
+            LOGGER.debug("Re-discovery scan found no Tuya devices on the network.")
+            return False
+
+        device_id = str(self.entry.data.get(CONF_DEVICE_ID, "")).strip()
+        current_host = self.client.host
+
+        for host in self._ordered_candidate_hosts(candidates, device_id, current_host):
+            if not await self.client.async_probe_host(host):
+                continue
+            LOGGER.info(
+                "Charger confirmed at %s (was %s) via live telemetry read.",
+                host,
+                current_host,
+            )
+            self.last_discovery = self._discovery_for_host(candidates, host)
+            await self.client.async_update_host(host)
+            return True
+
+        LOGGER.debug(
+            "Re-discovery probed %d candidate(s) but none answered our local_key.",
+            len(candidates),
+        )
+        return False
+
+    @staticmethod
+    def _ordered_candidate_hosts(
+        candidates: dict[str, dict],
+        device_id: str,
+        current_host: str,
+    ) -> list[str]:
+        """Candidate IPs to probe: our device_id's IP first, then the rest.
+
+        The current (already-failed) host is skipped since the normal poll just
+        tried it.
+        """
+        ordered: list[str] = []
+        mine = candidates.get(device_id) if device_id else None
+        if mine and mine.get("ip"):
+            ordered.append(str(mine["ip"]))
+        for info in candidates.values():
+            host = str(info.get("ip", "")).strip()
+            if host and host not in ordered:
+                ordered.append(host)
+        return [host for host in ordered if host and host != current_host]
+
+    @staticmethod
+    def _discovery_for_host(candidates: dict[str, dict], host: str) -> dict:
+        for info in candidates.values():
+            if str(info.get("ip", "")).strip() == host:
+                return info
+        return {"ip": host}

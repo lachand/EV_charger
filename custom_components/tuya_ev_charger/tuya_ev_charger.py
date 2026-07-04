@@ -171,6 +171,37 @@ class TuyaEVChargerClient:
         self._host = host
         await self.async_connect()
 
+    async def async_probe_host(self, host: str) -> bool:
+        """Return True if our charger answers at ``host``.
+
+        Opens a throwaway connection with our own device_id/local_key and reads
+        the live status (grid voltage & co). Only the real charger decrypts the
+        reply with our local_key, so a successful read confirms identity without
+        relying on the MAC or the advertised device_id. The live client is left
+        untouched until the caller decides to adopt the new host.
+        """
+
+        def _probe() -> bool:
+            try:
+                device = tinytuya.Device(
+                    dev_id=self._device_id,
+                    address=host,
+                    local_key=self._local_key,
+                    version=self._protocol_version,
+                )
+                device.set_socketTimeout(5)
+                payload: Any = device.status()
+            except Exception:  # noqa: BLE001 - probing is best-effort
+                return False
+            return (
+                isinstance(payload, dict)
+                and "Error" not in payload
+                and isinstance(payload.get("dps"), dict)
+                and bool(payload["dps"])
+            )
+
+        return await asyncio.to_thread(_probe)
+
     async def async_set_charge_current(self, amperage: int) -> bool:
         if amperage < min(ALLOWED_CURRENTS) or amperage > max(ALLOWED_CURRENTS):
             raise ValueError(

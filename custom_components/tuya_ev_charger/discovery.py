@@ -17,8 +17,6 @@ from tinytuya import scanner  # type: ignore
 
 from homeassistant.core import HomeAssistant
 
-from .const import REDISCOVERY_SCAN_SECONDS
-
 LOGGER = logging.getLogger(__name__)
 
 
@@ -58,23 +56,3 @@ async def async_scan_devices_by_id(
 ) -> dict[str, dict[str, Any]]:
     """Return all discovered Tuya devices keyed by device_id (gwId)."""
     return await hass.async_add_executor_job(_sync_scan_devices_by_id, scantime, None)
-
-
-async def async_find_device_by_id(
-    hass: HomeAssistant,
-    device_id: str,
-    scantime: int = REDISCOVERY_SCAN_SECONDS,
-) -> dict[str, Any] | None:
-    """Locate a single Tuya device by its device_id.
-
-    Returns the raw discovery info (``ip``, ``mac``, ``version``, ...) or ``None``
-    when the device does not announce itself within ``scantime`` seconds.
-    """
-    device_id = str(device_id).strip()
-    if not device_id:
-        return None
-    devices = await hass.async_add_executor_job(
-        _sync_scan_devices_by_id, scantime, [device_id]
-    )
-    info = devices.get(device_id)
-    return info if isinstance(info, dict) else None

@@ -152,11 +152,11 @@ MIN_SCAN_INTERVAL_SECONDS = 5
 MAX_SCAN_INTERVAL_SECONDS = 300
 DEFAULT_SCAN_INTERVAL = timedelta(seconds=DEFAULT_SCAN_INTERVAL_SECONDS)
 
-# Automatic IP re-discovery. The charger's DHCP IP changes on power cycle, but
-# its device_id (gwId) is stable, so we relocate it by listening for its UDP
-# broadcast. REDISCOVERY_SCAN_SECONDS bounds a single listen (it stops early
-# once the device is seen); REDISCOVERY_COOLDOWN_SECONDS throttles how often the
-# coordinator rescans while the charger stays unreachable (e.g. simply unplugged).
+# Automatic IP re-discovery. The charger's DHCP IP changes on power cycle. We
+# listen for Tuya UDP broadcasts, then confirm the right device by a live read
+# with our local_key. REDISCOVERY_SCAN_SECONDS is the UDP listen window;
+# REDISCOVERY_COOLDOWN_SECONDS throttles how often the coordinator rescans while
+# the charger stays unreachable (e.g. simply unplugged).
 REDISCOVERY_SCAN_SECONDS = 6
 REDISCOVERY_COOLDOWN_SECONDS = 120
 DEFAULT_SURPLUS_PROFILE = SURPLUS_PROFILE_BALANCED
