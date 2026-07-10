@@ -6,11 +6,8 @@ Local Home Assistant integration for Tuya EV chargers over LAN using `tinytuya`.
 > The built-in solar **surplus mode** (the controller, its sensors, switches,
 > numbers, selects and services) has been removed. Charging control is left to
 > [**evcc**](https://evcc.io/), which talks to this integration's plain
-> entities. The companion dashboard is the
-> [`tmjo/charger-card`](https://github.com/tmjo/charger-card) Lovelace card —
-> the entities expose `card_role` / `card_index` attributes it can pick up.
-> French translations have also been removed; the integration ships English
-> strings only.
+> entities. French translations have also been removed; the integration ships
+> English strings only.
 
 ## Credits
 

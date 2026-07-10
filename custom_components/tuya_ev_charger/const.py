@@ -68,6 +68,11 @@ MIN_SCAN_INTERVAL_SECONDS = 5
 MAX_SCAN_INTERVAL_SECONDS = 300
 DEFAULT_SCAN_INTERVAL = timedelta(seconds=DEFAULT_SCAN_INTERVAL_SECONDS)
 
+# Re-discovery: when the charger goes offline (e.g. after a power cycle that
+# changes its DHCP IP), the coordinator scans the LAN to relocate it.
+REDISCOVERY_COOLDOWN_SECONDS = 120  # throttle rescans while charger stays unreachable
+REDISCOVERY_SCAN_SECONDS = 6  # UDP listen window duration
+
 PLATFORMS: tuple[Platform, ...] = (
     Platform.BUTTON,
     Platform.SENSOR,
