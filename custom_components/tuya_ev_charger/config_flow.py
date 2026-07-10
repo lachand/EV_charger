@@ -4,14 +4,14 @@ import logging
 from collections.abc import Mapping
 from typing import Any
 
-import tinytuya
 import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers import selector
+from homeassistant.helpers import device_registry as dr, selector
+from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 
 from .const import (
     CHARGER_PROFILES,
@@ -19,6 +19,7 @@ from .const import (
     CONF_CHARGER_PROFILE_JSON,
     CONF_DEVICE_ID,
     CONF_LOCAL_KEY,
+    CONF_MAC,
     CONF_PROTOCOL_VERSION,
     CONF_SCAN_INTERVAL,
     DEFAULT_CHARGER_PROFILE,
@@ -31,6 +32,7 @@ from .const import (
     MIN_SCAN_INTERVAL_SECONDS,
     SUPPORTED_PROTOCOL_VERSIONS,
 )
+from .discovery import async_scan_devices_by_id
 from .tuya_ev_charger import TuyaEVChargerClient
 
 LOGGER = logging.getLogger(__name__)
@@ -64,17 +66,11 @@ def _build_credentials_schema(
     )
 
 
-def _sync_scan_devices() -> dict[str, dict]:
-    """Blocking tinytuya UDP scan — run in executor."""
-    try:
-        devices = tinytuya.deviceScan(verbose=False, maxretry=3, color=False, poll=False)
-        return {
-            dev_id: info
-            for dev_id, info in devices.items()
-            if isinstance(info, dict) and info.get("ip")
-        }
-    except Exception:  # noqa: BLE001
-        return {}
+def _format_scan_mac(value: Any) -> str | None:
+    text = str(value or "").strip()
+    if not text or ":" not in text:
+        return None
+    return dr.format_mac(text)
 
 
 async def _async_validate_input(
@@ -103,6 +99,7 @@ class TuyaEVChargerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         self._discovered: dict[str, dict] = {}
         self._prefill: dict[str, Any] = {}
+        self._device_meta: dict[str, Any] = {}
 
     @staticmethod
     @callback
@@ -145,6 +142,7 @@ class TuyaEVChargerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             selected = user_input["device"]
             if selected == "__manual__":
                 self._prefill = {}
+                self._device_meta = {}
             else:
                 info = self._discovered.get(selected, {})
                 self._prefill = {
@@ -152,9 +150,11 @@ class TuyaEVChargerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_DEVICE_ID: selected,
                     CONF_PROTOCOL_VERSION: str(info.get("version", DEFAULT_PROTOCOL_VERSION)),
                 }
+                mac = _format_scan_mac(info.get("mac"))
+                self._device_meta = {CONF_MAC: mac} if mac else {}
             return await self.async_step_credentials()
 
-        self._discovered = await self.hass.async_add_executor_job(_sync_scan_devices)
+        self._discovered = await async_scan_devices_by_id(self.hass)
 
         if not self._discovered:
             self._prefill = {}
@@ -199,13 +199,43 @@ class TuyaEVChargerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 LOGGER.exception("Unexpected error while validating charger config.")
                 errors["base"] = "unknown"
             else:
-                return self.async_create_entry(title=info["title"], data=user_input)
+                entry_data = {**user_input, **self._device_meta}
+                return self.async_create_entry(title=info["title"], data=entry_data)
 
         return self.async_show_form(
             step_id="credentials",
             data_schema=_build_credentials_schema(user_input or self._prefill),
             errors=errors,
         )
+
+    async def async_step_dhcp(self, discovery_info: DhcpServiceInfo) -> FlowResult:
+        """Auto-update a charger's IP when its DHCP lease changes.
+
+        Triggered (via ``registered_devices`` in the manifest) when a device this
+        integration registered gets a new lease. We match the announced MAC to the
+        owning config entry and update its host in place.
+        """
+        mac = dr.format_mac(discovery_info.macaddress)
+        device_registry = dr.async_get(self.hass)
+        device = device_registry.async_get_device(
+            connections={(dr.CONNECTION_NETWORK_MAC, mac)}
+        )
+        if device is None:
+            return self.async_abort(reason="not_tuya_ev_charger")
+
+        for entry_id in device.config_entries:
+            entry = self.hass.config_entries.async_get_entry(entry_id)
+            if entry is None or entry.domain != DOMAIN:
+                continue
+            unique_id = entry.unique_id or str(entry.data.get(CONF_DEVICE_ID, ""))
+            if not unique_id:
+                continue
+            await self.async_set_unique_id(unique_id)
+            self._abort_if_unique_id_configured(
+                updates={CONF_HOST: discovery_info.ip}
+            )
+
+        return self.async_abort(reason="not_tuya_ev_charger")
 
 
 class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):

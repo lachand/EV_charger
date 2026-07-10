@@ -2,127 +2,161 @@
   "config": {
     "step": {
       "user": {
-        "title": "Tuya charger setup",
-        "description": "How would you like to find your charger?",
+        "title": "Configuration de la borne Tuya",
+        "description": "Saisissez les identifiants locaux de la borne.",
         "data": {
-          "mode": "Discovery method"
-        }
-      },
-      "scan": {
-        "title": "Discovered chargers",
-        "description": "Select the charger found on your network, or choose 'Enter manually'.",
-        "data": {
-          "device": "Charger"
-        }
-      },
-      "credentials": {
-        "title": "Charger credentials",
-        "description": "Enter the local key and confirm the other settings.",
-        "data": {
-          "host": "Local IP address",
+          "host": "Adresse IP locale",
           "device_id": "Device ID",
           "local_key": "Local key",
-          "protocol_version": "Protocol version (default: 3.5)",
-          "charger_profile": "Charger profile / DP mapping"
+          "protocol_version": "Version du protocole (defaut : 3.5)",
+          "charger_profile": "Profil chargeur / mapping DP"
         }
       }
     },
     "error": {
-      "cannot_connect": "Unable to reach charger with these settings.",
-      "no_devices_found": "No Tuya devices found on the network. Enter credentials manually.",
-      "unknown": "Unexpected error."
+      "cannot_connect": "Impossible de joindre la borne avec ces parametres.",
+      "no_devices_found": "Aucun appareil Tuya trouve sur le reseau. Saisissez les identifiants manuellement.",
+      "unknown": "Erreur inattendue."
     },
     "abort": {
-      "already_configured": "This charger is already configured."
+      "already_configured": "Cette borne est deja configuree.",
+      "not_tuya_ev_charger": "L'appareil dont l'IP a change n'est pas une borne Tuya configuree."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Tuya charger options",
-        "description": "Charger settings.",
+        "title": "Options de la borne Tuya",
+        "description": "Mode surplus simplifie.",
         "data": {
-          "scan_interval": "Refresh interval (seconds)",
-          "charger_profile": "Charger profile / DP mapping",
-          "charger_profile_json": "Custom DP mapping (JSON, optional)"
+          "scan_interval": "Intervalle de rafraichissement (secondes)",
+          "charger_profile": "Profil chargeur / mapping DP",
+          "charger_profile_json": "Mapping DP custom (JSON, optionnel)",
+          "surplus_mode_enabled": "Activer le mode surplus solaire",
+          "surplus_sensor_entity_id": "Entite capteur puissance reseau (W) (sensor.xxx)",
+          "surplus_sensor_inverted": "Inverser le signe capteur reseau",
+          "surplus_curtailment_sensor_entity_id": "Entite puissance bridee potentielle (W) (optionnel)",
+          "surplus_curtailment_sensor_inverted": "Inverser le signe capteur puissance bridee",
+          "surplus_battery_soc_sensor_entity_id": "Entite % batterie (optionnel)",
+          "surplus_battery_soc_high_threshold_pct": "Seuil haut batterie (%)",
+          "surplus_battery_soc_low_threshold_pct": "Seuil bas batterie (%)",
+          "surplus_battery_net_discharge_sensor_entity_id": "Entite puissance decharge batterie nette (W) (optionnel)",
+          "surplus_battery_net_discharge_sensor_inverted": "Inverser le signe capteur decharge batterie nette",
+          "surplus_allow_battery_discharge_for_ev": "Autoriser la decharge batterie pour la voiture",
+          "surplus_max_battery_discharge_for_ev_w": "Puissance max decharge batterie autorisee (W)",
+          "surplus_start_threshold_w": "Seuil de demarrage surplus (W)",
+          "surplus_stop_threshold_w": "Seuil d'arret surplus (W)",
+          "surplus_forecast_sensor_entity_id": "Entite capteur prevision solaire 1h (W) (optionnel)"
         }
       }
     }
   },
   "entity": {
+    "binary_sensor": {
+      "surplus_regulation_active": {
+        "name": "Regulation surplus active"
+      }
+    },
     "button": {
       "reboot_charger": {
-        "name": "Reboot charger"
+        "name": "Redemarrer la borne"
       }
     },
     "sensor": {
       "voltage_l1": {
-        "name": "Voltage L1"
+        "name": "Tension L1"
       },
       "current_l1": {
-        "name": "Current L1"
+        "name": "Intensite L1"
       },
       "power_l1": {
-        "name": "Power L1"
+        "name": "Puissance L1"
       },
       "temperature": {
         "name": "Temperature"
       },
-      "charge_energy_total": {
-        "name": "Charged energy"
-      },
-      "evcc_status": {
-        "name": "evcc status",
-        "state": {
-          "A": "Ready",
-          "B": "Connected",
-          "C": "Charging"
-        }
-      },
       "work_state": {
-        "name": "Work state"
+        "name": "Etat de fonctionnement"
       },
       "work_state_debug": {
-        "name": "Work state debug"
+        "name": "Etat debug"
       },
       "downcounter": {
-        "name": "Countdown"
+        "name": "Compte a rebours"
       },
       "selftest": {
-        "name": "Self-test result"
+        "name": "Resultat auto-test"
       },
       "alarm": {
-        "name": "Alarm"
+        "name": "Alarme"
       },
       "adjust_current_options": {
-        "name": "Available currents"
+        "name": "Courants disponibles"
       },
       "product_variant": {
-        "name": "Product variant"
+        "name": "Variante produit"
+      },
+      "surplus_last_decision_reason": {
+        "name": "Derniere raison decision surplus"
+      },
+      "surplus_raw_w": {
+        "name": "Surplus brut"
+      },
+      "surplus_effective_w": {
+        "name": "Surplus effectif"
+      },
+      "surplus_battery_discharge_over_limit_w": {
+        "name": "Depassement decharge batterie"
+      },
+      "surplus_target_current_a": {
+        "name": "Courant cible surplus"
       }
     },
     "number": {
       "charge_current": {
-        "name": "Current setpoint"
+        "name": "Consigne d'intensite"
+      },
+      "surplus_battery_soc_high_threshold_pct": {
+        "name": "Seuil haut batterie surplus"
+      },
+      "surplus_battery_soc_low_threshold_pct": {
+        "name": "Seuil bas batterie surplus"
+      },
+      "surplus_start_threshold_w": {
+        "name": "Seuil de demarrage surplus"
+      },
+      "surplus_stop_threshold_w": {
+        "name": "Seuil d'arret surplus"
+      },
+      "surplus_max_battery_discharge_for_ev_w": {
+        "name": "Decharge batterie max autorisee EV"
       }
     },
     "switch": {
       "charge_session": {
-        "name": "Charging session"
+        "name": "Session de charge"
       },
       "nfc_enabled": {
         "name": "NFC"
       },
+      "surplus_mode": {
+        "name": "Mode surplus solaire"
+      },
       "schedule_enabled": {
-        "name": "Scheduled charging"
+        "name": "Charge programmée"
       }
     },
     "time": {
       "schedule_start": {
-        "name": "Schedule start time"
+        "name": "Heure de début de plage"
       },
       "schedule_end": {
-        "name": "Schedule end time"
+        "name": "Heure de fin de plage"
+      }
+    },
+    "select": {
+      "surplus_profile": {
+        "name": "Profil surplus"
       }
     }
   }
