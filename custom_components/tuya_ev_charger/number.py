@@ -200,7 +200,8 @@ class TuyaEVChargerCurrentNumber(TuyaEVChargerEntity, NumberEntity):
         await self.coordinator.async_request_refresh()
 
     def _allowed_currents(self) -> tuple[int, ...]:
-        return allowed_currents(self.coordinator.data)
+        return allowed_currents(self.coordinator.data, self._entry.options)
+
 
 
 class TuyaEVChargerSurplusOptionNumber(TuyaEVChargerEntity, NumberEntity):

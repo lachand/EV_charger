@@ -348,7 +348,7 @@ class SolarSurplusController:
         )
         self._update_session_energy(now, data, is_charging, grid_power_for_energy)
 
-        available_currents = allowed_currents(data)
+        available_currents = allowed_currents(data, self._entry.options)
         if not available_currents:
             self._set_decision("no_allowed_currents")
             self._regulation_active = False

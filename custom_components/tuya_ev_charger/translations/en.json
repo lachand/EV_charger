@@ -46,6 +46,7 @@
           "scan_interval": "Refresh interval (seconds)",
           "charger_profile": "Charger profile / DP mapping",
           "charger_profile_json": "Custom DP mapping (JSON, optional)",
+          "continuous_current": "Enable continuous current adjustment (1A steps)",
           "surplus_mode_enabled": "Enable solar surplus mode",
           "surplus_sensor_entity_id": "Grid power sensor entity (W) (sensor.xxx)",
           "surplus_sensor_inverted": "Invert grid sensor sign",
