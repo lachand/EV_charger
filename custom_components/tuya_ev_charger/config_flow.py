@@ -560,7 +560,7 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                             CONF_SURPLUS_SENSOR_ENTITY_ID,
                             DEFAULT_SURPLUS_SENSOR_ENTITY_ID,
                         ),
-                    ): _sensor_selector(),
+                    ): vol.Any(_sensor_selector(), None),
                     vol.Required(
                         CONF_SURPLUS_SENSOR_INVERTED,
                         default=_option_bool(
@@ -576,7 +576,7 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                             CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
                             DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
                         ),
-                    ): _sensor_selector(),
+                    ): vol.Any(_sensor_selector(), None),
                     vol.Required(
                         CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
                         default=_option_bool(
@@ -592,7 +592,7 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                             CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
                             DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
                         ),
-                    ): _sensor_selector(),
+                    ): vol.Any(_sensor_selector(), None),
                     vol.Required(
                         CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
                         default=high_threshold,
@@ -620,7 +620,7 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                             CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
                             DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
                         ),
-                    ): _sensor_selector(),
+                    ): vol.Any(_sensor_selector(), None),
                     vol.Required(
                         CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
                         default=_option_bool(
@@ -674,7 +674,7 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                             CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
                             DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
                         ),
-                    ): _sensor_selector(),
+                    ): vol.Any(_sensor_selector(), None),
                 }
             ),
         )
