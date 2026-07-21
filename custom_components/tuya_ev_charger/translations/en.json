@@ -110,6 +110,12 @@
       "product_variant": {
         "name": "Product variant"
       },
+      "session_duration": {
+        "name": "Session duration"
+      },
+      "session_energy": {
+        "name": "Session energy"
+      },
       "surplus_last_decision_reason": {
         "name": "Surplus last decision reason"
       },

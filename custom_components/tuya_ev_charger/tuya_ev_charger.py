@@ -123,6 +123,8 @@ class EVMetrics:
     schedule_enabled: bool
     schedule_start: str | None
     schedule_end: str | None
+    session_duration_s: int | None
+    session_energy_kwh: float | None
 
 
 class TuyaEVChargerClient:
@@ -257,6 +259,12 @@ class TuyaEVChargerClient:
             schedule_enabled=schedule_dict.get("m", 0) == 2,
             schedule_start=_coerce_optional_text(schedule_dict.get("ss")),
             schedule_end=_coerce_optional_text(schedule_dict.get("se")),
+            # "d" and "e" are undocumented sub-fields of x_metrics observed on the
+            # depow_v2 firmware: session duration in seconds and session energy in
+            # 0.01 kWh steps. Not confirmed against Tuya's own docs, only reverse
+            # engineered from device dumps - treat with a pinch of salt.
+            session_duration_s=_coerce_optional_int(metrics_dict.get("d")),
+            session_energy_kwh=_scale_optional_float(metrics_dict.get("e"), 100.0),
         )
 
     async def async_set_schedule(self, enabled: bool, start: str, end: str) -> bool:
@@ -422,6 +430,13 @@ def _coerce_optional_float(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _scale_optional_float(value: Any, divisor: float) -> float | None:
+    raw = _coerce_optional_float(value)
+    if raw is None:
+        return None
+    return raw / divisor
 
 
 def _coerce_optional_text(value: Any) -> str | None:

@@ -13,6 +13,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
+    UnitOfEnergy,
     UnitOfPower,
     UnitOfTemperature,
     UnitOfTime,
@@ -160,6 +161,25 @@ SENSOR_DESCRIPTIONS: tuple[TuyaEVChargerSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         icon="mdi:identifier",
         value_fn=lambda data: data.product_variant,
+    ),
+    TuyaEVChargerSensorDescription(
+        key="session_duration",
+        translation_key="session_duration",
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:timer-sand",
+        value_fn=lambda data: data.session_duration_s,
+    ),
+    TuyaEVChargerSensorDescription(
+        key="session_energy",
+        translation_key="session_energy",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_display_precision=2,
+        icon="mdi:lightning-bolt",
+        value_fn=lambda data: data.session_energy_kwh,
     ),
 )
 
