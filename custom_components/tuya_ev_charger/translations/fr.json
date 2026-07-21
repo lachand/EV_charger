@@ -15,6 +15,8 @@
     },
     "error": {
       "cannot_connect": "Impossible de joindre la borne avec ces parametres.",
+      "cloud_auth_failed": "Connexion au cloud Tuya impossible. Verifiez l'Access ID, l'Access Secret et la region.",
+      "cloud_no_devices": "Aucun appareil dans ce projet Tuya IoT. Avez-vous bien lie votre compte Smart Life au projet ?",
       "no_devices_found": "Aucun appareil Tuya trouve sur le reseau. Saisissez les identifiants manuellement.",
       "unknown": "Erreur inattendue."
     },

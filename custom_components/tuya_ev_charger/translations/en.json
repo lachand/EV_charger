@@ -15,6 +15,23 @@
           "device": "Charger"
         }
       },
+      "cloud": {
+        "title": "Tuya Cloud credentials",
+        "description": "From iot.tuya.com: create a Cloud project, link your Smart Life account, then paste the Access ID and Access Secret here. Used only to read your device list (device_id + local key) — never for telemetry.",
+        "data": {
+          "cloud_api_key": "Access ID (API key)",
+          "cloud_api_secret": "Access Secret",
+          "cloud_region": "Data centre region",
+          "device_id": "Device ID (optional, improves lookup reliability)"
+        }
+      },
+      "cloud_device": {
+        "title": "Select your charger",
+        "description": "Pick the charger among the devices in your Tuya account. Its local key is filled in automatically, and its IP is located on your network.",
+        "data": {
+          "device": "Device"
+        }
+      },
       "credentials": {
         "title": "Charger credentials",
         "description": "Enter the local key and confirm the other settings.",
@@ -29,6 +46,8 @@
     },
     "error": {
       "cannot_connect": "Unable to reach charger with these settings.",
+      "cloud_auth_failed": "Could not reach the Tuya Cloud. Check the Access ID, Access Secret and region.",
+      "cloud_no_devices": "No devices in this Tuya IoT project. Did you link your Smart Life account to it?",
       "no_devices_found": "No Tuya devices found on the network. Enter credentials manually.",
       "unknown": "Unexpected error."
     },

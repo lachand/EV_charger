@@ -72,14 +72,34 @@ def _local_network_hint() -> str:
     return ip
 
 
+def _tcp_check(host: str, port: int = 6668, timeout: float = 3.0) -> str:
+    """Raw TCP reachability of the Tuya control port (no local_key needed)."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(timeout)
+    try:
+        sock.connect((host, port))
+        return "OPEN (accepts connections)"
+    except ConnectionRefusedError:
+        return "REFUSED — port busy (single local connection already held) or closed"
+    except socket.timeout:
+        return "TIMEOUT — filtered by a firewall or host down"
+    except OSError as err:
+        return f"{type(err).__name__}: {err}"
+    finally:
+        sock.close()
+
+
 def _fmt_device(dev_id: str, info: dict[str, Any]) -> str:
+    ip = str(info.get("ip", "") or "")
+    tcp = _tcp_check(ip) if ip else "no ip"
     return (
         f"  device_id (gwId): {dev_id}\n"
         f"      ip:      {info.get('ip', '?')}\n"
         f"      mac:     {info.get('mac', '?')}\n"
         f"      version: {info.get('version', '?')}\n"
         f"      name:    {info.get('name', '')}\n"
-        f"      key set: {'yes' if info.get('key') else 'no (not in devices.json)'}"
+        f"      key set: {'yes' if info.get('key') else 'no (not in devices.json)'}\n"
+        f"      port 6668: {tcp}"
     )
 
 

@@ -64,6 +64,9 @@ CARD_ROLE_INDEX: dict[str, int] = {
 
 CONF_CHARGER_PROFILE = "charger_profile"
 CONF_CHARGER_PROFILE_JSON = "charger_profile_json"
+CONF_CLOUD_API_KEY = "cloud_api_key"
+CONF_CLOUD_API_SECRET = "cloud_api_secret"
+CONF_CLOUD_REGION = "cloud_region"
 CONF_DEVICE_ID = "device_id"
 CONF_LOCAL_KEY = "local_key"
 CONF_MAC = "mac"
@@ -159,6 +162,15 @@ DEFAULT_SCAN_INTERVAL = timedelta(seconds=DEFAULT_SCAN_INTERVAL_SECONDS)
 # the charger stays unreachable (e.g. simply unplugged).
 REDISCOVERY_SCAN_SECONDS = 6
 REDISCOVERY_COOLDOWN_SECONDS = 120
+
+# Optional Tuya Cloud assistance. Used only to fetch device credentials: at
+# setup time (config flow) and to re-download the local_key when the charger is
+# re-paired (which rotates the key and otherwise breaks local control). The
+# cloud is never the source of telemetry — this stays a local_polling integration.
+CLOUD_REGIONS: tuple[str, ...] = ("eu", "us", "cn", "in")
+DEFAULT_CLOUD_REGION = "eu"
+LOCAL_KEY_REFRESH_COOLDOWN_SECONDS = 900
+TUYA_CONTROL_PORT = 6668
 DEFAULT_SURPLUS_PROFILE = SURPLUS_PROFILE_BALANCED
 
 DEFAULT_SURPLUS_MODE_ENABLED = False

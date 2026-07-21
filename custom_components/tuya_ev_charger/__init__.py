@@ -195,6 +195,13 @@ async def _async_reconcile_network_info(
     if live_host and live_host != entry.data.get(CONF_HOST):
         updates[CONF_HOST] = live_host
 
+    # A local_key refreshed from the cloud (charger re-paired) must be persisted,
+    # otherwise every restart would start from the stale key again.
+    if coordinator.new_local_key and coordinator.new_local_key != entry.data.get(
+        CONF_LOCAL_KEY
+    ):
+        updates[CONF_LOCAL_KEY] = coordinator.new_local_key
+
     if not _normalized_mac(entry.data.get(CONF_MAC)) and coordinator.last_discovery:
         mac = _normalized_mac(coordinator.last_discovery.get("mac"))
         if mac:
@@ -221,7 +228,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     runtime_data: TuyaEVChargerRuntimeData | None = entry.runtime_data
     if runtime_data is not None and runtime_data.solar_surplus_controller is not None:
         await runtime_data.solar_surplus_controller.async_shutdown()
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    # Release the charger's single local connection so a reload/restart does not
+    # leave a zombie socket that makes the device refuse the next connection.
+    if runtime_data is not None:
+        await runtime_data.client.async_close()
+    return unloaded
 
 
 async def _async_register_services(hass: HomeAssistant) -> None:

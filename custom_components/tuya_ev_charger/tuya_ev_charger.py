@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import socket
 from dataclasses import dataclass
 from typing import Any
 
@@ -10,6 +11,7 @@ import tinytuya  # type: ignore
 
 from .const import (
     ALLOWED_CURRENTS,
+    TUYA_CONTROL_PORT,
     CHARGER_PROFILE_CUSTOM_JSON,
     CHARGER_PROFILE_DEPOW_V2,
     CHARGER_PROFILE_GENERIC_V1,
@@ -38,6 +40,19 @@ from .const import (
 LOGGER = logging.getLogger(__name__)
 COMMAND_VERIFY_RETRIES = 3
 COMMAND_VERIFY_DELAY_S = 0.5
+
+# Socket tuning. tinytuya defaults to 5 retries x 5s delay, so a single failed
+# read blocks for ~35s and floods the log. A charger only accepts one local
+# connection at a time, so we fail fast and let the next poll retry instead.
+SOCKET_TIMEOUT_S = 5
+SOCKET_RETRY_LIMIT = 1
+SOCKET_RETRY_DELAY_S = 1
+
+
+def _configure_device(device: "tinytuya.Device") -> None:
+    device.set_socketTimeout(SOCKET_TIMEOUT_S)
+    device.set_socketRetryLimit(SOCKET_RETRY_LIMIT)
+    device.set_socketRetryDelay(SOCKET_RETRY_DELAY_S)
 
 
 @dataclass(slots=True, frozen=True)
@@ -154,22 +169,67 @@ class TuyaEVChargerClient:
         return self._host
 
     @property
+    def local_key(self) -> str:
+        return self._local_key
+
+    @property
     def dp_profile(self) -> str:
         return self._dp_profile
 
     async def async_connect(self) -> None:
-        self._device = tinytuya.Device(
+        if self._device is not None:
+            # Close the previous socket so it never lingers on the charger's
+            # single local-connection slot.
+            self._device.close()
+        device = tinytuya.Device(
             dev_id=self._device_id,
             address=self._host,
             local_key=self._local_key,
             version=self._protocol_version,
         )
-        self._device.set_socketTimeout(5)
+        _configure_device(device)
+        self._device = device
 
     async def async_update_host(self, host: str) -> None:
         """Point the client at a new IP (after a DHCP change) and reconnect."""
         self._host = host
         await self.async_connect()
+
+    async def async_update_local_key(self, local_key: str) -> None:
+        """Adopt a rotated local_key (after re-pairing) and reconnect."""
+        self._local_key = local_key
+        await self.async_connect()
+
+    async def async_tcp_reachable(self) -> bool:
+        """True if the charger's control port accepts a TCP connection.
+
+        Lets the caller tell a network/IP problem (port unreachable) apart from a
+        credential problem (port answers but the payload will not decrypt).
+        """
+
+        def _connect() -> bool:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(SOCKET_TIMEOUT_S)
+            try:
+                sock.connect((self._host, TUYA_CONTROL_PORT))
+                return True
+            except OSError:
+                return False
+            finally:
+                sock.close()
+
+        return await asyncio.to_thread(_connect)
+
+    async def async_close(self) -> None:
+        """Close the socket so it never lingers on the charger's single slot.
+
+        A Tuya charger accepts only one local connection at a time; not closing
+        on unload/reload leaves a zombie socket that makes the device refuse
+        every later connection (including our own next instance).
+        """
+        if self._device is not None:
+            await asyncio.to_thread(self._device.close)
+            self._device = None
 
     async def async_probe_host(self, host: str) -> bool:
         """Return True if our charger answers at ``host``.
@@ -177,22 +237,25 @@ class TuyaEVChargerClient:
         Opens a throwaway connection with our own device_id/local_key and reads
         the live status (grid voltage & co). Only the real charger decrypts the
         reply with our local_key, so a successful read confirms identity without
-        relying on the MAC or the advertised device_id. The live client is left
-        untouched until the caller decides to adopt the new host.
+        relying on the MAC or the advertised device_id. The socket is always
+        closed afterwards so the probe never holds the charger's single local
+        connection slot, and the live client is left untouched.
         """
 
         def _probe() -> bool:
+            device = tinytuya.Device(
+                dev_id=self._device_id,
+                address=host,
+                local_key=self._local_key,
+                version=self._protocol_version,
+            )
+            _configure_device(device)
             try:
-                device = tinytuya.Device(
-                    dev_id=self._device_id,
-                    address=host,
-                    local_key=self._local_key,
-                    version=self._protocol_version,
-                )
-                device.set_socketTimeout(5)
                 payload: Any = device.status()
             except Exception:  # noqa: BLE001 - probing is best-effort
                 return False
+            finally:
+                device.close()
             return (
                 isinstance(payload, dict)
                 and "Error" not in payload

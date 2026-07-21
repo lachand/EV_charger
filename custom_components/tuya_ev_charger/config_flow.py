@@ -15,8 +15,12 @@ from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 
 from .const import (
     CHARGER_PROFILES,
+    CLOUD_REGIONS,
     CONF_CHARGER_PROFILE,
     CONF_CHARGER_PROFILE_JSON,
+    CONF_CLOUD_API_KEY,
+    CONF_CLOUD_API_SECRET,
+    CONF_CLOUD_REGION,
     CONF_DEVICE_ID,
     CONF_LOCAL_KEY,
     CONF_MAC,
@@ -40,6 +44,7 @@ from .const import (
     CONF_SURPLUS_STOP_THRESHOLD_W,
     DEFAULT_CHARGER_PROFILE,
     DEFAULT_CHARGER_PROFILE_JSON,
+    DEFAULT_CLOUD_REGION,
     DEFAULT_NAME,
     DEFAULT_PROTOCOL_VERSION,
     DEFAULT_SCAN_INTERVAL_SECONDS,
@@ -70,6 +75,7 @@ from .const import (
     MIN_SURPLUS_THRESHOLD_W,
     SUPPORTED_PROTOCOL_VERSIONS,
 )
+from .cloud import TuyaCloudError, async_fetch_devices
 from .discovery import async_scan_devices_by_id
 from .tuya_ev_charger import TuyaEVChargerClient
 
@@ -138,6 +144,8 @@ class TuyaEVChargerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._discovered: dict[str, dict] = {}
         self._prefill: dict[str, Any] = {}
         self._device_meta: dict[str, Any] = {}
+        self._cloud_devices: dict[str, dict] = {}
+        self._cloud_credentials: dict[str, Any] = {}
 
     @staticmethod
     @callback
@@ -151,8 +159,11 @@ class TuyaEVChargerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         user_input: dict[str, Any] | None = None,
     ) -> FlowResult:
         if user_input is not None:
-            if user_input["mode"] == "scan":
+            mode = user_input["mode"]
+            if mode == "scan":
                 return await self.async_step_scan()
+            if mode == "cloud":
+                return await self.async_step_cloud()
             return await self.async_step_credentials()
 
         return self.async_show_form(
@@ -163,6 +174,10 @@ class TuyaEVChargerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         selector.SelectSelectorConfig(
                             options=[
                                 selector.SelectOptionDict(value="scan", label="Scan network"),
+                                selector.SelectOptionDict(
+                                    value="cloud",
+                                    label="Fetch credentials from Tuya Cloud",
+                                ),
                                 selector.SelectOptionDict(value="manual", label="Enter manually"),
                             ],
                             mode=selector.SelectSelectorMode.LIST,
@@ -208,6 +223,112 @@ class TuyaEVChargerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="scan",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("device"): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=options,
+                            mode=selector.SelectSelectorMode.LIST,
+                        )
+                    ),
+                }
+            ),
+        )
+
+    async def async_step_cloud(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> FlowResult:
+        """Ask for Tuya IoT credentials and list the account's devices."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            api_key = str(user_input[CONF_CLOUD_API_KEY]).strip()
+            api_secret = str(user_input[CONF_CLOUD_API_SECRET]).strip()
+            region = str(user_input[CONF_CLOUD_REGION]).strip()
+            hint_device_id = str(user_input.get(CONF_DEVICE_ID, "")).strip()
+            try:
+                devices = await async_fetch_devices(
+                    self.hass, region, api_key, api_secret, hint_device_id or None
+                )
+            except TuyaCloudError as err:
+                LOGGER.debug("Tuya Cloud lookup failed: %s", err)
+                errors["base"] = "cloud_auth_failed"
+            else:
+                if not devices:
+                    errors["base"] = "cloud_no_devices"
+                else:
+                    self._cloud_devices = {str(d["id"]): d for d in devices}
+                    self._cloud_credentials = {
+                        CONF_CLOUD_API_KEY: api_key,
+                        CONF_CLOUD_API_SECRET: api_secret,
+                        CONF_CLOUD_REGION: region,
+                    }
+                    return await self.async_step_cloud_device()
+
+        return self.async_show_form(
+            step_id="cloud",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_CLOUD_API_KEY,
+                        default=(user_input or {}).get(CONF_CLOUD_API_KEY, ""),
+                    ): str,
+                    vol.Required(
+                        CONF_CLOUD_API_SECRET,
+                        default=(user_input or {}).get(CONF_CLOUD_API_SECRET, ""),
+                    ): str,
+                    vol.Required(
+                        CONF_CLOUD_REGION,
+                        default=(user_input or {}).get(
+                            CONF_CLOUD_REGION, DEFAULT_CLOUD_REGION
+                        ),
+                    ): vol.In(CLOUD_REGIONS),
+                    vol.Optional(
+                        CONF_DEVICE_ID,
+                        default=(user_input or {}).get(CONF_DEVICE_ID, ""),
+                    ): str,
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_cloud_device(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> FlowResult:
+        """Pick the charger among the cloud devices and locate it on the LAN."""
+        if user_input is not None:
+            device_id = user_input["device"]
+            device = self._cloud_devices.get(device_id, {})
+            local_key = str(device.get("key", "") or "").strip()
+
+            # The cloud knows the credentials; the LAN scan knows the current IP.
+            discovered = await async_scan_devices_by_id(self.hass)
+            info = discovered.get(device_id, {})
+
+            self._prefill = {
+                CONF_HOST: str(info.get("ip", "") or device.get("ip", "") or ""),
+                CONF_DEVICE_ID: device_id,
+                CONF_LOCAL_KEY: local_key,
+                CONF_PROTOCOL_VERSION: str(
+                    info.get("version", device.get("version", DEFAULT_PROTOCOL_VERSION))
+                ),
+            }
+            self._device_meta = dict(self._cloud_credentials)
+            mac = _format_scan_mac(info.get("mac") or device.get("mac"))
+            if mac:
+                self._device_meta[CONF_MAC] = mac
+            return await self.async_step_credentials()
+
+        options = [
+            selector.SelectOptionDict(
+                value=dev_id,
+                label=f"{device.get('name') or dev_id} — {dev_id}",
+            )
+            for dev_id, device in self._cloud_devices.items()
+        ]
+        return self.async_show_form(
+            step_id="cloud_device",
             data_schema=vol.Schema(
                 {
                     vol.Required("device"): selector.SelectSelector(
