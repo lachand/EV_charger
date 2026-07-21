@@ -1,53 +1,109 @@
 # Tuya EV Charger Local (Home Assistant)
 
-Integration Home Assistant locale pour borne Tuya en LAN via `tinytuya`.
-Local Home Assistant integration for Tuya EV chargers over LAN using `tinytuya`.
+Local Home Assistant integration for Tuya EV chargers over LAN, using `tinytuya`.
+No cloud is required to read or control the charger.
 
-Repository: https://github.com/lachand/EV_charger  
+Integration Home Assistant locale pour borne Tuya en LAN via `tinytuya`.
+
+Repository: https://github.com/lachand/EV_charger
 Author: Valentin Lachand Pascal (GitHub: [@lachand](https://github.com/lachand))
 
-Tested charger reference: `de-portable-ev-charger-3-5kw-v2`
+Reference charger: `de-portable-ev-charger-3-5kw-v2`. Also reported working on
+the dé Mobile Wallbox 11 kW 3-phase and other dé/Tuya models — see
+[Compatibility](#compatibility).
 
-## Quickstart
+---
 
-### FR
+## Install
 
-1. Ajoute ce depot dans HACS (`Integrations` > `Custom repositories` > categorie `Integration`).
-2. Installe `Tuya EV Charger Local` puis redemarre Home Assistant.
-3. Recupere `host`, `device_id`, `local_key` (voir section plus bas).
-4. Ajoute l'integration depuis `Parametres` > `Appareils et services`.
+1. Add this repository in HACS (`Integrations` → `Custom repositories` →
+   category `Integration`).
+2. Install **Tuya EV Charger Local**, then restart Home Assistant.
+3. Add the integration from `Settings` → `Devices & Services` → `Add integration`.
 
-### EN
+## Setup
 
-1. Add this repository in HACS (`Integrations` > `Custom repositories` > `Integration` category).
-2. Install `Tuya EV Charger Local`, then restart Home Assistant.
-3. Collect `host`, `device_id`, `local_key` (see section below).
-4. Add the integration from `Settings` > `Devices & Services`.
+The setup flow offers three ways to get your charger's credentials. Pick one.
 
-## Get the local_key / Recuperer la local_key
+### 1. Scan the network (easiest, no account)
 
-Recommended method (TinyTuya + Tuya IoT Cloud):
+Listens for Tuya UDP broadcasts and lists the devices it finds, pre-filling the
+IP, device ID and protocol version. You then paste the `local_key`.
 
-1. Create a developer account on https://iot.tuya.com.
-2. Create a Smart Home cloud project.
-3. Link your Tuya/Smart Life app account to that project.
-4. Run:
+Requires Home Assistant to be on the **same subnet** as the charger — UDP
+broadcasts do not cross VLANs or most Wi-Fi repeaters in NAT mode.
 
-```bash
-python -m tinytuya wizard
-```
+### 2. Fetch credentials from Tuya Cloud (no manual copying)
 
-5. Enter API Key, API Secret and region.
-6. Read `device_id` and `local_key` from output or generated `devices.json`.
+Enter your Tuya IoT **Access ID** and **Access Secret**, pick your charger from
+the list, and both `device_id` and `local_key` are filled in automatically. The
+IP is still resolved locally.
 
-Notes:
+To get those credentials:
 
-- If you re-pair/reset the device, `local_key` can change.
-- `local_key` is a secret.
+1. Create a free account on https://iot.tuya.com.
+2. Create a Cloud project (development method **Smart Home**, data centre =
+   your region, e.g. *Central Europe*). Note the **Access ID** and
+   **Access Secret**.
+3. In **Devices → Link Tuya App Account**, add your app account by scanning the
+   QR code from the Smart Life app (*Me* → scan icon).
 
-## Surplus mode (simplified)
+If you keep these credentials configured, the integration can also re-download
+the `local_key` on its own when it changes — see
+[Automatic recovery](#automatic-recovery).
 
-The surplus UX is intentionally short.
+> Tuya IoT trial projects expire (1 month, extendable to ~6). After expiry the
+> cloud lookup stops working; local control is unaffected.
+
+### 3. Enter everything manually
+
+Classic path if you already have `host`, `device_id` and `local_key`, for example
+from `python -m tinytuya wizard`, which writes them to `devices.json`.
+
+`local_key` is a secret, and it **changes if you re-pair or reset the charger**.
+
+---
+
+## Automatic recovery
+
+Two things routinely break a local Tuya setup. The integration now heals from
+both without any manual reconfiguration.
+
+**The IP changes** (new DHCP lease after a power cycle). The charger is located
+again by its `device_id`, which is stable across power cycles, from its UDP
+broadcast. If the stored `device_id` is itself stale, candidates are probed with
+your `local_key` and the one that answers a real status read is adopted.
+Recovery happens in memory, so no reload; the new IP is persisted at the next
+startup.
+
+**The `local_key` changes** (after re-pairing). When the control port answers but
+payloads no longer decrypt, the key is re-downloaded from the Tuya Cloud and
+persisted — only if you configured cloud credentials.
+
+Home Assistant DHCP discovery is also declared, so a new lease can update the IP
+immediately when the charger's MAC is known.
+
+> Still, the most robust fix is a **DHCP reservation** on your router. Automatic
+> recovery is a safety net, not a substitute.
+
+---
+
+## Charging current
+
+Chargers advertise a short list of currents in DP 107, e.g. `[6, 8, 10, 13, 16]`.
+That is only the set of shortcuts the Tuya app displays — **not** a hardware
+limit. Verified by writing 11 A to a charger that advertises the list above and
+reading it back successfully.
+
+So `number.charge_current` accepts **any value in 1 A steps**, from the charger's
+minimum up to its own maximum (DP 152). Turn off the `continuous_current` option
+if your charger really is restricted to the advertised steps.
+
+---
+
+## Surplus mode
+
+Charge the car from solar surplus only.
 
 ### Setting it up
 
@@ -72,108 +128,151 @@ which states in plain text why it started, stopped, or did nothing.
 
 Everything else — battery thresholds, forecast, curtailment — is optional.
 
-User entities:
+### Behaviour
 
-- `switch.charge_session`
-- `number.charge_current`
-- `switch.surplus_mode`
-- `binary_sensor.surplus_regulation_active`
-- `sensor.surplus_last_decision_reason`
-- `sensor.surplus_raw_w`
-- `sensor.surplus_effective_w`
-- `sensor.surplus_battery_discharge_over_limit_w`
-- `sensor.surplus_target_current_a`
-- `number.surplus_battery_soc_high_threshold_pct`
-- `number.surplus_battery_soc_low_threshold_pct`
-- `number.surplus_start_threshold_w`
-- `number.surplus_stop_threshold_w`
-- `number.surplus_max_battery_discharge_for_ev_w`
-- `select.surplus_profile`
+- `classic` vs `zero_injection` is auto-detected: a curtailed-power sensor
+  selects `zero_injection`, otherwise `classic`.
+- Battery hysteresis: above the high threshold the battery may contribute,
+  below the low threshold it may not.
+- Optional battery net-discharge guard: discharge above the configured budget is
+  subtracted from the available surplus, downshifting rather than stopping when
+  possible.
+- Forecast is optional and used only as an anti-drop guard, to avoid stopping on
+  a short cloud transient.
+- Quick profiles via `select.surplus_profile`:
+  - `eco` — conservative, avoids battery discharge
+  - `balanced` — default
+  - `fast` — reacts sooner, starts on less surplus
+- The rest (line voltage, ramp, delays, cooldowns, protections) is fixed
+  internally.
 
-### Simplified behavior
+---
 
-- `classic` vs `zero_injection` is auto-detected:
-- if curtailed power sensor is configured -> `zero_injection`
-- else -> `classic`
-- Battery hysteresis:
-- above high threshold: curtailed/battery contribution allowed
-- below low threshold: curtailed/battery contribution blocked
-- Optional battery net-discharge guard:
-- configurable max discharge budget (W) for EV charging
-- discharge above budget is subtracted from available surplus (downshift if possible)
-- Forecast is optional and used only as anti-drop guard (avoid stop on short cloud transient).
-- Quick profiles:
-- `eco`: conservative, avoids battery discharge
-- `balanced`: default behavior
-- `fast`: reacts faster and starts with lower surplus
-- The rest is fixed internally (voltage, ramp, delays, cooldowns, protections).
+## Per-vehicle energy tracking
+
+Set the `vehicles` option to a comma-separated list, e.g. `Zoe, Kangoo`. That
+adds a `select.active_vehicle` entity plus one cumulative energy sensor per car.
+Charged energy is attributed to whichever car is selected, and totals survive
+restarts.
+
+The charger cannot know which car is plugged in, so the select is manual — but
+it is a normal entity, so an automation can flip it from a BLE/GPS tracker, an
+NFC tag, or anything else that identifies the car.
+
+---
+
+## Energy Dashboard
+
+Add `sensor.energy_session` as a device consumption source.
+
+These chargers expose **no lifetime meter** — only a per-session counter that
+resets. The sensor is therefore published as `total_increasing`, which is exactly
+the contract for a resetting meter: Home Assistant treats each reset as a new
+cycle and accumulates a correct running total.
+
+---
+
+## Exposed entities
+
+**Sensors** — `voltage_l1`, `current_l1`, `power_l1`, and on 3-phase models the
+matching `*_l2` / `*_l3`; `power_total`; `energy_session`, `session_duration`;
+`last_session_energy`, `last_session_duration`; `temperature`, `work_state`,
+`work_state_debug`, `downcounter`, `selftest`, `alarm`,
+`adjust_current_options`, `product_variant`; surplus diagnostics
+(`surplus_raw_w`, `surplus_effective_w`, `surplus_target_current_a`,
+`surplus_battery_discharge_over_limit_w`, `surplus_last_decision_reason`).
+
+**Number** — `charge_current`, surplus thresholds, battery thresholds.
+**Switch** — `charge_session`, `nfc_enabled`, `surplus_mode`, `schedule_enabled`.
+**Select** — `surplus_profile`, `active_vehicle` (when `vehicles` is set).
+**Time** — `schedule_start`, `schedule_end`.
+**Binary sensor** — `surplus_regulation_active`.
+**Button** — `reboot_charger`.
+
+On single-phase chargers the L2/L3 sensors stay **unavailable** rather than
+reporting a misleading 0 V. Power reads 0 whenever the charger is not actively
+charging, instead of holding the last value.
+
+---
 
 ## Options
 
-- `scan_interval`
-- `charger_profile`
-- `charger_profile_json` (optional)
-- `continuous_current` — adjust the current in 1 A steps (default **on**). DP 107
-  only advertises the shortcuts the Tuya app shows, not a hardware limit, so any
-  value between the charger's minimum and its own maximum (DP 152) is accepted.
-  Turn it off if your charger really only accepts the advertised steps.
-- `vehicles` (optional) — comma-separated car names, e.g. `Zoe, Kangoo`. Setting
-  this adds an **Active vehicle** select plus one cumulative energy sensor per
-  car; charged energy is attributed to whichever car is selected.
-- `surplus_mode_enabled`
-- `surplus_sensor_entity_id` + `surplus_sensor_inverted`
-- `surplus_curtailment_sensor_entity_id` + `surplus_curtailment_sensor_inverted` (optional)
-- `surplus_battery_soc_sensor_entity_id` (optional)
-- `surplus_battery_soc_high_threshold_pct`
-- `surplus_battery_soc_low_threshold_pct`
-- `surplus_battery_net_discharge_sensor_entity_id` + `surplus_battery_net_discharge_sensor_inverted` (optional)
-- `surplus_allow_battery_discharge_for_ev`
-- `surplus_max_battery_discharge_for_ev_w`
-- `surplus_start_threshold_w`
-- `surplus_stop_threshold_w`
-- `surplus_forecast_sensor_entity_id` (optional)
+| Option | Purpose |
+|---|---|
+| `scan_interval` | Polling interval, seconds |
+| `charger_profile` / `charger_profile_json` | DP mapping; custom JSON overrides |
+| `continuous_current` | 1 A steps (default **on**) |
+| `vehicles` | Comma-separated car names; enables per-vehicle tracking |
+| `surplus_mode_enabled` | Master switch for surplus mode |
+| `surplus_sensor_entity_id`, `surplus_sensor_inverted` | Grid power sensor and its sign |
+| `surplus_start_threshold_w`, `surplus_stop_threshold_w` | Start/stop thresholds |
+| `surplus_curtailment_sensor_entity_id`, `surplus_curtailment_sensor_inverted` | Optional, enables `zero_injection` |
+| `surplus_battery_soc_sensor_entity_id` | Optional battery SOC |
+| `surplus_battery_soc_high_threshold_pct`, `surplus_battery_soc_low_threshold_pct` | Battery hysteresis |
+| `surplus_battery_net_discharge_sensor_entity_id`, `surplus_battery_net_discharge_sensor_inverted` | Optional discharge guard |
+| `surplus_allow_battery_discharge_for_ev` / `surplus_max_battery_discharge_for_ev_w` | Battery budget for the EV |
+| `surplus_forecast_sensor_entity_id` | Optional 1 h solar forecast, anti-drop guard |
 
-## Home Assistant services
+## Services
 
 - `tuya_ev_charger.force_charge_for`
 - `tuya_ev_charger.pause_surplus`
 - `tuya_ev_charger.profile_assistant`
 - `tuya_ev_charger.set_surplus_profile`
 
-## Exposed entities
-
-- `sensor`: electrical values (per phase: L1, plus L2/L3 on 3-phase models),
-  total power, session energy and duration, last session record, charger state,
-  diagnostics
-- `number`: current setpoint + battery high/low thresholds
-- `switch`: charge session, NFC, surplus mode
-- `select`: surplus profile, active vehicle (when `vehicles` is configured)
-- `binary_sensor`: surplus regulation active
-- `button`: reboot charger
-
-The **session energy** sensor is `total_increasing`, so it can be added straight
-to the Energy Dashboard: the charger exposes no lifetime meter, only a counter
-that resets each session, and Home Assistant accumulates those cycles correctly.
-
-On single-phase chargers the L2/L3 sensors stay unavailable rather than
-reporting a misleading 0 V.
-
 ## Lovelace
 
-A simplified example card is provided:
+A simplified example card: `lovelace/charge_intelligente.yaml`.
 
-- `lovelace/charge_intelligente.yaml`
+---
+
+## Troubleshooting
+
+A diagnostic script is included: `tools/tuya_autodetect_test.py`. Run it on a
+machine on the same network as the charger.
+
+```bash
+python3 -m venv /tmp/ttv && /tmp/ttv/bin/pip install tinytuya
+/tmp/ttv/bin/python tools/tuya_autodetect_test.py --scantime 30
+```
+
+It scans for Tuya devices, reports each one's IP, protocol version and MAC, and
+**tests the control port (6668)**. Useful flags:
+
+- `--device-id <gwId>` — check that a specific charger is reachable
+- `--local-key <key>` — perform a real status read and print the grid voltage
+- `--config-entries <path/to/.storage/core.config_entries>` — cross-check what
+  Home Assistant has stored against what is actually on the network
+
+Common outcomes:
+
+| Symptom | Meaning |
+|---|---|
+| No Tuya device found | Charger offline, or you are not on its subnet (UDP broadcast does not cross VLANs/repeaters) |
+| Found, but port 6668 **refused** | Something else holds the charger's single local connection (Smart Life app, another Tuya/LocalTuya integration), or the charger is on an isolated AP |
+| Found, port open, read fails | Wrong `local_key` or protocol version |
+| Stored `device_id` looks like an IP | Entry created by an old buggy scan — re-add the charger |
+
+A Tuya charger accepts **only one local connection at a time**. If Home
+Assistant cannot connect, make sure no other integration or app is holding it.
+
+---
+
+## Compatibility
+
+Confirmed working:
+
+- dé Portable EV Charger 3.5 kW (single-phase) — reference device
+- dé Mobile Wallbox 11 kW, 3-phase (CEE 16 A) — L1/L2/L3 exposed
+- Other Tuya chargers using protocol 3.3 / 3.4 / 3.5 with the same DP layout
+
+If your charger reports a different DP layout, use `charger_profile_json` to
+supply a custom mapping, and please open an issue with a DP dump taken **while
+charging** so it can be supported natively.
 
 ## HACS compatibility
 
-Repository side requirements:
-
-- Add repository description
-- Add valid topics
-- Provide brand assets or submit brand to Home Assistant brands repo
-
-Integration side requirements:
-
-- `hacs.json` must use valid keys
-- `manifest.json` must include `issue_tracker`
-- `manifest.json` keys must be sorted (`domain`, `name`, then alphabetical)
+Repository side: description, valid topics, brand assets submitted to the Home
+Assistant brands repo. Integration side: valid `hacs.json` keys, `issue_tracker`
+in `manifest.json`, and manifest keys sorted (`domain`, `name`, then
+alphabetical).
