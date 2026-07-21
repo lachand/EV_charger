@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -13,6 +14,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
+    UnitOfEnergy,
     UnitOfPower,
     UnitOfTemperature,
     UnitOfTime,
@@ -36,15 +38,34 @@ from .const import (
     CARD_ROLE_TEMPERATURE,
     CARD_ROLE_VOLTAGE,
     CARD_ROLE_WORK_STATE,
+    CONF_VEHICLES,
+    DEFAULT_VEHICLES,
 )
 from .entity import TuyaEVChargerEntity
 from .solar_surplus import SolarSurplusSnapshot
 from .tuya_ev_charger import EVMetrics
+from .vehicles import configured_vehicles
 
 
 @dataclass(frozen=True, kw_only=True)
 class TuyaEVChargerSensorDescription(SensorEntityDescription):
     value_fn: Callable[[EVMetrics], float | int | str | None]
+
+
+def _phase_attr(phase: str, attribute: str) -> Callable[[EVMetrics], float | None]:
+    """Read one phase reading, or None when the model does not wire that phase.
+
+    Single-phase chargers report L2/L3 as all zeros; returning None keeps those
+    entities unavailable instead of showing a misleading 0 V / 0 A.
+    """
+
+    def _value(data: EVMetrics) -> float | None:
+        measurements = data.phases.get(phase)
+        if measurements is None:
+            return None
+        return getattr(measurements, attribute)
+
+    return _value
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -98,6 +119,88 @@ SENSOR_DESCRIPTIONS: tuple[TuyaEVChargerSensorDescription, ...] = (
         device_class=SensorDeviceClass.POWER,
         suggested_display_precision=2,
         value_fn=lambda data: data.power_l1,
+    ),
+    *(
+        description
+        for phase in ("l2", "l3")
+        for description in (
+            TuyaEVChargerSensorDescription(
+                key=f"voltage_{phase}",
+                translation_key=f"voltage_{phase}",
+                native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+                state_class=SensorStateClass.MEASUREMENT,
+                device_class=SensorDeviceClass.VOLTAGE,
+                suggested_display_precision=1,
+                value_fn=_phase_attr(phase.upper(), "voltage"),
+            ),
+            TuyaEVChargerSensorDescription(
+                key=f"current_{phase}",
+                translation_key=f"current_{phase}",
+                native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+                state_class=SensorStateClass.MEASUREMENT,
+                device_class=SensorDeviceClass.CURRENT,
+                suggested_display_precision=1,
+                value_fn=_phase_attr(phase.upper(), "current"),
+            ),
+            TuyaEVChargerSensorDescription(
+                key=f"power_{phase}",
+                translation_key=f"power_{phase}",
+                native_unit_of_measurement=UnitOfPower.KILO_WATT,
+                state_class=SensorStateClass.MEASUREMENT,
+                device_class=SensorDeviceClass.POWER,
+                suggested_display_precision=2,
+                value_fn=_phase_attr(phase.upper(), "power"),
+            ),
+        )
+    ),
+    TuyaEVChargerSensorDescription(
+        key="power_total",
+        translation_key="power_total",
+        native_unit_of_measurement=UnitOfPower.KILO_WATT,
+        state_class=SensorStateClass.MEASUREMENT,
+        device_class=SensorDeviceClass.POWER,
+        suggested_display_precision=2,
+        value_fn=lambda data: data.total_power,
+    ),
+    TuyaEVChargerSensorDescription(
+        key="energy_session",
+        translation_key="energy_session",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        # The charger has no lifetime meter, only a per-session counter that
+        # resets. TOTAL_INCREASING is exactly the contract for that: Home
+        # Assistant treats each reset as a new cycle and keeps a correct running
+        # total, so this feeds the Energy Dashboard.
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        device_class=SensorDeviceClass.ENERGY,
+        suggested_display_precision=2,
+        value_fn=lambda data: data.session_energy_kwh,
+    ),
+    TuyaEVChargerSensorDescription(
+        key="session_duration",
+        translation_key="session_duration",
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        device_class=SensorDeviceClass.DURATION,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.session_duration_s,
+    ),
+    TuyaEVChargerSensorDescription(
+        key="last_session_energy",
+        translation_key="last_session_energy",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        # Frozen record of the previous session, so no state_class: it must not
+        # be summed into long-term statistics.
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=2,
+        value_fn=lambda data: data.last_session_energy_kwh,
+    ),
+    TuyaEVChargerSensorDescription(
+        key="last_session_duration",
+        translation_key="last_session_duration",
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        device_class=SensorDeviceClass.DURATION,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.last_session_duration_s,
     ),
     TuyaEVChargerSensorDescription(
         key="temperature",
@@ -225,16 +328,54 @@ async def async_setup_entry(
 ) -> None:
     _ = hass
     runtime_data: TuyaEVChargerRuntimeData = entry.runtime_data
-    async_add_entities(
-        [
-            TuyaEVChargerSensor(entry, runtime_data, description)
-            for description in SENSOR_DESCRIPTIONS
-        ]
-        + [
-            TuyaEVChargerSurplusControllerSensor(entry, runtime_data, description)
-            for description in SURPLUS_CONTROLLER_SENSOR_DESCRIPTIONS
-        ]
+    entities: list[SensorEntity] = [
+        TuyaEVChargerSensor(entry, runtime_data, description)
+        for description in SENSOR_DESCRIPTIONS
+    ]
+    entities.extend(
+        TuyaEVChargerSurplusControllerSensor(entry, runtime_data, description)
+        for description in SURPLUS_CONTROLLER_SENSOR_DESCRIPTIONS
     )
+    entities.extend(
+        TuyaEVChargerVehicleEnergySensor(entry, runtime_data, vehicle)
+        for vehicle in configured_vehicles(
+            entry.options.get(CONF_VEHICLES, DEFAULT_VEHICLES)
+        )
+    )
+    async_add_entities(entities)
+
+
+class TuyaEVChargerVehicleEnergySensor(TuyaEVChargerEntity, SensorEntity):
+    """Cumulative energy attributed to one vehicle.
+
+    Fed by the deltas of the charger's own lifetime counter, routed to whichever
+    vehicle the "Active vehicle" select points at.
+    """
+
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_suggested_display_precision = 2
+    _attr_icon = "mdi:car-electric"
+
+    def __init__(
+        self,
+        entry: ConfigEntry,
+        runtime_data: TuyaEVChargerRuntimeData,
+        vehicle: str,
+    ) -> None:
+        super().__init__(entry=entry, runtime_data=runtime_data)
+        self._vehicle = vehicle
+        self._attr_name = f"{vehicle} energy"
+        slug = re.sub(r"[^a-z0-9_]+", "_", vehicle.lower()).strip("_")
+        self._attr_unique_id = f"{runtime_data.client.device_id}_vehicle_energy_{slug}"
+
+    @property
+    def native_value(self) -> float | None:
+        tracker = self._runtime_data.vehicle_tracker
+        if tracker is None:
+            return None
+        return tracker.total_for(self._vehicle)
 
 
 class TuyaEVChargerSensor(TuyaEVChargerEntity, SensorEntity):

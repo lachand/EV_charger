@@ -48,6 +48,11 @@ SOCKET_TIMEOUT_S = 5
 SOCKET_RETRY_LIMIT = 1
 SOCKET_RETRY_DELAY_S = 1
 
+PHASE_NAMES: tuple[str, ...] = ("L1", "L2", "L3")
+# DP 109 states observed across models: SLEEP (standby), IDLE (ready, unplugged),
+# IDLEINS (cable inserted, not charging), WORKING (charging).
+WORK_STATE_CHARGING = "WORKING"
+
 
 def _configure_device(device: "tinytuya.Device") -> None:
     device.set_socketTimeout(SOCKET_TIMEOUT_S)
@@ -118,10 +123,34 @@ DP_PROFILE_MAP: dict[str, DPProfile] = {
 
 
 @dataclass(slots=True, frozen=True)
+class PhaseMetrics:
+    """Per-phase readings decoded from DP 102.
+
+    Voltage and current use a verified /10 scale (2270 -> 227.0 V, 87 -> 8.7 A).
+    Power is expressed in kW and derived from voltage x current rather than read
+    from the third array element: the reported value is quantised to 0.1 kW
+    (measured 19 for 227.0 V x 8.7 A = 1.975 kW), so deriving it is both finer
+    grained and independent of a per-model scale. The reported value is kept in
+    ``raw_power`` for diagnostics.
+    """
+
+    voltage: float
+    current: float
+    power: float
+    raw_power: float
+
+
+@dataclass(slots=True, frozen=True)
 class EVMetrics:
     voltage_l1: float
     current_l1: float
     power_l1: float
+    phases: dict[str, PhaseMetrics]
+    total_power: float
+    session_energy_kwh: float | None
+    session_duration_s: int | None
+    last_session_energy_kwh: float | None
+    last_session_duration_s: int | None
     temperature: float
     work_state: int | None
     work_state_debug: str
@@ -265,11 +294,16 @@ class TuyaEVChargerClient:
 
         return await asyncio.to_thread(_probe)
 
-    async def async_set_charge_current(self, amperage: int) -> bool:
-        if amperage < min(ALLOWED_CURRENTS) or amperage > max(ALLOWED_CURRENTS):
+    async def async_set_charge_current(self, amperage: int, max_current: int | None = None) -> bool:
+        upper = max(ALLOWED_CURRENTS)
+        if max_current is not None:
+            # Respect the charger's own hardware limit (DP 152) on top of the
+            # range the integration supports.
+            upper = min(upper, max_current)
+        if amperage < min(ALLOWED_CURRENTS) or amperage > upper:
             raise ValueError(
                 f"Current setpoint {amperage}A is out of supported range "
-                f"({min(ALLOWED_CURRENTS)}-{max(ALLOWED_CURRENTS)}A)."
+                f"({min(ALLOWED_CURRENTS)}-{upper}A)."
             )
         return await self._async_send_command(self._dp.current_target, amperage)
 
@@ -294,19 +328,35 @@ class TuyaEVChargerClient:
         metrics_dict = _parse_json_object(dps.get(self._dp.metrics, "{}"))
         charger_info = _parse_json_object(dps.get(self._dp.charger_info, "{}"))
         schedule_dict = _parse_json_object(dps.get(DP_SCHEDULE, "{}"))
-        l1_data = metrics_dict.get("L1", [0, 0, 0])
-        if not isinstance(l1_data, list) or len(l1_data) < 3:
-            l1_data = [0, 0, 0]
+        history_dict = _parse_json_object(dps.get(self._dp.charge_history, "{}"))
 
-        raw_power = l1_data[2] if len(l1_data) > 2 else metrics_dict.get("p", 0)
         work_state_debug = _coerce_optional_text(dps.get(self._dp.work_state_debug)) or "UNKNOWN"
+        work_state_debug = work_state_debug.strip().upper()
+
+        # The charger keeps reporting the last power reading after a session
+        # ends, which corrupts surplus regulation and "car full" detection, so
+        # treat anything but an active session as zero power.
+        charging = work_state_debug == WORK_STATE_CHARGING
+        phases = _parse_phases(metrics_dict, charging)
+        l1 = phases.get("L1")
+
         return EVMetrics(
-            voltage_l1=_coerce_float(l1_data[0]) / 10.0,
-            current_l1=_coerce_float(l1_data[1]) / 10.0,
-            power_l1=_coerce_float(raw_power) / 10.0,
+            voltage_l1=l1.voltage if l1 else 0.0,
+            current_l1=l1.current if l1 else 0.0,
+            power_l1=l1.power if l1 else 0.0,
+            phases=phases,
+            total_power=round(sum(phase.power for phase in phases.values()), 3),
+            # DP 102 tracks the *running* session: "e" in 0.1 kWh, "d" in 0.1 s
+            # (verified against 2h37 of charging at ~2 kW giving 5.2 kWh).
+            session_energy_kwh=_tenths(metrics_dict.get("e")),
+            session_duration_s=_deciseconds(metrics_dict.get("d")),
+            # DP 105 is a frozen record of the last *completed* session, with its
+            # duration in plain seconds.
+            last_session_energy_kwh=_tenths(history_dict.get("c")),
+            last_session_duration_s=_coerce_optional_int(history_dict.get("d")),
             temperature=_coerce_float(metrics_dict.get("t", 0)) / 10.0,
             work_state=_coerce_optional_int(dps.get(self._dp.work_state)),
-            work_state_debug=work_state_debug.strip().upper(),
+            work_state_debug=work_state_debug,
             do_charge=_coerce_optional_bool(dps.get(self._dp.do_charge)),
             current_target=_coerce_optional_int(dps.get(self._dp.current_target)),
             max_current_cfg=_coerce_optional_int(dps.get(self._dp.max_current_cfg)),
@@ -342,20 +392,40 @@ class TuyaEVChargerClient:
         if not verify:
             return True
 
-        if await self._async_verify_command(dp_id, value):
+        verdict = await self._async_verify_command(dp_id, value)
+        if verdict is not False:
             return True
 
         LOGGER.error("Command accepted but not reflected in status for DP %s.", dp_id)
         return False
 
-    async def _async_verify_command(self, dp_id: str, expected: Any) -> bool:
+    async def _async_verify_command(self, dp_id: str, expected: Any) -> bool | None:
+        """Check the charger echoes back a written DP.
+
+        Returns True on a match, False on a genuine mismatch, and None when the
+        DP is simply absent from the status payload. Several models never report
+        the write-only DPs their profile declares (for example DP 140 does not
+        exist on the depow 3.5kW), so demanding an echo there would fail every
+        command even though the charger obeyed it.
+        """
+        saw_dp = False
         for _ in range(COMMAND_VERIFY_RETRIES):
             await asyncio.sleep(COMMAND_VERIFY_DELAY_S)
             dps = await self._async_get_dps_payload()
             if dps is None:
                 continue
+            if dp_id not in dps:
+                continue
+            saw_dp = True
             if _values_match(dps.get(dp_id), expected):
                 return True
+
+        if not saw_dp:
+            LOGGER.debug(
+                "DP %s is not reported by this charger; assuming the command was applied.",
+                dp_id,
+            )
+            return None
         return False
 
     async def _async_get_dps_payload(self) -> dict[str, Any] | None:
@@ -421,6 +491,52 @@ def _parse_custom_dp_profile(raw_json: str) -> DPProfile | None:
             return None
         values[field_name] = text_value
     return DPProfile(**values)
+
+
+def _parse_phases(
+    metrics_dict: dict[str, Any],
+    charging: bool,
+) -> dict[str, PhaseMetrics]:
+    """Decode the per-phase arrays of DP 102.
+
+    Single-phase chargers report L2/L3 as all-zero; those phases are omitted so
+    the entities show as unavailable rather than a misleading 0 V.
+    """
+    phases: dict[str, PhaseMetrics] = {}
+    for name in PHASE_NAMES:
+        raw = metrics_dict.get(name)
+        if not isinstance(raw, list) or len(raw) < 3:
+            continue
+        voltage = _coerce_float(raw[0]) / 10.0
+        current = _coerce_float(raw[1]) / 10.0
+        raw_power = _coerce_float(raw[2])
+        if name != "L1" and voltage == 0.0 and current == 0.0:
+            # Phase not wired on this model.
+            continue
+        phases[name] = PhaseMetrics(
+            voltage=voltage,
+            current=current,
+            # kW, to match the reported field's unit.
+            power=round(voltage * current / 1000.0, 3) if charging else 0.0,
+            raw_power=round(raw_power / 10.0, 2),
+        )
+    return phases
+
+
+def _tenths(raw_value: Any) -> float | None:
+    """Decode a counter reported in tenths of a unit (0.1 kWh)."""
+    value = _coerce_optional_float(raw_value)
+    if value is None:
+        return None
+    return round(value / 10.0, 2)
+
+
+def _deciseconds(raw_value: Any) -> int | None:
+    """Decode a duration reported in tenths of a second."""
+    value = _coerce_optional_float(raw_value)
+    if value is None:
+        return None
+    return int(value / 10.0)
 
 
 def _parse_json_object(raw_value: Any) -> dict[str, Any]:

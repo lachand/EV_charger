@@ -44,12 +44,15 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         self.entry = entry
         self.last_discovery: dict | None = None
         self.new_local_key: str | None = None
+        # Set by async_setup_entry once storage has been loaded.
+        self.vehicle_tracker: Any = None
         self._last_rediscovery_at: float = 0.0
         self._last_key_refresh_at: float = 0.0
 
     async def _async_update_data(self) -> EVMetrics:
         metrics = await self._async_fetch_metrics()
         if metrics is not None:
+            await self._async_track_vehicle_energy(metrics)
             return metrics
 
         # Communication failed: after a power cycle the charger's DHCP IP may
@@ -57,6 +60,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         if await self._async_try_rediscover_host():
             metrics = await self._async_fetch_metrics()
             if metrics is not None:
+                await self._async_track_vehicle_energy(metrics)
                 return metrics
 
         # Still failing while the control port answers: the payload does not
@@ -64,11 +68,27 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         if await self._async_try_refresh_local_key():
             metrics = await self._async_fetch_metrics()
             if metrics is not None:
+                await self._async_track_vehicle_energy(metrics)
                 return metrics
 
         raise UpdateFailed(
             f"Charger unreachable at {self.client.host} (no telemetry received)."
         )
+
+    async def _async_track_vehicle_energy(self, metrics: EVMetrics) -> None:
+        """Route charged energy into the active vehicle's total.
+
+        Driven by the per-session counter, which resets to zero at the start of
+        each session; the tracker re-baselines on a decrease, so each session's
+        increments land on whichever vehicle is selected.
+        """
+        tracker = self.vehicle_tracker
+        if tracker is None:
+            return
+        try:
+            await tracker.async_process_counter(metrics.session_energy_kwh)
+        except Exception as err:  # noqa: BLE001 - accounting must never break polling
+            LOGGER.debug("Vehicle energy tracking failed: %s", err)
 
     async def _async_fetch_metrics(self) -> EVMetrics | None:
         try:

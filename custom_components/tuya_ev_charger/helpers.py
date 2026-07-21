@@ -18,7 +18,7 @@ def allowed_currents(data: EVMetrics | None, options: Mapping[str, Any] | None =
     if data is not None and data.max_current_cfg is not None:
         max_current = min(max_current, data.max_current_cfg)
 
-    is_continuous = False
+    is_continuous = DEFAULT_CONTINUOUS_CURRENT
     if options is not None:
         is_continuous = bool(options.get(CONF_CONTINUOUS_CURRENT, DEFAULT_CONTINUOUS_CURRENT))
 

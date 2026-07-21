@@ -193,7 +193,11 @@ class TuyaEVChargerCurrentNumber(TuyaEVChargerEntity, NumberEntity):
                 f"Unsupported current setpoint: {amperage}A (allowed: {allowed})."
             )
 
-        success = await self._runtime_data.client.async_set_charge_current(amperage)
+        data = self.coordinator.data
+        success = await self._runtime_data.client.async_set_charge_current(
+            amperage,
+            max_current=data.max_current_cfg if data is not None else None,
+        )
         if not success:
             raise HomeAssistantError("Unable to update current setpoint on charger.")
 

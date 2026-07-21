@@ -17,6 +17,7 @@ from .const import (
     DEFAULT_SURPLUS_MODE_ENABLED,
 )
 from .entity import TuyaEVChargerEntity
+from .tuya_ev_charger import WORK_STATE_CHARGING
 
 
 async def async_setup_entry(
@@ -55,7 +56,9 @@ class TuyaEVChargerChargeSessionSwitch(TuyaEVChargerEntity, SwitchEntity):
             return False
         if data.do_charge is not None:
             return data.do_charge
-        return data.work_state_debug == "WORKING"
+        # Models that do not expose the do_charge DP (e.g. the depow 3.5kW has
+        # no DP 140) only report the operating state.
+        return data.work_state_debug == WORK_STATE_CHARGING
 
     async def async_turn_on(self, **kwargs: object) -> None:
         if not await self._runtime_data.client.async_set_charge_enabled(True):

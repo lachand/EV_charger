@@ -32,7 +32,7 @@
           "scan_interval": "Intervalle de rafraichissement (secondes)",
           "charger_profile": "Profil chargeur / mapping DP",
           "charger_profile_json": "Mapping DP custom (JSON, optionnel)",
-          "continuous_current": "Régulation continue de l'intensité (1A)",
+          "continuous_current": "Regulation continue de l'intensite (1A)",
           "surplus_mode_enabled": "Activer le mode surplus solaire",
           "surplus_sensor_entity_id": "Entite capteur puissance reseau (W) (sensor.xxx)",
           "surplus_sensor_inverted": "Inverser le signe capteur reseau",
@@ -47,7 +47,8 @@
           "surplus_max_battery_discharge_for_ev_w": "Puissance max decharge batterie autorisee (W)",
           "surplus_start_threshold_w": "Seuil de demarrage surplus (W)",
           "surplus_stop_threshold_w": "Seuil d'arret surplus (W)",
-          "surplus_forecast_sensor_entity_id": "Entite capteur prevision solaire 1h (W) (optionnel)"
+          "surplus_forecast_sensor_entity_id": "Entite capteur prevision solaire 1h (W) (optionnel)",
+          "vehicles": "Vehicules pour le suivi d'energie par voiture (separes par des virgules)"
         }
       }
     }
@@ -111,6 +112,39 @@
       },
       "surplus_target_current_a": {
         "name": "Courant cible surplus"
+      },
+      "voltage_l2": {
+        "name": "Tension L2"
+      },
+      "current_l2": {
+        "name": "Intensite L2"
+      },
+      "power_l2": {
+        "name": "Puissance L2"
+      },
+      "voltage_l3": {
+        "name": "Tension L3"
+      },
+      "current_l3": {
+        "name": "Intensite L3"
+      },
+      "power_l3": {
+        "name": "Puissance L3"
+      },
+      "power_total": {
+        "name": "Puissance totale"
+      },
+      "energy_session": {
+        "name": "Energie de la session"
+      },
+      "session_duration": {
+        "name": "Duree de la session"
+      },
+      "last_session_energy": {
+        "name": "Energie derniere session"
+      },
+      "last_session_duration": {
+        "name": "Duree derniere session"
       }
     },
     "number": {
@@ -158,6 +192,9 @@
     "select": {
       "surplus_profile": {
         "name": "Profil surplus"
+      },
+      "active_vehicle": {
+        "name": "Vehicule actif"
       }
     }
   }

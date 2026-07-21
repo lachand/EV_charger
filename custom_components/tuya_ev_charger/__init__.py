@@ -38,6 +38,7 @@ from .const import (
 )
 from .coordinator import TuyaEVChargerDataUpdateCoordinator
 from .solar_surplus import SolarSurplusController
+from .vehicles import VehicleEnergyTracker
 from .surplus_profiles import (
     apply_surplus_profile,
     is_supported_surplus_profile,
@@ -94,6 +95,7 @@ class TuyaEVChargerRuntimeData:
     client: TuyaEVChargerClient
     coordinator: TuyaEVChargerDataUpdateCoordinator
     solar_surplus_controller: SolarSurplusController | None = None
+    vehicle_tracker: VehicleEnergyTracker | None = None
 
 
 def _scan_interval_seconds(entry: ConfigEntry) -> int:
@@ -161,6 +163,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await _async_reconcile_network_info(hass, entry, coordinator)
 
     runtime_data = TuyaEVChargerRuntimeData(client=client, coordinator=coordinator)
+
+    vehicle_tracker = VehicleEnergyTracker(hass, entry.entry_id)
+    await vehicle_tracker.async_load()
+    runtime_data.vehicle_tracker = vehicle_tracker
+    coordinator.vehicle_tracker = vehicle_tracker
+
     runtime_data.solar_surplus_controller = SolarSurplusController(
         hass=hass,
         entry=entry,

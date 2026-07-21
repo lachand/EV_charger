@@ -49,6 +49,29 @@ Notes:
 
 The surplus UX is intentionally short.
 
+### Setting it up
+
+Surplus mode needs one thing: a sensor reporting your **grid** power, not your
+solar production.
+
+1. Open the integration's **Configure** dialog.
+2. Set **Grid power sensor** to any `sensor.*` entity whose state is a number in
+   watts. Every sensor entity is selectable, so if yours does not show up, check
+   that its state is numeric and that it is not `unavailable`.
+3. Sign convention: **positive when importing** from the grid, **negative when
+   exporting**. If yours is the other way round, tick **Invert grid sensor sign**
+   rather than creating a template sensor.
+4. Set **start** and **stop** thresholds (W). Charging starts once the available
+   surplus stays above the start threshold, and stops below the stop threshold.
+   The stop threshold is clamped to never exceed the start threshold.
+5. Turn on `switch.surplus_mode`.
+
+To check it is working, watch `sensor.surplus_raw_w` (what the integration reads
+from your sensor, after any inversion) and `sensor.surplus_last_decision_reason`,
+which states in plain text why it started, stopped, or did nothing.
+
+Everything else — battery thresholds, forecast, curtailment — is optional.
+
 User entities:
 
 - `switch.charge_session`
@@ -90,6 +113,13 @@ User entities:
 - `scan_interval`
 - `charger_profile`
 - `charger_profile_json` (optional)
+- `continuous_current` — adjust the current in 1 A steps (default **on**). DP 107
+  only advertises the shortcuts the Tuya app shows, not a hardware limit, so any
+  value between the charger's minimum and its own maximum (DP 152) is accepted.
+  Turn it off if your charger really only accepts the advertised steps.
+- `vehicles` (optional) — comma-separated car names, e.g. `Zoe, Kangoo`. Setting
+  this adds an **Active vehicle** select plus one cumulative energy sensor per
+  car; charged energy is attributed to whichever car is selected.
 - `surplus_mode_enabled`
 - `surplus_sensor_entity_id` + `surplus_sensor_inverted`
 - `surplus_curtailment_sensor_entity_id` + `surplus_curtailment_sensor_inverted` (optional)
@@ -112,11 +142,21 @@ User entities:
 
 ## Exposed entities
 
-- `sensor`: electrical values, charger state, diagnostics
+- `sensor`: electrical values (per phase: L1, plus L2/L3 on 3-phase models),
+  total power, session energy and duration, last session record, charger state,
+  diagnostics
 - `number`: current setpoint + battery high/low thresholds
 - `switch`: charge session, NFC, surplus mode
+- `select`: surplus profile, active vehicle (when `vehicles` is configured)
 - `binary_sensor`: surplus regulation active
 - `button`: reboot charger
+
+The **session energy** sensor is `total_increasing`, so it can be added straight
+to the Energy Dashboard: the charger exposes no lifetime meter, only a counter
+that resets each session, and Home Assistant accumulates those cycles correctly.
+
+On single-phase chargers the L2/L3 sensors stay unavailable rather than
+reporting a misleading 0 V.
 
 ## Lovelace
 

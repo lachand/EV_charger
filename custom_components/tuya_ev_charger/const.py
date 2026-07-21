@@ -68,6 +68,7 @@ CONF_CLOUD_API_KEY = "cloud_api_key"
 CONF_CLOUD_API_SECRET = "cloud_api_secret"
 CONF_CLOUD_REGION = "cloud_region"
 CONF_CONTINUOUS_CURRENT = "continuous_current"
+CONF_VEHICLES = "vehicles"
 CONF_DEVICE_ID = "device_id"
 CONF_LOCAL_KEY = "local_key"
 CONF_MAC = "mac"
@@ -152,7 +153,12 @@ DEFAULT_CHARGER_PROFILE = CHARGER_PROFILE_DEPOW_V2
 DEFAULT_CHARGER_PROFILE_JSON = ""
 SUPPORTED_PROTOCOL_VERSIONS: tuple[str, ...] = ("3.3", "3.4", "3.5")
 DEFAULT_SCAN_INTERVAL_SECONDS = 30
-DEFAULT_CONTINUOUS_CURRENT = False
+# DP 107 only advertises the shortcuts the Tuya app displays, not a hardware
+# constraint: chargers accept any value between their min and max in 1A steps.
+# Users who own a charger that really is restricted can turn this off.
+DEFAULT_CONTINUOUS_CURRENT = True
+# Comma-separated vehicle names for per-car energy tracking. Empty disables it.
+DEFAULT_VEHICLES = ""
 MIN_SCAN_INTERVAL_SECONDS = 5
 MAX_SCAN_INTERVAL_SECONDS = 300
 DEFAULT_SCAN_INTERVAL = timedelta(seconds=DEFAULT_SCAN_INTERVAL_SECONDS)

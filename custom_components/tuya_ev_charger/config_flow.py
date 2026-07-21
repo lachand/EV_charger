@@ -43,6 +43,7 @@ from .const import (
     CONF_SURPLUS_SENSOR_INVERTED,
     CONF_SURPLUS_START_THRESHOLD_W,
     CONF_SURPLUS_STOP_THRESHOLD_W,
+    CONF_VEHICLES,
     DEFAULT_CHARGER_PROFILE,
     DEFAULT_CHARGER_PROFILE_JSON,
     DEFAULT_CLOUD_REGION,
@@ -66,6 +67,7 @@ from .const import (
     DEFAULT_SURPLUS_SENSOR_INVERTED,
     DEFAULT_SURPLUS_START_THRESHOLD_W,
     DEFAULT_SURPLUS_STOP_THRESHOLD_W,
+    DEFAULT_VEHICLES,
     DOMAIN,
     MAX_SCAN_INTERVAL_SECONDS,
     MAX_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
@@ -432,6 +434,7 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                 CONF_CHARGER_PROFILE_JSON,
                 DEFAULT_CHARGER_PROFILE_JSON,
             )
+            _normalize_text_value(cleaned_input, CONF_VEHICLES, DEFAULT_VEHICLES)
             _normalize_surplus_options(cleaned_input)
             return self.async_create_entry(data=cleaned_input)
 
@@ -536,6 +539,12 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                             DEFAULT_CONTINUOUS_CURRENT,
                         ),
                     ): bool,
+                    vol.Optional(
+                        CONF_VEHICLES,
+                        default=_option_text(
+                            options, CONF_VEHICLES, DEFAULT_VEHICLES
+                        ),
+                    ): str,
                     vol.Required(
                         CONF_SURPLUS_MODE_ENABLED,
                         default=_option_bool(

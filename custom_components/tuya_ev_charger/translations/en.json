@@ -65,7 +65,7 @@
           "scan_interval": "Refresh interval (seconds)",
           "charger_profile": "Charger profile / DP mapping",
           "charger_profile_json": "Custom DP mapping (JSON, optional)",
-          "continuous_current": "Enable continuous current adjustment (1A steps)",
+          "continuous_current": "Adjust current in 1A steps",
           "surplus_mode_enabled": "Enable solar surplus mode",
           "surplus_sensor_entity_id": "Grid power sensor entity (W) (sensor.xxx)",
           "surplus_sensor_inverted": "Invert grid sensor sign",
@@ -80,7 +80,8 @@
           "surplus_max_battery_discharge_for_ev_w": "Max allowed battery discharge power for EV (W)",
           "surplus_start_threshold_w": "Surplus start threshold (W)",
           "surplus_stop_threshold_w": "Surplus stop threshold (W)",
-          "surplus_forecast_sensor_entity_id": "1h solar forecast sensor entity (W) (optional)"
+          "surplus_forecast_sensor_entity_id": "1h solar forecast sensor entity (W) (optional)",
+          "vehicles": "Vehicles for per-car energy tracking (comma separated)"
         }
       }
     }
@@ -144,6 +145,39 @@
       },
       "surplus_target_current_a": {
         "name": "Surplus target current"
+      },
+      "voltage_l2": {
+        "name": "Voltage L2"
+      },
+      "current_l2": {
+        "name": "Current L2"
+      },
+      "power_l2": {
+        "name": "Power L2"
+      },
+      "voltage_l3": {
+        "name": "Voltage L3"
+      },
+      "current_l3": {
+        "name": "Current L3"
+      },
+      "power_l3": {
+        "name": "Power L3"
+      },
+      "power_total": {
+        "name": "Total power"
+      },
+      "energy_session": {
+        "name": "Session energy"
+      },
+      "session_duration": {
+        "name": "Session duration"
+      },
+      "last_session_energy": {
+        "name": "Last session energy"
+      },
+      "last_session_duration": {
+        "name": "Last session duration"
       }
     },
     "number": {
@@ -191,6 +225,9 @@
     "select": {
       "surplus_profile": {
         "name": "Surplus profile"
+      },
+      "active_vehicle": {
+        "name": "Active vehicle"
       }
     }
   }

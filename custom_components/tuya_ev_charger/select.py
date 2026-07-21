@@ -12,11 +12,14 @@ from .const import (
     CARD_ROLE_INDEX,
     CARD_ROLE_SURPLUS_PROFILE,
     CONF_SURPLUS_PROFILE,
+    CONF_VEHICLES,
     DEFAULT_SURPLUS_PROFILE,
+    DEFAULT_VEHICLES,
     SURPLUS_PROFILES,
 )
 from .entity import TuyaEVChargerEntity
 from .surplus_profiles import apply_surplus_profile, normalize_surplus_profile
+from .vehicles import configured_vehicles
 
 
 async def async_setup_entry(
@@ -26,7 +29,48 @@ async def async_setup_entry(
 ) -> None:
     _ = hass
     runtime_data: TuyaEVChargerRuntimeData = entry.runtime_data
-    async_add_entities([TuyaEVChargerSurplusProfileSelect(entry, runtime_data)])
+    entities: list[SelectEntity] = [TuyaEVChargerSurplusProfileSelect(entry, runtime_data)]
+
+    # Only offer the vehicle picker once the user has named their vehicles.
+    if configured_vehicles(entry.options.get(CONF_VEHICLES, DEFAULT_VEHICLES)):
+        entities.append(TuyaEVChargerVehicleSelect(entry, runtime_data))
+    async_add_entities(entities)
+
+
+class TuyaEVChargerVehicleSelect(TuyaEVChargerEntity, SelectEntity):
+    """Picks which vehicle the charger's energy should be attributed to."""
+
+    _attr_translation_key = "active_vehicle"
+    _attr_icon = "mdi:car-electric"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
+        super().__init__(entry=entry, runtime_data=runtime_data)
+        self._attr_unique_id = f"{runtime_data.client.device_id}_active_vehicle"
+
+    @property
+    def options(self) -> list[str]:
+        return configured_vehicles(self._entry.options.get(CONF_VEHICLES, DEFAULT_VEHICLES))
+
+    @property
+    def current_option(self) -> str | None:
+        tracker = self._runtime_data.vehicle_tracker
+        if tracker is None:
+            return None
+        active = tracker.active_vehicle
+        # Fall back to the first configured vehicle when the stored one was renamed.
+        if active in self.options:
+            return active
+        return self.options[0] if self.options else None
+
+    async def async_select_option(self, option: str) -> None:
+        if option not in self.options:
+            raise HomeAssistantError(f"Unknown vehicle '{option}'.")
+        tracker = self._runtime_data.vehicle_tracker
+        if tracker is None:
+            raise HomeAssistantError("Vehicle tracking is unavailable.")
+        await tracker.async_set_active_vehicle(option)
+        self.async_write_ha_state()
 
 
 class TuyaEVChargerSurplusProfileSelect(TuyaEVChargerEntity, SelectEntity):
