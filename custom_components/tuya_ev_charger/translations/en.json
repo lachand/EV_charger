@@ -42,6 +42,17 @@
           "protocol_version": "Protocol version (default: 3.5)",
           "charger_profile": "Charger profile / DP mapping"
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigure charger",
+        "description": "Update the address or credentials without losing history.",
+        "data": {
+          "host": "Local IP address",
+          "device_id": "Device ID",
+          "local_key": "Local key",
+          "protocol_version": "Protocol version (default: 3.5)",
+          "charger_profile": "Charger profile / DP mapping"
+        }
       }
     },
     "error": {
@@ -194,6 +205,14 @@
           "paused": "Paused",
           "charged": "Charged"
         }
+      },
+      "evcc_status": {
+        "name": "evcc status",
+        "state": {
+          "A": "A - ready",
+          "B": "B - connected",
+          "C": "C - charging"
+        }
       }
     },
     "number": {
@@ -253,6 +272,12 @@
           "idle": "Do nothing"
         }
       }
+    }
+  },
+  "issues": {
+    "connection_refused": {
+      "title": "Charger refused the connection",
+      "description": "The charger at {host} is reachable but refuses its control port. These chargers accept a single local connection at a time — check that the Smart Life app or another Tuya integration is not holding it."
     }
   }
 }

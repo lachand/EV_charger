@@ -61,13 +61,23 @@ class TuyaEVChargerChargeSessionSwitch(TuyaEVChargerEntity, SwitchEntity):
         return data.work_state_debug == WORK_STATE_CHARGING
 
     async def async_turn_on(self, **kwargs: object) -> None:
-        if not await self._runtime_data.client.async_set_charge_enabled(True):
-            raise HomeAssistantError("Unable to start charging session.")
-        await self.coordinator.async_request_refresh()
+        await self._async_set_charging(True)
 
     async def async_turn_off(self, **kwargs: object) -> None:
-        if not await self._runtime_data.client.async_set_charge_enabled(False):
-            raise HomeAssistantError("Unable to stop charging session.")
+        await self._async_set_charging(False)
+
+    async def _async_set_charging(self, enabled: bool) -> None:
+        # Writing the DP makes the charger beep even when nothing changes, and
+        # controllers such as evcc re-assert the same state on a timer.
+        data = self.coordinator.data
+        if data is not None and data.do_charge is not None and data.do_charge == enabled:
+            return
+        if not await self._runtime_data.client.async_set_charge_enabled(enabled):
+            raise HomeAssistantError(
+                "Unable to start charging session."
+                if enabled
+                else "Unable to stop charging session."
+            )
         await self.coordinator.async_request_refresh()
 
 
@@ -88,13 +98,19 @@ class TuyaEVChargerNfcSwitch(TuyaEVChargerEntity, SwitchEntity):
         return data.nfc_enabled
 
     async def async_turn_on(self, **kwargs: object) -> None:
-        if not await self._runtime_data.client.async_set_nfc_enabled(True):
-            raise HomeAssistantError("Unable to enable NFC.")
-        await self.coordinator.async_request_refresh()
+        await self._async_set_nfc(True)
 
     async def async_turn_off(self, **kwargs: object) -> None:
-        if not await self._runtime_data.client.async_set_nfc_enabled(False):
-            raise HomeAssistantError("Unable to disable NFC.")
+        await self._async_set_nfc(False)
+
+    async def _async_set_nfc(self, enabled: bool) -> None:
+        data = self.coordinator.data
+        if data is not None and data.nfc_enabled is not None and data.nfc_enabled == enabled:
+            return
+        if not await self._runtime_data.client.async_set_nfc_enabled(enabled):
+            raise HomeAssistantError(
+                "Unable to enable NFC." if enabled else "Unable to disable NFC."
+            )
         await self.coordinator.async_request_refresh()
 
 

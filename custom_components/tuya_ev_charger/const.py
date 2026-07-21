@@ -1,8 +1,27 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from enum import StrEnum
 
 from homeassistant.const import Platform
+
+
+class ConnectionFault(StrEnum):
+    """Why a poll failed, as far as the network can tell.
+
+    The three failure modes need completely different responses from the user,
+    so they must not collapse into one "unreachable" message.
+    """
+
+    OK = "ok"
+    # Nothing answers at the address: wrong IP, or the charger is powered off.
+    UNREACHABLE = "unreachable"
+    # The host answers but rejects the control port. A Tuya charger accepts a
+    # single local connection, so something else is almost certainly holding it.
+    REFUSED = "refused"
+    # The port accepts us but the payload will not decrypt: the local_key was
+    # rotated by a re-pairing.
+    UNDECRYPTABLE = "undecryptable"
 
 DOMAIN = "tuya_ev_charger"
 

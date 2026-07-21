@@ -203,6 +203,33 @@ firmwares that do not report it.
 `button.ready_to_charge` returns the charger to its ready state after a session.
 On some firmwares that is what clears a stale power reading.
 
+`sensor.evcc_status` reports the IEC 61851 letter [evcc](https://evcc.io)
+expects — `A` (no vehicle), `B` (connected), `C` (charging) — so the charger can
+be driven as an evcc custom charger. `WORKING` can linger after a completed
+charge, so `C` additionally requires power to actually be flowing.
+
+Writes are skipped when the charger already holds the target value: every DP
+write makes the charger beep, and controllers re-assert the same setpoint on a
+timer.
+
+## Reconfiguring
+
+Use **Configure → Reconfigure** to change the address, `device_id` or
+`local_key` without deleting the integration — deleting it would discard the
+entity history and energy statistics.
+
+## Development
+
+```bash
+pip install -r requirements-test.txt
+pytest
+```
+
+The suite stubs Home Assistant rather than installing it, so it runs anywhere in
+under a second. It asserts DP decoding against payloads captured from real
+hardware, and guards the regressions that have reached users (options-form
+serialisation, secret redaction in diagnostics, every module importing).
+
 On single-phase chargers the L2/L3 sensors stay **unavailable** rather than
 reporting a misleading 0 V. Power reads 0 whenever the charger is not actively
 charging, instead of holding the last value.

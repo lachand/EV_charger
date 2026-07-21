@@ -53,7 +53,7 @@ CURRENT_SETPOINT_DESCRIPTION = NumberEntityDescription(
     native_min_value=float(min(ALLOWED_CURRENTS)),
     native_max_value=float(max(ALLOWED_CURRENTS)),
     native_step=1.0,
-    mode=NumberMode.BOX,
+    mode=NumberMode.SLIDER,
 )
 
 
@@ -183,9 +183,9 @@ class TuyaEVChargerCurrentNumber(TuyaEVChargerEntity, NumberEntity):
         )
 
     async def async_set_native_value(self, value: float) -> None:
-        amperage = int(value)
-        if float(amperage) != value:
-            raise HomeAssistantError("Current setpoint must be an integer.")
+        # Automations and external controllers routinely send floats; rounding is
+        # friendlier than refusing 10.5 outright.
+        amperage = round(value)
 
         allowed = self._allowed_currents()
         if amperage not in allowed:
@@ -194,6 +194,11 @@ class TuyaEVChargerCurrentNumber(TuyaEVChargerEntity, NumberEntity):
             )
 
         data = self.coordinator.data
+        # Every DP write makes the charger beep, even when the value does not
+        # change, and controllers re-assert the same setpoint on a timer.
+        if data is not None and data.current_target == amperage:
+            return
+
         success = await self._runtime_data.client.async_set_charge_current(
             amperage,
             max_current=data.max_current_cfg if data is not None else None,

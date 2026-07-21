@@ -11,6 +11,17 @@
           "protocol_version": "Version du protocole (defaut : 3.5)",
           "charger_profile": "Profil chargeur / mapping DP"
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigurer la borne",
+        "description": "Mettez a jour l'adresse ou les identifiants sans perdre l'historique.",
+        "data": {
+          "host": "Adresse IP locale",
+          "device_id": "Device ID",
+          "local_key": "Local key",
+          "protocol_version": "Version du protocole",
+          "charger_profile": "Profil chargeur"
+        }
       }
     },
     "error": {
@@ -163,6 +174,14 @@
           "paused": "En pause",
           "charged": "Charge terminee"
         }
+      },
+      "evcc_status": {
+        "name": "Statut evcc",
+        "state": {
+          "A": "A - libre",
+          "B": "B - branche",
+          "C": "C - en charge"
+        }
       }
     },
     "number": {
@@ -222,6 +241,12 @@
           "idle": "Ne rien faire"
         }
       }
+    }
+  },
+  "issues": {
+    "connection_refused": {
+      "title": "La borne refuse la connexion",
+      "description": "La borne a {host} est joignable mais refuse son port de controle. Ces bornes n'acceptent qu'une seule connexion locale a la fois : verifiez que l'appli Smart Life ou une autre integration Tuya ne la monopolise pas."
     }
   }
 }

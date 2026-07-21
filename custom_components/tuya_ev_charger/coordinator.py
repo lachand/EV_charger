@@ -19,8 +19,10 @@ from .const import (
     LOCAL_KEY_REFRESH_COOLDOWN_SECONDS,
     REDISCOVERY_COOLDOWN_SECONDS,
     REDISCOVERY_SCAN_SECONDS,
+    ConnectionFault,
 )
 from .discovery import async_scan_devices_by_id
+from .repairs import ISSUE_CONNECTION_REFUSED, async_clear, async_raise
 from .tuya_ev_charger import EVMetrics, TuyaEVChargerClient
 
 LOGGER = logging.getLogger(__name__)
@@ -80,9 +82,36 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
                 await self._async_track_vehicle_energy(metrics)
                 return metrics
 
-        raise UpdateFailed(
-            f"Charger unreachable at {self.client.host} (no telemetry received)."
-        )
+        raise UpdateFailed(await self._async_failure_message())
+
+    async def _async_failure_message(self) -> str:
+        """Explain *why* the poll failed, and raise a repair issue when useful."""
+        host = self.client.host
+        entry_id = self.entry.entry_id
+        try:
+            fault = await self.client.async_classify_fault()
+        except Exception:  # noqa: BLE001 - diagnosis must never mask the failure
+            return f"Charger unreachable at {host} (no telemetry received)."
+
+        if fault == ConnectionFault.REFUSED:
+            async_raise(
+                self.hass, entry_id, ISSUE_CONNECTION_REFUSED,
+                translation_placeholders={"host": host},
+            )
+            return (
+                f"Charger at {host} refused the connection. These chargers accept "
+                "a single local connection at a time — check that the Smart Life "
+                "app or another Tuya integration is not holding it."
+            )
+
+        async_clear(self.hass, entry_id, ISSUE_CONNECTION_REFUSED)
+
+        if fault == ConnectionFault.UNDECRYPTABLE:
+            return (
+                f"Charger at {host} answers but its replies cannot be decrypted; "
+                "the local_key was most likely changed by a re-pairing."
+            )
+        return f"Charger unreachable at {host} (nothing answers at that address)."
 
     async def _async_track_vehicle_energy(self, metrics: EVMetrics) -> None:
         """Route charged energy into the active vehicle's total.

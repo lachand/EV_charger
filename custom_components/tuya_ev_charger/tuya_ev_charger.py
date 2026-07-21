@@ -11,7 +11,6 @@ import tinytuya  # type: ignore
 
 from .const import (
     ALLOWED_CURRENTS,
-    TUYA_CONTROL_PORT,
     CHARGER_PROFILE_CUSTOM_JSON,
     CHARGER_PROFILE_DEPOW_V2,
     CHARGER_PROFILE_GENERIC_V1,
@@ -36,6 +35,8 @@ from .const import (
     DP_SOCKET_CFG,
     DP_WORK_STATE,
     DP_WORK_STATE_DEBUG,
+    TUYA_CONTROL_PORT,
+    ConnectionFault,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -79,6 +80,26 @@ STATUS_OPTIONS: tuple[str, ...] = tuple(dict.fromkeys(STATUS_MAP.values()))
 # clean way to stop a car auto-starting a charge.
 PLUG_IN_ACTION_MAP: dict[int, str] = {0: "prompt", 1: "charge", 2: "idle"}
 PLUG_IN_ACTION_OPTIONS: tuple[str, ...] = tuple(PLUG_IN_ACTION_MAP.values())
+
+# IEC 61851 status letters, the vocabulary evcc consumes: A = no vehicle,
+# B = connected but not charging, C = charging.
+EVCC_STATUS_OPTIONS: tuple[str, ...] = ("A", "B", "C")
+# Above this the charger is really delivering. WORKING can linger after a
+# completed charge, so power is what separates "charging" from "connected".
+EVCC_CHARGING_POWER_KW = 0.1
+# Statuses that mean a vehicle is plugged in but not drawing.
+_EVCC_CONNECTED = frozenset({"plugged_in", "waiting", "paused", "charged", "fault"})
+
+
+def evcc_status(status: str | None, total_power: float) -> str:
+    """Map our decoded status to the A/B/C letter evcc expects."""
+    if status == "charging":
+        return "C" if total_power >= EVCC_CHARGING_POWER_KW else "B"
+    if total_power >= EVCC_CHARGING_POWER_KW:
+        return "C"
+    if status in _EVCC_CONNECTED:
+        return "B"
+    return "A"
 
 
 def _configure_device(device: "tinytuya.Device") -> None:
@@ -260,6 +281,36 @@ class TuyaEVChargerClient:
         """Adopt a rotated local_key (after re-pairing) and reconnect."""
         self._local_key = local_key
         await self.async_connect()
+
+    async def async_classify_fault(self) -> str:
+        """Work out why reads are failing, so the user gets an actionable message.
+
+        Distinguishes a wrong/absent address from a control port that actively
+        refuses us (its single local connection is taken) from a port that talks
+        but whose payload no longer decrypts (rotated local_key).
+        """
+        def _connect() -> str:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(SOCKET_TIMEOUT_S)
+            try:
+                sock.connect((self._host, TUYA_CONTROL_PORT))
+                return ConnectionFault.OK
+            except ConnectionRefusedError:
+                return ConnectionFault.REFUSED
+            except OSError:
+                return ConnectionFault.UNREACHABLE
+            finally:
+                sock.close()
+
+        verdict = await asyncio.to_thread(_connect)
+        if verdict != ConnectionFault.OK:
+            return verdict
+        # The port answers, so a failed read points at the credentials.
+        return (
+            ConnectionFault.OK
+            if await self.async_probe_host(self._host)
+            else ConnectionFault.UNDECRYPTABLE
+        )
 
     async def async_tcp_reachable(self) -> bool:
         """True if the charger's control port accepts a TCP connection.

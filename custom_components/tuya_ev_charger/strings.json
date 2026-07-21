@@ -2,53 +2,97 @@
   "config": {
     "step": {
       "user": {
-        "title": "Configuration de la borne Tuya",
-        "description": "Saisissez les identifiants locaux de la borne.",
+        "title": "Tuya charger setup",
+        "description": "How would you like to find your charger?",
         "data": {
-          "host": "Adresse IP locale",
+          "mode": "Discovery method"
+        }
+      },
+      "scan": {
+        "title": "Discovered chargers",
+        "description": "Select the charger found on your network, or choose 'Enter manually'.",
+        "data": {
+          "device": "Charger"
+        }
+      },
+      "cloud": {
+        "title": "Tuya Cloud credentials",
+        "description": "From iot.tuya.com: create a Cloud project, link your Smart Life account, then paste the Access ID and Access Secret here. Used only to read your device list (device_id + local key) — never for telemetry.",
+        "data": {
+          "cloud_api_key": "Access ID (API key)",
+          "cloud_api_secret": "Access Secret",
+          "cloud_region": "Data centre region",
+          "device_id": "Device ID (optional, improves lookup reliability)"
+        }
+      },
+      "cloud_device": {
+        "title": "Select your charger",
+        "description": "Pick the charger among the devices in your Tuya account. Its local key is filled in automatically, and its IP is located on your network.",
+        "data": {
+          "device": "Device"
+        }
+      },
+      "credentials": {
+        "title": "Charger credentials",
+        "description": "Enter the local key and confirm the other settings.",
+        "data": {
+          "host": "Local IP address",
           "device_id": "Device ID",
           "local_key": "Local key",
-          "protocol_version": "Version du protocole (defaut : 3.5)",
-          "charger_profile": "Profil chargeur / mapping DP"
+          "protocol_version": "Protocol version (default: 3.5)",
+          "charger_profile": "Charger profile / DP mapping"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure charger",
+        "description": "Update the address or credentials without losing history.",
+        "data": {
+          "host": "Local IP address",
+          "device_id": "Device ID",
+          "local_key": "Local key",
+          "protocol_version": "Protocol version (default: 3.5)",
+          "charger_profile": "Charger profile / DP mapping"
         }
       }
     },
     "error": {
-      "cannot_connect": "Impossible de joindre la borne avec ces parametres.",
-      "no_devices_found": "Aucun appareil Tuya trouve sur le reseau. Saisissez les identifiants manuellement.",
-      "unknown": "Erreur inattendue."
+      "cannot_connect": "Unable to reach charger with these settings.",
+      "cloud_auth_failed": "Could not reach the Tuya Cloud. Check the Access ID, Access Secret and region.",
+      "cloud_no_devices": "No devices in this Tuya IoT project. Did you link your Smart Life account to it?",
+      "no_devices_found": "No Tuya devices found on the network. Enter credentials manually.",
+      "unknown": "Unexpected error."
     },
     "abort": {
-      "already_configured": "Cette borne est deja configuree.",
-      "not_tuya_ev_charger": "L'appareil dont l'IP a change n'est pas une borne Tuya configuree."
+      "already_configured": "This charger is already configured.",
+      "not_tuya_ev_charger": "The device that changed IP is not a configured Tuya charger."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Options de la borne Tuya",
-        "description": "Mode surplus simplifie.",
+        "title": "Tuya charger options",
+        "description": "Simplified solar surplus mode.",
         "data": {
-          "scan_interval": "Intervalle de rafraichissement (secondes)",
-          "charger_profile": "Profil chargeur / mapping DP",
-          "charger_profile_json": "Mapping DP custom (JSON, optionnel)",
-          "continuous_current": "Regulation continue de l'intensite (1A)",
-          "surplus_mode_enabled": "Activer le mode surplus solaire",
-          "surplus_sensor_entity_id": "Entite capteur puissance reseau (W) (sensor.xxx)",
-          "surplus_sensor_inverted": "Inverser le signe capteur reseau",
-          "surplus_curtailment_sensor_entity_id": "Entite puissance bridee potentielle (W) (optionnel)",
-          "surplus_curtailment_sensor_inverted": "Inverser le signe capteur puissance bridee",
-          "surplus_battery_soc_sensor_entity_id": "Entite % batterie (optionnel)",
-          "surplus_battery_soc_high_threshold_pct": "Seuil haut batterie (%)",
-          "surplus_battery_soc_low_threshold_pct": "Seuil bas batterie (%)",
-          "surplus_battery_net_discharge_sensor_entity_id": "Entite puissance decharge batterie nette (W) (optionnel)",
-          "surplus_battery_net_discharge_sensor_inverted": "Inverser le signe capteur decharge batterie nette",
-          "surplus_allow_battery_discharge_for_ev": "Autoriser la decharge batterie pour la voiture",
-          "surplus_max_battery_discharge_for_ev_w": "Puissance max decharge batterie autorisee (W)",
-          "surplus_start_threshold_w": "Seuil de demarrage surplus (W)",
-          "surplus_stop_threshold_w": "Seuil d'arret surplus (W)",
-          "surplus_forecast_sensor_entity_id": "Entite capteur prevision solaire 1h (W) (optionnel)",
-          "vehicles": "Vehicules pour le suivi d'energie par voiture (separes par des virgules)"
+          "scan_interval": "Refresh interval (seconds)",
+          "charger_profile": "Charger profile / DP mapping",
+          "charger_profile_json": "Custom DP mapping (JSON, optional)",
+          "continuous_current": "Adjust current in 1A steps",
+          "surplus_mode_enabled": "Enable solar surplus mode",
+          "surplus_sensor_entity_id": "Grid power sensor entity (W) (sensor.xxx)",
+          "surplus_sensor_inverted": "Invert grid sensor sign",
+          "surplus_curtailment_sensor_entity_id": "Potential curtailed power entity (W) (optional)",
+          "surplus_curtailment_sensor_inverted": "Invert curtailed power sensor sign",
+          "surplus_battery_soc_sensor_entity_id": "Battery SOC entity (optional)",
+          "surplus_battery_soc_high_threshold_pct": "Battery high threshold (%)",
+          "surplus_battery_soc_low_threshold_pct": "Battery low threshold (%)",
+          "surplus_battery_net_discharge_sensor_entity_id": "Battery net discharge power entity (W) (optional)",
+          "surplus_battery_net_discharge_sensor_inverted": "Invert net battery discharge sensor sign",
+          "surplus_allow_battery_discharge_for_ev": "Allow battery discharge for EV charging",
+          "surplus_max_battery_discharge_for_ev_w": "Max allowed battery discharge power for EV (W)",
+          "surplus_start_threshold_w": "Surplus start threshold (W)",
+          "surplus_stop_threshold_w": "Surplus stop threshold (W)",
+          "surplus_forecast_sensor_entity_id": "1h solar forecast sensor entity (W) (optional)",
+          "vehicles": "Vehicles for per-car energy tracking (comma separated)"
         }
       }
     }
@@ -56,170 +100,184 @@
   "entity": {
     "binary_sensor": {
       "surplus_regulation_active": {
-        "name": "Regulation surplus active"
+        "name": "Surplus regulation active"
       }
     },
     "button": {
       "reboot_charger": {
-        "name": "Redemarrer la borne"
+        "name": "Reboot charger"
       },
       "ready_to_charge": {
-        "name": "Pret a charger"
+        "name": "Ready to charge"
       }
     },
     "sensor": {
       "voltage_l1": {
-        "name": "Tension L1"
+        "name": "Voltage L1"
       },
       "current_l1": {
-        "name": "Intensite L1"
+        "name": "Current L1"
       },
       "power_l1": {
-        "name": "Puissance L1"
+        "name": "Power L1"
       },
       "temperature": {
         "name": "Temperature"
       },
       "work_state": {
-        "name": "Etat de fonctionnement"
+        "name": "Work state"
       },
       "work_state_debug": {
-        "name": "Etat debug"
+        "name": "Work state debug"
       },
       "downcounter": {
-        "name": "Compte a rebours"
+        "name": "Countdown"
       },
       "selftest": {
-        "name": "Resultat auto-test"
+        "name": "Self-test result"
       },
       "alarm": {
-        "name": "Alarme"
+        "name": "Alarm"
       },
       "adjust_current_options": {
-        "name": "Courants disponibles"
+        "name": "Available currents"
       },
       "product_variant": {
-        "name": "Variante produit"
+        "name": "Product variant"
       },
       "surplus_last_decision_reason": {
-        "name": "Derniere raison decision surplus"
+        "name": "Surplus last decision reason"
       },
       "surplus_raw_w": {
-        "name": "Surplus brut"
+        "name": "Raw surplus"
       },
       "surplus_effective_w": {
-        "name": "Surplus effectif"
+        "name": "Effective surplus"
       },
       "surplus_battery_discharge_over_limit_w": {
-        "name": "Depassement decharge batterie"
+        "name": "Battery discharge over limit"
       },
       "surplus_target_current_a": {
-        "name": "Courant cible surplus"
+        "name": "Surplus target current"
       },
       "voltage_l2": {
-        "name": "Tension L2"
+        "name": "Voltage L2"
       },
       "current_l2": {
-        "name": "Intensite L2"
+        "name": "Current L2"
       },
       "power_l2": {
-        "name": "Puissance L2"
+        "name": "Power L2"
       },
       "voltage_l3": {
-        "name": "Tension L3"
+        "name": "Voltage L3"
       },
       "current_l3": {
-        "name": "Intensite L3"
+        "name": "Current L3"
       },
       "power_l3": {
-        "name": "Puissance L3"
+        "name": "Power L3"
       },
       "power_total": {
-        "name": "Puissance totale"
+        "name": "Total power"
       },
       "energy_session": {
-        "name": "Energie de la session"
+        "name": "Session energy"
       },
       "session_duration": {
-        "name": "Duree de la session"
+        "name": "Session duration"
       },
       "last_session_energy": {
-        "name": "Energie derniere session"
+        "name": "Last session energy"
       },
       "last_session_duration": {
-        "name": "Duree derniere session"
+        "name": "Last session duration"
       },
       "status": {
-        "name": "Statut",
+        "name": "Status",
         "state": {
-          "sleep": "Veille",
-          "idle": "Pret",
-          "plugged_in": "Branche",
-          "charging": "En charge",
-          "waiting": "En attente",
-          "fault": "Defaut",
-          "paused": "En pause",
-          "charged": "Charge terminee"
+          "sleep": "Standby",
+          "idle": "Ready",
+          "plugged_in": "Plugged in",
+          "charging": "Charging",
+          "waiting": "Waiting",
+          "fault": "Fault",
+          "paused": "Paused",
+          "charged": "Charged"
+        }
+      },
+      "evcc_status": {
+        "name": "evcc status",
+        "state": {
+          "A": "A - ready",
+          "B": "B - connected",
+          "C": "C - charging"
         }
       }
     },
     "number": {
       "charge_current": {
-        "name": "Consigne d'intensite"
+        "name": "Current setpoint"
       },
       "surplus_battery_soc_high_threshold_pct": {
-        "name": "Seuil haut batterie surplus"
+        "name": "Surplus battery high threshold"
       },
       "surplus_battery_soc_low_threshold_pct": {
-        "name": "Seuil bas batterie surplus"
+        "name": "Surplus battery low threshold"
       },
       "surplus_start_threshold_w": {
-        "name": "Seuil de demarrage surplus"
+        "name": "Surplus start threshold"
       },
       "surplus_stop_threshold_w": {
-        "name": "Seuil d'arret surplus"
+        "name": "Surplus stop threshold"
       },
       "surplus_max_battery_discharge_for_ev_w": {
-        "name": "Decharge batterie max autorisee EV"
+        "name": "Max EV battery discharge"
       }
     },
     "switch": {
       "charge_session": {
-        "name": "Session de charge"
+        "name": "Charging session"
       },
       "nfc_enabled": {
         "name": "NFC"
       },
       "surplus_mode": {
-        "name": "Mode surplus solaire"
+        "name": "Solar surplus mode"
       },
       "schedule_enabled": {
-        "name": "Charge programmée"
+        "name": "Scheduled charging"
       }
     },
     "time": {
       "schedule_start": {
-        "name": "Heure de début de plage"
+        "name": "Schedule start time"
       },
       "schedule_end": {
-        "name": "Heure de fin de plage"
+        "name": "Schedule end time"
       }
     },
     "select": {
       "surplus_profile": {
-        "name": "Profil surplus"
+        "name": "Surplus profile"
       },
       "active_vehicle": {
-        "name": "Vehicule actif"
+        "name": "Active vehicle"
       },
       "plug_in_action": {
-        "name": "Action au branchement",
+        "name": "Plug-in action",
         "state": {
-          "prompt": "Demander",
-          "charge": "Demarrer la charge",
-          "idle": "Ne rien faire"
+          "prompt": "Prompt",
+          "charge": "Start charging",
+          "idle": "Do nothing"
         }
       }
+    }
+  },
+  "issues": {
+    "connection_refused": {
+      "title": "Charger refused the connection",
+      "description": "The charger at {host} is reachable but refuses its control port. These chargers accept a single local connection at a time — check that the Smart Life app or another Tuya integration is not holding it."
     }
   }
 }

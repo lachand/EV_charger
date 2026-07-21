@@ -65,6 +65,9 @@ class TuyaEVChargerPlugInActionSelect(TuyaEVChargerEntity, SelectEntity):
         return data.plug_in_action if data is not None else None
 
     async def async_select_option(self, option: str) -> None:
+        # Skip a write the charger would only beep at.
+        if option == self.current_option:
+            return
         if not await self._runtime_data.client.async_set_plug_in_action(option):
             raise HomeAssistantError("Unable to update the plug-in action.")
         await self.coordinator.async_request_refresh()

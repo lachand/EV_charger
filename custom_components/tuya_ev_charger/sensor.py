@@ -43,7 +43,12 @@ from .const import (
 )
 from .entity import TuyaEVChargerEntity
 from .solar_surplus import SolarSurplusSnapshot
-from .tuya_ev_charger import STATUS_OPTIONS, EVMetrics
+from .tuya_ev_charger import (
+    EVCC_STATUS_OPTIONS,
+    STATUS_OPTIONS,
+    EVMetrics,
+    evcc_status,
+)
 from .vehicles import configured_vehicles
 
 
@@ -230,6 +235,15 @@ SENSOR_DESCRIPTIONS: tuple[TuyaEVChargerSensorDescription, ...] = (
         options=list(STATUS_OPTIONS),
         icon="mdi:ev-station",
         value_fn=lambda data: data.status,
+    ),
+    TuyaEVChargerSensorDescription(
+        key="evcc_status",
+        translation_key="evcc_status",
+        device_class=SensorDeviceClass.ENUM,
+        options=list(EVCC_STATUS_OPTIONS),
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: evcc_status(data.status, data.total_power),
     ),
     TuyaEVChargerSensorDescription(
         key="downcounter",

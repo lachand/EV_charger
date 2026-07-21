@@ -150,7 +150,9 @@ async def _async_validate_input(
     metrics = await client.async_get_metrics()
     if metrics is None:
         raise CannotConnectError
-    return {"title": f"{DEFAULT_NAME} ({data[CONF_HOST]})"}
+    # No IP in the title: it is a DHCP address the integration relocates on its
+    # own, so baking it in would make the title lie after the first move.
+    return {"title": DEFAULT_NAME}
 
 
 class TuyaEVChargerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -380,6 +382,40 @@ class TuyaEVChargerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="credentials",
             data_schema=_build_credentials_schema(user_input or self._prefill),
+            errors=errors,
+        )
+
+    async def async_step_reconfigure(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> FlowResult:
+        """Change the address or credentials of an existing charger.
+
+        Without this, fixing a wrong device_id or a rotated local_key means
+        deleting and re-adding the integration, which throws away the entity
+        history and energy statistics.
+        """
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            try:
+                await _async_validate_input(self.hass, user_input)
+            except CannotConnectError:
+                errors["base"] = "cannot_connect"
+            except Exception:
+                LOGGER.exception("Unexpected error while validating charger config.")
+                errors["base"] = "unknown"
+            else:
+                # Keep everything we are not asking about (cloud credentials,
+                # learned MAC) and only overwrite the submitted fields.
+                return self.async_update_reload_and_abort(
+                    entry, data={**entry.data, **user_input}
+                )
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=_build_credentials_schema(user_input or entry.data),
             errors=errors,
         )
 

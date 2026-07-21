@@ -10,8 +10,11 @@ from homeassistant.core import HomeAssistant
 
 from . import TuyaEVChargerRuntimeData
 from .const import (
+    CONF_CLOUD_API_KEY,
+    CONF_CLOUD_API_SECRET,
     CONF_DEVICE_ID,
     CONF_LOCAL_KEY,
+    CONF_MAC,
     CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
     CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
     CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
@@ -19,10 +22,17 @@ from .const import (
     CONF_SURPLUS_SENSOR_ENTITY_ID,
 )
 
+# Diagnostics are routinely attached to public GitHub issues, so everything that
+# identifies or grants access to the charger or the user's Tuya account must be
+# redacted. The cloud credentials in particular are account-wide, not just
+# device-scoped.
 TO_REDACT = {
     CONF_HOST,
     CONF_DEVICE_ID,
     CONF_LOCAL_KEY,
+    CONF_MAC,
+    CONF_CLOUD_API_KEY,
+    CONF_CLOUD_API_SECRET,
     "serial",
     "serial_number",
     "sn",
