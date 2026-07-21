@@ -90,6 +90,18 @@ class CannotConnectError(Exception):
     """Raised when the charger cannot be reached."""
 
 
+# Optional entity pickers in the options form. They must not carry a voluptuous
+# default: an inserted `None` fails EntitySelector validation, and wrapping the
+# selector to tolerate it breaks the schema serialisation the frontend needs.
+OPTIONAL_ENTITY_OPTIONS: tuple[str, ...] = (
+    CONF_SURPLUS_SENSOR_ENTITY_ID,
+    CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
+    CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
+    CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
+    CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
+)
+
+
 def _build_credentials_schema(
     prefill: Mapping[str, Any] | None = None,
 ) -> vol.Schema:
@@ -412,6 +424,12 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             cleaned_input = dict(self._config_entry.options)
             cleaned_input.update(user_input)
+            # Optional entity pickers are omitted from user_input when left
+            # empty, so an absent key means "cleared" and must not fall back to
+            # the previously stored value.
+            for key in OPTIONAL_ENTITY_OPTIONS:
+                if key not in user_input:
+                    cleaned_input[key] = ""
             _normalize_optional_entity_value(cleaned_input, CONF_SURPLUS_SENSOR_ENTITY_ID)
             _normalize_optional_entity_value(
                 cleaned_input,
@@ -555,12 +573,12 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                     ): bool,
                     vol.Optional(
                         CONF_SURPLUS_SENSOR_ENTITY_ID,
-                        default=_option_entity(
+                        description={"suggested_value": _option_entity(
                             options,
                             CONF_SURPLUS_SENSOR_ENTITY_ID,
                             DEFAULT_SURPLUS_SENSOR_ENTITY_ID,
-                        ),
-                    ): vol.Any(_sensor_selector(), None),
+                        )},
+                    ): _sensor_selector(),
                     vol.Required(
                         CONF_SURPLUS_SENSOR_INVERTED,
                         default=_option_bool(
@@ -571,12 +589,12 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                     ): bool,
                     vol.Optional(
                         CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
-                        default=_option_entity(
+                        description={"suggested_value": _option_entity(
                             options,
                             CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
                             DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
-                        ),
-                    ): vol.Any(_sensor_selector(), None),
+                        )},
+                    ): _sensor_selector(),
                     vol.Required(
                         CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
                         default=_option_bool(
@@ -587,12 +605,12 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                     ): bool,
                     vol.Optional(
                         CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
-                        default=_option_entity(
+                        description={"suggested_value": _option_entity(
                             options,
                             CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
                             DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
-                        ),
-                    ): vol.Any(_sensor_selector(), None),
+                        )},
+                    ): _sensor_selector(),
                     vol.Required(
                         CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
                         default=high_threshold,
@@ -615,12 +633,12 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
-                        default=_option_entity(
+                        description={"suggested_value": _option_entity(
                             options,
                             CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
                             DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
-                        ),
-                    ): vol.Any(_sensor_selector(), None),
+                        )},
+                    ): _sensor_selector(),
                     vol.Required(
                         CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
                         default=_option_bool(
@@ -669,12 +687,12 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
-                        default=_option_entity(
+                        description={"suggested_value": _option_entity(
                             options,
                             CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
                             DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
-                        ),
-                    ): vol.Any(_sensor_selector(), None),
+                        )},
+                    ): _sensor_selector(),
                 }
             ),
         )
