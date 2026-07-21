@@ -21,6 +21,7 @@ from .const import (
     CONF_CLOUD_API_KEY,
     CONF_CLOUD_API_SECRET,
     CONF_CLOUD_REGION,
+    CONF_CONTINUOUS_CURRENT,
     CONF_DEVICE_ID,
     CONF_LOCAL_KEY,
     CONF_MAC,
@@ -45,6 +46,7 @@ from .const import (
     DEFAULT_CHARGER_PROFILE,
     DEFAULT_CHARGER_PROFILE_JSON,
     DEFAULT_CLOUD_REGION,
+    DEFAULT_CONTINUOUS_CURRENT,
     DEFAULT_NAME,
     DEFAULT_PROTOCOL_VERSION,
     DEFAULT_SCAN_INTERVAL_SECONDS,
@@ -526,6 +528,14 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                             multiline=True,
                         )
                     ),
+                    vol.Required(
+                        CONF_CONTINUOUS_CURRENT,
+                        default=_option_bool(
+                            options,
+                            CONF_CONTINUOUS_CURRENT,
+                            DEFAULT_CONTINUOUS_CURRENT,
+                        ),
+                    ): bool,
                     vol.Required(
                         CONF_SURPLUS_MODE_ENABLED,
                         default=_option_bool(

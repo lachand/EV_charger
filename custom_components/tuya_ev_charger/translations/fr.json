@@ -34,6 +34,7 @@
           "scan_interval": "Intervalle de rafraichissement (secondes)",
           "charger_profile": "Profil chargeur / mapping DP",
           "charger_profile_json": "Mapping DP custom (JSON, optionnel)",
+          "continuous_current": "Régulation continue de l'intensité (1A)",
           "surplus_mode_enabled": "Activer le mode surplus solaire",
           "surplus_sensor_entity_id": "Entite capteur puissance reseau (W) (sensor.xxx)",
           "surplus_sensor_inverted": "Inverser le signe capteur reseau",
