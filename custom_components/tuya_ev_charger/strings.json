@@ -62,6 +62,9 @@
     "button": {
       "reboot_charger": {
         "name": "Redemarrer la borne"
+      },
+      "ready_to_charge": {
+        "name": "Pret a charger"
       }
     },
     "sensor": {
@@ -145,6 +148,19 @@
       },
       "last_session_duration": {
         "name": "Duree derniere session"
+      },
+      "status": {
+        "name": "Statut",
+        "state": {
+          "sleep": "Veille",
+          "idle": "Pret",
+          "plugged_in": "Branche",
+          "charging": "En charge",
+          "waiting": "En attente",
+          "fault": "Defaut",
+          "paused": "En pause",
+          "charged": "Charge terminee"
+        }
       }
     },
     "number": {
@@ -195,6 +211,14 @@
       },
       "active_vehicle": {
         "name": "Vehicule actif"
+      },
+      "plug_in_action": {
+        "name": "Action au branchement",
+        "state": {
+          "prompt": "Demander",
+          "charge": "Demarrer la charge",
+          "idle": "Ne rien faire"
+        }
       }
     }
   }

@@ -174,20 +174,34 @@ cycle and accumulates a correct running total.
 
 ## Exposed entities
 
-**Sensors** — `voltage_l1`, `current_l1`, `power_l1`, and on 3-phase models the
-matching `*_l2` / `*_l3`; `power_total`; `energy_session`, `session_duration`;
-`last_session_energy`, `last_session_duration`; `temperature`, `work_state`,
-`work_state_debug`, `downcounter`, `selftest`, `alarm`,
-`adjust_current_options`, `product_variant`; surplus diagnostics
+**Sensors** — `status` (see below), `voltage_l1`, `current_l1`, `power_l1`, and on
+3-phase models the matching `*_l2` / `*_l3`; `power_total`; `energy_session`,
+`session_duration`; `last_session_energy`, `last_session_duration`;
+`temperature`, `work_state`, `work_state_debug`, `downcounter`, `selftest`,
+`alarm`, `adjust_current_options`, `product_variant`; surplus diagnostics
 (`surplus_raw_w`, `surplus_effective_w`, `surplus_target_current_a`,
 `surplus_battery_discharge_over_limit_w`, `surplus_last_decision_reason`).
 
 **Number** — `charge_current`, surplus thresholds, battery thresholds.
 **Switch** — `charge_session`, `nfc_enabled`, `surplus_mode`, `schedule_enabled`.
-**Select** — `surplus_profile`, `active_vehicle` (when `vehicles` is set).
+**Select** — `surplus_profile`, `plug_in_action`, `active_vehicle` (when
+`vehicles` is set).
 **Time** — `schedule_start`, `schedule_end`.
 **Binary sensor** — `surplus_regulation_active`.
-**Button** — `reboot_charger`.
+**Button** — `reboot_charger`, `ready_to_charge`.
+
+`sensor.status` is an enum with stable, translated values — `sleep`, `idle`,
+`plugged_in`, `charging`, `waiting`, `fault`, `paused`, `charged` — decoded from
+the charger's raw state string. Prefer it over `work_state_debug` in
+automations: the raw strings are firmware-specific, these values are not.
+
+`select.plug_in_action` controls what the charger does when a cable is plugged
+in: **Prompt**, **Start charging**, or **Do nothing**. Setting it to *Do nothing*
+is the supported way to stop a car auto-starting a charge. It is unavailable on
+firmwares that do not report it.
+
+`button.ready_to_charge` returns the charger to its ready state after a session.
+On some firmwares that is what clears a stale power reading.
 
 On single-phase chargers the L2/L3 sensors stay **unavailable** rather than
 reporting a misleading 0 V. Power reads 0 whenever the charger is not actively

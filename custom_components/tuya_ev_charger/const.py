@@ -257,6 +257,11 @@ PLATFORMS: tuple[Platform, ...] = (
 
 ALLOWED_CURRENTS: tuple[int, ...] = (6, 8, 10, 13, 16, 20, 25, 32)
 
+# Numeric operating states seen on DP 101: 200 = ready to charge, 204 = paused,
+# 300 = charging. Writing 200 after a session is what clears a stale power
+# reading on firmwares that keep echoing the last value.
+WORK_STATE_READY_TO_CHARGE = 200
+
 DP_WORK_STATE = "101"
 DP_CHARGER_INFO = "106"
 DP_METRICS = "102"

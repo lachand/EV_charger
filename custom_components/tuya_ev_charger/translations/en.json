@@ -95,6 +95,9 @@
     "button": {
       "reboot_charger": {
         "name": "Reboot charger"
+      },
+      "ready_to_charge": {
+        "name": "Ready to charge"
       }
     },
     "sensor": {
@@ -178,6 +181,19 @@
       },
       "last_session_duration": {
         "name": "Last session duration"
+      },
+      "status": {
+        "name": "Status",
+        "state": {
+          "sleep": "Standby",
+          "idle": "Ready",
+          "plugged_in": "Plugged in",
+          "charging": "Charging",
+          "waiting": "Waiting",
+          "fault": "Fault",
+          "paused": "Paused",
+          "charged": "Charged"
+        }
       }
     },
     "number": {
@@ -228,6 +244,14 @@
       },
       "active_vehicle": {
         "name": "Active vehicle"
+      },
+      "plug_in_action": {
+        "name": "Plug-in action",
+        "state": {
+          "prompt": "Prompt",
+          "charge": "Start charging",
+          "idle": "Do nothing"
+        }
       }
     }
   }

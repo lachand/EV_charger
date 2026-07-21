@@ -33,13 +33,17 @@ from .const import (
     DP_REBOOT,
     DP_SCHEDULE,
     DP_SELFTEST,
+    DP_SOCKET_CFG,
     DP_WORK_STATE,
     DP_WORK_STATE_DEBUG,
 )
 
 LOGGER = logging.getLogger(__name__)
-COMMAND_VERIFY_RETRIES = 3
-COMMAND_VERIFY_DELAY_S = 0.5
+# The charger's relay and status can lag a re-read by several seconds, notably
+# when do_charge turns off. 3 x 0.5s was too tight and produced false "not
+# reflected" errors on chargers that *do* report the DP, just late.
+COMMAND_VERIFY_RETRIES = 8
+COMMAND_VERIFY_DELAY_S = 1.0
 
 # Socket tuning. tinytuya defaults to 5 retries x 5s delay, so a single failed
 # read blocks for ~35s and floods the log. A charger only accepts one local
@@ -52,6 +56,29 @@ PHASE_NAMES: tuple[str, ...] = ("L1", "L2", "L3")
 # DP 109 states observed across models: SLEEP (standby), IDLE (ready, unplugged),
 # IDLEINS (cable inserted, not charging), WORKING (charging).
 WORK_STATE_CHARGING = "WORKING"
+
+# Friendly, translatable status decoded from the raw DP 109 string. The mapping
+# matches tuya_local's config for this exact product (`dewall_evcharger.yaml`,
+# product id gxrtu5vljdthtd3g), so the values stay stable for automations
+# instead of exposing firmware strings. IDLEINS in particular reads as a bare
+# "IDLEINS" today, which means nothing to a user.
+STATUS_MAP: dict[str, str] = {
+    "SLEEP": "sleep",
+    "IDLE": "idle",
+    "IDLEINS": "plugged_in",
+    "WORKING": "charging",
+    "WAIT": "waiting",
+    "ERRORPAUSE": "fault",
+    "PAUSE": "paused",
+    "STOP": "charged",
+}
+# dict.fromkeys keeps order while tolerating two raw states sharing a value.
+STATUS_OPTIONS: tuple[str, ...] = tuple(dict.fromkeys(STATUS_MAP.values()))
+
+# DP 154 decides what the charger does when a cable is plugged in. "idle" is the
+# clean way to stop a car auto-starting a charge.
+PLUG_IN_ACTION_MAP: dict[int, str] = {0: "prompt", 1: "charge", 2: "idle"}
+PLUG_IN_ACTION_OPTIONS: tuple[str, ...] = tuple(PLUG_IN_ACTION_MAP.values())
 
 
 def _configure_device(device: "tinytuya.Device") -> None:
@@ -78,6 +105,7 @@ class DPProfile:
     product_variant: str
     dp_num: str
     reboot: str
+    plug_in_action: str
 
 
 DP_PROFILE_MAP: dict[str, DPProfile] = {
@@ -98,6 +126,7 @@ DP_PROFILE_MAP: dict[str, DPProfile] = {
         product_variant=DP_PRODUCT_VARIANT,
         dp_num=DP_NUM,
         reboot=DP_REBOOT,
+        plug_in_action=DP_SOCKET_CFG,
     ),
     # Generic profile currently mirrors depow_v2 mappings and is meant as
     # an extension point for additional charger firmwares.
@@ -118,6 +147,7 @@ DP_PROFILE_MAP: dict[str, DPProfile] = {
         product_variant=DP_PRODUCT_VARIANT,
         dp_num=DP_NUM,
         reboot=DP_REBOOT,
+        plug_in_action=DP_SOCKET_CFG,
     ),
 }
 
@@ -154,6 +184,8 @@ class EVMetrics:
     temperature: float
     work_state: int | None
     work_state_debug: str
+    status: str | None
+    plug_in_action: str | None
     do_charge: bool | None
     current_target: int | None
     max_current_cfg: int | None
@@ -313,6 +345,29 @@ class TuyaEVChargerClient:
     async def async_set_nfc_enabled(self, enabled: bool) -> bool:
         return await self._async_send_command(self._dp.nfc_cfg, enabled)
 
+    async def async_set_plug_in_action(self, action: str) -> bool:
+        """Choose what the charger does when a cable is plugged in.
+
+        "idle" stops the car auto-starting a charge, which is the supported way
+        to hold a session rather than driving the current below the 6 A the
+        IEC 61851 pilot signal defines.
+        """
+        for raw_value, name in PLUG_IN_ACTION_MAP.items():
+            if name == action:
+                return await self._async_send_command(
+                    self._dp.plug_in_action, raw_value
+                )
+        raise ValueError(f"Unsupported plug-in action '{action}'.")
+
+    async def async_set_work_state(self, state: int) -> bool:
+        """Write the charger's operating state (DP 101).
+
+        Writable per tuya_local's config for this product. Used to put the
+        charger back into "ready to charge" after a session, which is what
+        clears a stale power reading on some firmwares.
+        """
+        return await self._async_send_command(self._dp.work_state, state)
+
     async def async_reboot(self) -> bool:
         # Depending on firmware variants, reboot may accept bool, int, or string payloads.
         for payload in (True, 1, "1"):
@@ -357,6 +412,10 @@ class TuyaEVChargerClient:
             temperature=_coerce_float(metrics_dict.get("t", 0)) / 10.0,
             work_state=_coerce_optional_int(dps.get(self._dp.work_state)),
             work_state_debug=work_state_debug,
+            status=STATUS_MAP.get(work_state_debug),
+            plug_in_action=PLUG_IN_ACTION_MAP.get(
+                _coerce_optional_int(dps.get(self._dp.plug_in_action))
+            ),
             do_charge=_coerce_optional_bool(dps.get(self._dp.do_charge)),
             current_target=_coerce_optional_int(dps.get(self._dp.current_target)),
             max_current_cfg=_coerce_optional_int(dps.get(self._dp.max_current_cfg)),
