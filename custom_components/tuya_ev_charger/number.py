@@ -14,7 +14,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TuyaEVChargerRuntimeData
-from .const import ALLOWED_CURRENTS, CARD_ROLE_CHARGE_CURRENT, CARD_ROLE_INDEX
+from .const import ALLOWED_CURRENTS, CARD_ROLE_CHARGE_CURRENT, CARD_ROLE_INDEX, PAUSE_CURRENT_RANGE
 from .entity import TuyaEVChargerEntity
 from .helpers import allowed_currents
 
@@ -23,7 +23,7 @@ CURRENT_SETPOINT_DESCRIPTION = NumberEntityDescription(
     translation_key="charge_current",
     icon="mdi:current-ac",
     native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
-    native_min_value=float(min(ALLOWED_CURRENTS)),
+    native_min_value=float(min(min(ALLOWED_CURRENTS), min(PAUSE_CURRENT_RANGE))),
     native_max_value=float(max(ALLOWED_CURRENTS)),
     native_step=1.0,
     mode=NumberMode.BOX,

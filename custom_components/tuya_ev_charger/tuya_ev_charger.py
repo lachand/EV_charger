@@ -33,6 +33,7 @@ from .const import (
     DP_SELFTEST,
     DP_WORK_STATE,
     DP_WORK_STATE_DEBUG,
+    PAUSE_CURRENT_RANGE,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -231,10 +232,12 @@ class TuyaEVChargerClient:
         return await asyncio.to_thread(_probe)
 
     async def async_set_charge_current(self, amperage: int) -> bool:
-        if amperage < min(ALLOWED_CURRENTS) or amperage > max(ALLOWED_CURRENTS):
+        min_allowed = min(min(ALLOWED_CURRENTS), min(PAUSE_CURRENT_RANGE))
+        max_allowed = max(ALLOWED_CURRENTS)
+        if amperage < min_allowed or amperage > max_allowed:
             raise ValueError(
                 f"Current setpoint {amperage}A is out of supported range "
-                f"({min(ALLOWED_CURRENTS)}-{max(ALLOWED_CURRENTS)}A)."
+                f"({min_allowed}-{max_allowed}A)."
             )
         return await self._async_send_command(self._dp.current_target, amperage)
 

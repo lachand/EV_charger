@@ -86,6 +86,10 @@ PLATFORMS: tuple[Platform, ...] = (
 )
 
 ALLOWED_CURRENTS: tuple[int, ...] = (6, 8, 10, 13, 16)
+# The charger itself also accepts a low 0-5A range below its normal preset
+# steps. Setting it there doesn't stop a session outright, but keeps the
+# vehicle from auto-starting a charge as soon as it's plugged in.
+PAUSE_CURRENT_RANGE: tuple[int, ...] = (0, 1, 2, 3, 4, 5)
 
 DP_WORK_STATE = "101"
 DP_CHARGER_INFO = "106"
