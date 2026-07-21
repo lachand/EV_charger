@@ -53,6 +53,15 @@ def _sync_scan_devices_by_id(
 async def async_scan_devices_by_id(
     hass: HomeAssistant,
     scantime: int = tinytuya.SCANTIME,
+    wantids: list[str] | None = None,
 ) -> dict[str, dict[str, Any]]:
-    """Return all discovered Tuya devices keyed by device_id (gwId)."""
-    return await hass.async_add_executor_job(_sync_scan_devices_by_id, scantime, None)
+    """Return discovered Tuya devices keyed by device_id (gwId).
+
+    Passing ``wantids`` makes the scan keep listening for those specific devices
+    and stop as soon as they are all seen, so it reliably catches a charger whose
+    broadcast does not fall inside the first few seconds — instead of returning
+    whatever unrelated device happened to announce itself first.
+    """
+    return await hass.async_add_executor_job(
+        _sync_scan_devices_by_id, scantime, wantids
+    )

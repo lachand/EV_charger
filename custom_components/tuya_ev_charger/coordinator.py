@@ -26,6 +26,15 @@ from .tuya_ev_charger import EVMetrics, TuyaEVChargerClient
 LOGGER = logging.getLogger(__name__)
 
 
+def _looks_like_gwid(device_id: str) -> bool:
+    """True when the stored device_id is a real Tuya gwId, not a legacy IP.
+
+    Old buggy scans stored the IP in the device_id field; those have dots and are
+    short. A genuine gwId is a long dotless token (e.g. bf23dbbd3d2eb2c804aswb).
+    """
+    return len(device_id) >= 12 and "." not in device_id
+
+
 class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
     def __init__(
         self,
@@ -100,28 +109,30 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
     async def _async_try_rediscover_host(self) -> bool:
         """Relocate the charger when its IP changed.
 
-        Scans the LAN for Tuya broadcasts. If our device_id is announced, its IP
-        is trusted directly (definitive identity). Otherwise — a stale or wrong
-        stored device_id — we fall back to probing candidates with our local_key
-        (a real status/voltage read) and adopt the one that answers. Only the
-        in-memory client host is updated (immediate recovery, no config-entry
-        reload); the new IP is persisted lazily on the next setup. Throttled so
-        an offline charger does not scan on every poll.
+        Listens for our charger's own broadcast (``wantids``) and trusts the IP
+        it advertises for our device_id — the definitive identity. This ignores
+        any unrelated Tuya device on the LAN. Only the in-memory client host is
+        updated (immediate recovery, no config-entry reload); the new IP is
+        persisted lazily on the next setup. Throttled so an offline charger does
+        not scan on every poll.
         """
         now = self.hass.loop.time()
         if now - self._last_rediscovery_at < REDISCOVERY_COOLDOWN_SECONDS:
             return False
         self._last_rediscovery_at = now
 
+        device_id = str(self.entry.data.get(CONF_DEVICE_ID, "")).strip()
+        current_host = self.client.host
+
+        # Target our charger specifically so a neighbour's device broadcasting
+        # first does not end the scan before ours is heard.
+        wantids = [device_id] if _looks_like_gwid(device_id) else None
         candidates = await async_scan_devices_by_id(
-            self.hass, scantime=REDISCOVERY_SCAN_SECONDS
+            self.hass, scantime=REDISCOVERY_SCAN_SECONDS, wantids=wantids
         )
         if not candidates:
             LOGGER.debug("Re-discovery scan found no Tuya devices on the network.")
             return False
-
-        device_id = str(self.entry.data.get(CONF_DEVICE_ID, "")).strip()
-        current_host = self.client.host
 
         # Strong path: our device_id is broadcasting -> trust the advertised IP.
         mine = candidates.get(device_id) if device_id else None
@@ -137,8 +148,6 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
                 self.last_discovery = mine
                 await self.client.async_update_host(new_host)
                 return True
-            # Already at the advertised IP: relocation cannot fix the failure
-            # (the charger is refusing/ignoring our reads at this address).
             LOGGER.debug(
                 "Charger %s still advertises %s; connection issue is not an IP change.",
                 device_id,
@@ -146,8 +155,18 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
             )
             return False
 
-        # Fallback: device_id not broadcasting (stale/wrong id). Identify our
-        # charger by a live read with our local_key.
+        # Our device_id is a proper gwId but was not heard: the charger is
+        # offline or slow to broadcast. Do NOT probe unrelated devices with our
+        # credentials — just fail this cycle and let the next poll retry.
+        if _looks_like_gwid(device_id):
+            LOGGER.debug(
+                "Charger %s not heard on the network this cycle; will retry.",
+                device_id,
+            )
+            return False
+
+        # Legacy fallback only: the stored device_id is not a gwId (an old buggy
+        # scan saved the IP there). Identify our charger by a live read.
         for host in self._other_candidate_hosts(candidates, current_host):
             if not await self.client.async_probe_host(host):
                 continue
@@ -161,7 +180,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
             return True
 
         LOGGER.debug(
-            "Re-discovery found %d device(s) but none matched our device_id or local_key.",
+            "Re-discovery found %d device(s) but none matched our stored id/key.",
             len(candidates),
         )
         return False

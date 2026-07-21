@@ -168,7 +168,11 @@ DEFAULT_SCAN_INTERVAL = timedelta(seconds=DEFAULT_SCAN_INTERVAL_SECONDS)
 # with our local_key. REDISCOVERY_SCAN_SECONDS is the UDP listen window;
 # REDISCOVERY_COOLDOWN_SECONDS throttles how often the coordinator rescans while
 # the charger stays unreachable (e.g. simply unplugged).
-REDISCOVERY_SCAN_SECONDS = 6
+# A targeted scan (wantids) stops as soon as our charger is heard, so a longer
+# window is nearly free when the charger is present and only matters when it is
+# genuinely offline. 6s was too short: a broadcast landing outside that window
+# made re-discovery miss the charger and fall through to probing neighbours.
+REDISCOVERY_SCAN_SECONDS = 12
 REDISCOVERY_COOLDOWN_SECONDS = 120
 
 # Optional Tuya Cloud assistance. Used only to fetch device credentials: at
