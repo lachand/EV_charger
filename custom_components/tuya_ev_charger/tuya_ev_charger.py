@@ -36,8 +36,12 @@ from .const import (
 )
 
 LOGGER = logging.getLogger(__name__)
-COMMAND_VERIFY_RETRIES = 3
-COMMAND_VERIFY_DELAY_S = 0.5
+# The charger's relay/status update can lag a plain re-read by a few seconds,
+# especially for do_charge (140) turning off. 3x0.5s (1.5s total) was too
+# tight and produced false "not reflected" errors even though the charger
+# did apply the change a moment later. 8x1.0s (8s total) gives it room.
+COMMAND_VERIFY_RETRIES = 8
+COMMAND_VERIFY_DELAY_S = 1.0
 
 
 @dataclass(slots=True, frozen=True)
@@ -260,10 +264,11 @@ class TuyaEVChargerClient:
             schedule_start=_coerce_optional_text(schedule_dict.get("ss")),
             schedule_end=_coerce_optional_text(schedule_dict.get("se")),
             # "d" and "e" are undocumented sub-fields of x_metrics observed on the
-            # depow_v2 firmware: session duration in seconds and session energy in
-            # 0.01 kWh steps. Not confirmed against Tuya's own docs, only reverse
-            # engineered from device dumps - treat with a pinch of salt.
-            session_duration_s=_coerce_optional_int(metrics_dict.get("d")),
+            # depow_v2 firmware: session duration and session energy. Not confirmed
+            # against Tuya's own docs, only reverse engineered from device dumps.
+            # "d" turned out to be scaled x10 just like "t" (530 shown for a real
+            # 53s charge) - divide back down before exposing it as seconds.
+            session_duration_s=_scale_optional_int(metrics_dict.get("d"), 10.0),
             session_energy_kwh=_scale_optional_float(metrics_dict.get("e"), 100.0),
         )
 
@@ -437,6 +442,13 @@ def _scale_optional_float(value: Any, divisor: float) -> float | None:
     if raw is None:
         return None
     return raw / divisor
+
+
+def _scale_optional_int(value: Any, divisor: float) -> int | None:
+    raw = _coerce_optional_float(value)
+    if raw is None:
+        return None
+    return round(raw / divisor)
 
 
 def _coerce_optional_text(value: Any) -> str | None:
