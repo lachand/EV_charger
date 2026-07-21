@@ -36,12 +36,17 @@ from .const import (
 )
 
 LOGGER = logging.getLogger(__name__)
-# The charger's relay/status update can lag a plain re-read by a few seconds,
-# especially for do_charge (140) turning off. 3x0.5s (1.5s total) was too
-# tight and produced false "not reflected" errors even though the charger
-# did apply the change a moment later. 8x1.0s (8s total) gives it room.
+# The charger's relay/status update can lag a plain re-read by a few seconds.
+# 3x0.5s (1.5s total) was too tight and produced false "not reflected" errors
+# even though the charger did apply the change a moment later. 8x1.0s (8s
+# total) is the default for most DPs (current setpoint, NFC, ...).
 COMMAND_VERIFY_RETRIES = 8
 COMMAND_VERIFY_DELAY_S = 1.0
+# do_charge (140) toggles the physical relay/contactor - that appears to need
+# noticeably longer than other DPs before the new state shows up in a status
+# read (seen failing even at 8s). Give it a much bigger window.
+DO_CHARGE_VERIFY_RETRIES = 20
+DO_CHARGE_VERIFY_DELAY_S = 1.5
 
 
 @dataclass(slots=True, frozen=True)
@@ -217,7 +222,12 @@ class TuyaEVChargerClient:
         return await self._async_send_command(self._dp.current_target, amperage)
 
     async def async_set_charge_enabled(self, enabled: bool) -> bool:
-        return await self._async_send_command(self._dp.do_charge, enabled)
+        return await self._async_send_command(
+            self._dp.do_charge,
+            enabled,
+            retries=DO_CHARGE_VERIFY_RETRIES,
+            delay_s=DO_CHARGE_VERIFY_DELAY_S,
+        )
 
     async def async_set_nfc_enabled(self, enabled: bool) -> bool:
         return await self._async_send_command(self._dp.nfc_cfg, enabled)
@@ -282,7 +292,14 @@ class TuyaEVChargerClient:
     async def async_get_raw_dps(self) -> dict[str, Any] | None:
         return await self._async_get_dps_payload()
 
-    async def _async_send_command(self, dp_id: str, value: Any, verify: bool = True) -> bool:
+    async def _async_send_command(
+        self,
+        dp_id: str,
+        value: Any,
+        verify: bool = True,
+        retries: int = COMMAND_VERIFY_RETRIES,
+        delay_s: float = COMMAND_VERIFY_DELAY_S,
+    ) -> bool:
         device = self._get_device()
         response: Any = await asyncio.to_thread(device.set_value, dp_id, value)
         if not (isinstance(response, dict) and "Error" not in response):
@@ -292,15 +309,21 @@ class TuyaEVChargerClient:
         if not verify:
             return True
 
-        if await self._async_verify_command(dp_id, value):
+        if await self._async_verify_command(dp_id, value, retries=retries, delay_s=delay_s):
             return True
 
         LOGGER.error("Command accepted but not reflected in status for DP %s.", dp_id)
         return False
 
-    async def _async_verify_command(self, dp_id: str, expected: Any) -> bool:
-        for _ in range(COMMAND_VERIFY_RETRIES):
-            await asyncio.sleep(COMMAND_VERIFY_DELAY_S)
+    async def _async_verify_command(
+        self,
+        dp_id: str,
+        expected: Any,
+        retries: int = COMMAND_VERIFY_RETRIES,
+        delay_s: float = COMMAND_VERIFY_DELAY_S,
+    ) -> bool:
+        for _ in range(retries):
+            await asyncio.sleep(delay_s)
             dps = await self._async_get_dps_payload()
             if dps is None:
                 continue
