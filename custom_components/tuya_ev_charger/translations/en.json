@@ -90,6 +90,19 @@
       "product_variant": {
         "name": "Product variant"
       },
+      "status": {
+        "name": "Status",
+        "state": {
+          "sleep": "Asleep",
+          "idle": "Idle",
+          "plugged_in": "Plugged in",
+          "charging": "Charging",
+          "waiting": "Waiting",
+          "fault": "Fault",
+          "paused": "Paused",
+          "charged": "Charged"
+        }
+      },
       "session_duration": {
         "name": "Session duration"
       },

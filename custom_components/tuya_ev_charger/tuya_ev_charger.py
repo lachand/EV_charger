@@ -110,6 +110,22 @@ DP_PROFILE_MAP: dict[str, DPProfile] = {
     ),
 }
 
+# Friendly status enum, taken from the equivalent tuya_local device config for
+# this same product - maps the raw x_work_state_debug (109) string to stable,
+# translatable values. "plugged_in" (IDLEINS) is the one that was previously
+# falling through to a bare "UNKNOWN"/"idle"-looking state.
+STATUS_MAP: dict[str, str] = {
+    "SLEEP": "sleep",
+    "IDLE": "idle",
+    "IDLEINS": "plugged_in",
+    "WORKING": "charging",
+    "WAIT": "waiting",
+    "ERRORPAUSE": "fault",
+    "PAUSE": "paused",
+    "STOP": "charged",
+}
+STATUS_OPTIONS: tuple[str, ...] = tuple(STATUS_MAP.values())
+
 
 @dataclass(slots=True, frozen=True)
 class EVMetrics:
@@ -119,6 +135,7 @@ class EVMetrics:
     temperature: float
     work_state: int | None
     work_state_debug: str
+    status: str | None
     do_charge: bool | None
     current_target: int | None
     max_current_cfg: int | None
@@ -260,6 +277,7 @@ class TuyaEVChargerClient:
             temperature=_coerce_float(metrics_dict.get("t", 0)) / 10.0,
             work_state=_coerce_optional_int(dps.get(self._dp.work_state)),
             work_state_debug=work_state_debug.strip().upper(),
+            status=STATUS_MAP.get(work_state_debug.strip().upper()),
             do_charge=_coerce_optional_bool(dps.get(self._dp.do_charge)),
             current_target=_coerce_optional_int(dps.get(self._dp.current_target)),
             max_current_cfg=_coerce_optional_int(dps.get(self._dp.max_current_cfg)),

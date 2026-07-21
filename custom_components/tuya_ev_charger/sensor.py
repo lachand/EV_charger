@@ -34,7 +34,7 @@ from .const import (
     CARD_ROLE_WORK_STATE,
 )
 from .entity import TuyaEVChargerEntity
-from .tuya_ev_charger import EVMetrics
+from .tuya_ev_charger import STATUS_OPTIONS, EVMetrics
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -101,6 +101,14 @@ SENSOR_DESCRIPTIONS: tuple[TuyaEVChargerSensorDescription, ...] = (
         translation_key="work_state_debug",
         icon="mdi:state-machine",
         value_fn=lambda data: data.work_state_debug,
+    ),
+    TuyaEVChargerSensorDescription(
+        key="status",
+        translation_key="status",
+        device_class=SensorDeviceClass.ENUM,
+        options=list(STATUS_OPTIONS),
+        icon="mdi:ev-station",
+        value_fn=lambda data: data.status,
     ),
     TuyaEVChargerSensorDescription(
         key="downcounter",
