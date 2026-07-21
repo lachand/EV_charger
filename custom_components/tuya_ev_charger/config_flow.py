@@ -22,52 +22,14 @@ from .const import (
     CONF_MAC,
     CONF_PROTOCOL_VERSION,
     CONF_SCAN_INTERVAL,
-    CONF_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
-    CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
-    CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
-    CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
-    CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
-    CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
-    CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-    CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
-    CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
-    CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
-    CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-    CONF_SURPLUS_MODE_ENABLED,
-    CONF_SURPLUS_SENSOR_ENTITY_ID,
-    CONF_SURPLUS_SENSOR_INVERTED,
-    CONF_SURPLUS_START_THRESHOLD_W,
-    CONF_SURPLUS_STOP_THRESHOLD_W,
     DEFAULT_CHARGER_PROFILE,
     DEFAULT_CHARGER_PROFILE_JSON,
     DEFAULT_NAME,
     DEFAULT_PROTOCOL_VERSION,
     DEFAULT_SCAN_INTERVAL_SECONDS,
-    DEFAULT_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
-    DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
-    DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
-    DEFAULT_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
-    DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
-    DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
-    DEFAULT_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-    DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
-    DEFAULT_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
-    DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
-    DEFAULT_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-    DEFAULT_SURPLUS_MODE_ENABLED,
-    DEFAULT_SURPLUS_SENSOR_ENTITY_ID,
-    DEFAULT_SURPLUS_SENSOR_INVERTED,
-    DEFAULT_SURPLUS_START_THRESHOLD_W,
-    DEFAULT_SURPLUS_STOP_THRESHOLD_W,
     DOMAIN,
     MAX_SCAN_INTERVAL_SECONDS,
-    MAX_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-    MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-    MAX_SURPLUS_THRESHOLD_W,
     MIN_SCAN_INTERVAL_SECONDS,
-    MIN_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-    MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-    MIN_SURPLUS_THRESHOLD_W,
     SUPPORTED_PROTOCOL_VERSIONS,
 )
 from .discovery import async_scan_devices_by_id
@@ -287,29 +249,11 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             cleaned_input = dict(self._config_entry.options)
             cleaned_input.update(user_input)
-            _normalize_optional_entity_value(cleaned_input, CONF_SURPLUS_SENSOR_ENTITY_ID)
-            _normalize_optional_entity_value(
-                cleaned_input,
-                CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
-            )
-            _normalize_optional_entity_value(
-                cleaned_input,
-                CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
-            )
-            _normalize_optional_entity_value(
-                cleaned_input,
-                CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
-            )
-            _normalize_optional_entity_value(
-                cleaned_input,
-                CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
-            )
             _normalize_text_value(
                 cleaned_input,
                 CONF_CHARGER_PROFILE_JSON,
                 DEFAULT_CHARGER_PROFILE_JSON,
             )
-            _normalize_surplus_options(cleaned_input)
             return self.async_create_entry(data=cleaned_input)
 
         options = self._config_entry.options
@@ -331,46 +275,6 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                 )
             ),
         )
-
-        high_threshold = _option_int(
-            options,
-            CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
-            _legacy_high_threshold_default(options),
-            MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-            MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-        )
-        low_threshold = _option_int(
-            options,
-            CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
-            min(DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT, high_threshold),
-            MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-            MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-        )
-        if low_threshold >= high_threshold:
-            low_threshold = max(MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, high_threshold - 1)
-        max_battery_discharge = _option_int(
-            options,
-            CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-            DEFAULT_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-            MIN_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-            MAX_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-        )
-        start_threshold_w = _option_int(
-            options,
-            CONF_SURPLUS_START_THRESHOLD_W,
-            DEFAULT_SURPLUS_START_THRESHOLD_W,
-            MIN_SURPLUS_THRESHOLD_W,
-            MAX_SURPLUS_THRESHOLD_W,
-        )
-        stop_threshold_w = _option_int(
-            options,
-            CONF_SURPLUS_STOP_THRESHOLD_W,
-            DEFAULT_SURPLUS_STOP_THRESHOLD_W,
-            MIN_SURPLUS_THRESHOLD_W,
-            MAX_SURPLUS_THRESHOLD_W,
-        )
-        if stop_threshold_w > start_threshold_w:
-            stop_threshold_w = start_threshold_w
 
         return self.async_show_form(
             step_id="init",
@@ -405,149 +309,9 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                             multiline=True,
                         )
                     ),
-                    vol.Required(
-                        CONF_SURPLUS_MODE_ENABLED,
-                        default=_option_bool(
-                            options,
-                            CONF_SURPLUS_MODE_ENABLED,
-                            DEFAULT_SURPLUS_MODE_ENABLED,
-                        ),
-                    ): bool,
-                    vol.Optional(
-                        CONF_SURPLUS_SENSOR_ENTITY_ID,
-                        default=_option_entity(
-                            options,
-                            CONF_SURPLUS_SENSOR_ENTITY_ID,
-                            DEFAULT_SURPLUS_SENSOR_ENTITY_ID,
-                        ),
-                    ): _sensor_selector(),
-                    vol.Required(
-                        CONF_SURPLUS_SENSOR_INVERTED,
-                        default=_option_bool(
-                            options,
-                            CONF_SURPLUS_SENSOR_INVERTED,
-                            DEFAULT_SURPLUS_SENSOR_INVERTED,
-                        ),
-                    ): bool,
-                    vol.Optional(
-                        CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
-                        default=_option_entity(
-                            options,
-                            CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
-                            DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
-                        ),
-                    ): _sensor_selector(),
-                    vol.Required(
-                        CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
-                        default=_option_bool(
-                            options,
-                            CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
-                            DEFAULT_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
-                        ),
-                    ): bool,
-                    vol.Optional(
-                        CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
-                        default=_option_entity(
-                            options,
-                            CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
-                            DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
-                        ),
-                    ): _sensor_selector(),
-                    vol.Required(
-                        CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
-                        default=high_threshold,
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-                            max=MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-                        ),
-                    ),
-                    vol.Required(
-                        CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
-                        default=low_threshold,
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-                            max=MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-                        ),
-                    ),
-                    vol.Optional(
-                        CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
-                        default=_option_entity(
-                            options,
-                            CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
-                            DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
-                        ),
-                    ): _sensor_selector(),
-                    vol.Required(
-                        CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
-                        default=_option_bool(
-                            options,
-                            CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
-                            DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
-                        ),
-                    ): bool,
-                    vol.Required(
-                        CONF_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
-                        default=_option_bool(
-                            options,
-                            CONF_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
-                            DEFAULT_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
-                        ),
-                    ): bool,
-                    vol.Required(
-                        CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-                        default=max_battery_discharge,
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-                            max=MAX_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-                        ),
-                    ),
-                    vol.Required(
-                        CONF_SURPLUS_START_THRESHOLD_W,
-                        default=start_threshold_w,
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_SURPLUS_THRESHOLD_W,
-                            max=MAX_SURPLUS_THRESHOLD_W,
-                        ),
-                    ),
-                    vol.Required(
-                        CONF_SURPLUS_STOP_THRESHOLD_W,
-                        default=stop_threshold_w,
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_SURPLUS_THRESHOLD_W,
-                            max=MAX_SURPLUS_THRESHOLD_W,
-                        ),
-                    ),
-                    vol.Optional(
-                        CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
-                        default=_option_entity(
-                            options,
-                            CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
-                            DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
-                        ),
-                    ): _sensor_selector(),
                 }
             ),
         )
-
-
-def _legacy_high_threshold_default(options: Mapping[str, Any]) -> int:
-    return _option_int(
-        options,
-        CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-        DEFAULT_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
-        MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-        MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-    )
 
 
 def _option_int(
@@ -564,19 +328,6 @@ def _option_int(
     return max(minimum, min(maximum, value))
 
 
-def _option_bool(options: Mapping[str, Any], key: str, default: bool) -> bool:
-    value = options.get(key, default)
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in {"1", "true", "on", "yes"}:
-            return True
-        if lowered in {"0", "false", "off", "no"}:
-            return False
-    return bool(value)
-
-
 def _option_choice(
     options: Mapping[str, Any],
     key: str,
@@ -589,46 +340,11 @@ def _option_choice(
     return default
 
 
-def _option_entity(
-    options: Mapping[str, Any],
-    key: str,
-    default: str,
-) -> str | None:
-    value = options.get(key, default)
-    if value is None:
-        return None
-    text = str(value).strip()
-    if not text or text.lower() == "none":
-        return None
-    return text
-
-
 def _option_text(options: Mapping[str, Any], key: str, default: str) -> str:
     value = options.get(key, default)
     if value is None:
         return default
     return str(value).strip()
-
-
-def _sensor_selector() -> selector.EntitySelector:
-    return selector.EntitySelector(
-        selector.EntitySelectorConfig(
-            domain=["sensor"],
-            multiple=False,
-        )
-    )
-
-
-def _normalize_optional_entity_value(data: dict[str, Any], key: str) -> None:
-    value = data.get(key)
-    if value is None:
-        data[key] = ""
-        return
-    text = str(value).strip()
-    if not text or text.lower() == "none":
-        data[key] = ""
-        return
-    data[key] = text
 
 
 def _normalize_text_value(data: dict[str, Any], key: str, default: str) -> None:
@@ -638,55 +354,3 @@ def _normalize_text_value(data: dict[str, Any], key: str, default: str) -> None:
         return
     text = str(value).strip()
     data[key] = text if text else default
-
-
-def _normalize_surplus_options(data: dict[str, Any]) -> None:
-    try:
-        high = int(data.get(CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT, DEFAULT_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT))
-    except (TypeError, ValueError):
-        high = DEFAULT_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT
-    try:
-        low = int(data.get(CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT, DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT))
-    except (TypeError, ValueError):
-        low = DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT
-
-    high = max(MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, min(MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, high))
-    low = max(MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, min(MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, low))
-
-    if high <= MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT:
-        high = MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT + 1
-    if low >= high:
-        low = max(MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, high - 1)
-
-    try:
-        start_threshold_w = int(data.get(CONF_SURPLUS_START_THRESHOLD_W, DEFAULT_SURPLUS_START_THRESHOLD_W))
-    except (TypeError, ValueError):
-        start_threshold_w = DEFAULT_SURPLUS_START_THRESHOLD_W
-    try:
-        stop_threshold_w = int(data.get(CONF_SURPLUS_STOP_THRESHOLD_W, DEFAULT_SURPLUS_STOP_THRESHOLD_W))
-    except (TypeError, ValueError):
-        stop_threshold_w = DEFAULT_SURPLUS_STOP_THRESHOLD_W
-    try:
-        max_battery_discharge_w = int(
-            data.get(
-                CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-                DEFAULT_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-            )
-        )
-    except (TypeError, ValueError):
-        max_battery_discharge_w = DEFAULT_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W
-
-    start_threshold_w = max(MIN_SURPLUS_THRESHOLD_W, min(MAX_SURPLUS_THRESHOLD_W, start_threshold_w))
-    stop_threshold_w = max(MIN_SURPLUS_THRESHOLD_W, min(MAX_SURPLUS_THRESHOLD_W, stop_threshold_w))
-    if stop_threshold_w > start_threshold_w:
-        stop_threshold_w = start_threshold_w
-    max_battery_discharge_w = max(
-        MIN_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-        min(MAX_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W, max_battery_discharge_w),
-    )
-
-    data[CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT] = high
-    data[CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT] = low
-    data[CONF_SURPLUS_START_THRESHOLD_W] = start_threshold_w
-    data[CONF_SURPLUS_STOP_THRESHOLD_W] = stop_threshold_w
-    data[CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W] = max_battery_discharge_w

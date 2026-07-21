@@ -18,7 +18,7 @@ from homeassistant.const import (
     UnitOfTemperature,
     UnitOfTime,
 )
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -27,30 +27,19 @@ from .const import (
     CARD_ROLE_ALARM,
     CARD_ROLE_CURRENT,
     CARD_ROLE_INDEX,
-    CARD_ROLE_LAST_DECISION,
     CARD_ROLE_POWER,
     CARD_ROLE_SELFTEST,
-    CARD_ROLE_SURPLUS_DISCHARGE_OVER_LIMIT,
-    CARD_ROLE_SURPLUS_EFFECTIVE,
-    CARD_ROLE_SURPLUS_RAW,
-    CARD_ROLE_SURPLUS_TARGET_CURRENT,
     CARD_ROLE_TEMPERATURE,
     CARD_ROLE_VOLTAGE,
     CARD_ROLE_WORK_STATE,
 )
 from .entity import TuyaEVChargerEntity
-from .solar_surplus import SolarSurplusSnapshot
 from .tuya_ev_charger import EVMetrics
 
 
 @dataclass(frozen=True, kw_only=True)
 class TuyaEVChargerSensorDescription(SensorEntityDescription):
     value_fn: Callable[[EVMetrics], float | int | str | None]
-
-
-@dataclass(frozen=True, kw_only=True)
-class TuyaEVChargerSurplusControllerSensorDescription(SensorEntityDescription):
-    value_fn: Callable[[SolarSurplusSnapshot], float | int | str | None]
 
 
 CARD_ROLE_BY_SENSOR_KEY: dict[str, str] = {
@@ -61,14 +50,6 @@ CARD_ROLE_BY_SENSOR_KEY: dict[str, str] = {
     "work_state": CARD_ROLE_WORK_STATE,
     "selftest": CARD_ROLE_SELFTEST,
     "alarm": CARD_ROLE_ALARM,
-}
-
-CARD_ROLE_BY_SURPLUS_SENSOR_KEY: dict[str, str] = {
-    "surplus_last_decision_reason": CARD_ROLE_LAST_DECISION,
-    "surplus_raw_w": CARD_ROLE_SURPLUS_RAW,
-    "surplus_effective_w": CARD_ROLE_SURPLUS_EFFECTIVE,
-    "surplus_battery_discharge_over_limit_w": CARD_ROLE_SURPLUS_DISCHARGE_OVER_LIMIT,
-    "surplus_target_current_a": CARD_ROLE_SURPLUS_TARGET_CURRENT,
 }
 
 
@@ -183,60 +164,6 @@ SENSOR_DESCRIPTIONS: tuple[TuyaEVChargerSensorDescription, ...] = (
     ),
 )
 
-SURPLUS_CONTROLLER_SENSOR_DESCRIPTIONS: tuple[TuyaEVChargerSurplusControllerSensorDescription, ...] = (
-    TuyaEVChargerSurplusControllerSensorDescription(
-        key="surplus_last_decision_reason",
-        translation_key="surplus_last_decision_reason",
-        icon="mdi:comment-question-outline",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda snapshot: snapshot.last_decision_reason,
-    ),
-    TuyaEVChargerSurplusControllerSensorDescription(
-        key="surplus_raw_w",
-        translation_key="surplus_raw_w",
-        icon="mdi:solar-power",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        native_unit_of_measurement=UnitOfPower.WATT,
-        state_class=SensorStateClass.MEASUREMENT,
-        device_class=SensorDeviceClass.POWER,
-        suggested_display_precision=0,
-        value_fn=lambda snapshot: snapshot.raw_surplus_w,
-    ),
-    TuyaEVChargerSurplusControllerSensorDescription(
-        key="surplus_effective_w",
-        translation_key="surplus_effective_w",
-        icon="mdi:solar-power-variant",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        native_unit_of_measurement=UnitOfPower.WATT,
-        state_class=SensorStateClass.MEASUREMENT,
-        device_class=SensorDeviceClass.POWER,
-        suggested_display_precision=0,
-        value_fn=lambda snapshot: snapshot.effective_surplus_w,
-    ),
-    TuyaEVChargerSurplusControllerSensorDescription(
-        key="surplus_battery_discharge_over_limit_w",
-        translation_key="surplus_battery_discharge_over_limit_w",
-        icon="mdi:battery-alert-variant",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        native_unit_of_measurement=UnitOfPower.WATT,
-        state_class=SensorStateClass.MEASUREMENT,
-        device_class=SensorDeviceClass.POWER,
-        suggested_display_precision=0,
-        value_fn=lambda snapshot: snapshot.battery_discharge_over_limit_w,
-    ),
-    TuyaEVChargerSurplusControllerSensorDescription(
-        key="surplus_target_current_a",
-        translation_key="surplus_target_current_a",
-        icon="mdi:current-ac",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
-        state_class=SensorStateClass.MEASUREMENT,
-        device_class=SensorDeviceClass.CURRENT,
-        suggested_display_precision=0,
-        value_fn=lambda snapshot: snapshot.target_current_a,
-    ),
-)
-
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -249,10 +176,6 @@ async def async_setup_entry(
         [
             TuyaEVChargerSensor(entry, runtime_data, description)
             for description in SENSOR_DESCRIPTIONS
-        ]
-        + [
-            TuyaEVChargerSurplusControllerSensor(entry, runtime_data, description)
-            for description in SURPLUS_CONTROLLER_SENSOR_DESCRIPTIONS
         ]
     )
 
@@ -283,50 +206,3 @@ class TuyaEVChargerSensor(TuyaEVChargerEntity, SensorEntity):
         if data is None:
             return None
         return self.entity_description.value_fn(data)
-
-
-class TuyaEVChargerSurplusControllerSensor(TuyaEVChargerEntity, SensorEntity):
-    entity_description: TuyaEVChargerSurplusControllerSensorDescription
-
-    def __init__(
-        self,
-        entry: ConfigEntry,
-        runtime_data: TuyaEVChargerRuntimeData,
-        description: TuyaEVChargerSurplusControllerSensorDescription,
-    ) -> None:
-        card_role = CARD_ROLE_BY_SURPLUS_SENSOR_KEY.get(description.key)
-        card_index = CARD_ROLE_INDEX.get(card_role) if card_role is not None else None
-        super().__init__(
-            entry=entry,
-            runtime_data=runtime_data,
-            card_role=card_role,
-            card_index=card_index,
-        )
-        self.entity_description = description
-        self._attr_unique_id = f"{runtime_data.client.device_id}_{description.key}"
-        self._unsub_listener: Callable[[], None] | None = None
-
-    @property
-    def native_value(self) -> float | int | str | None:
-        controller = self._runtime_data.solar_surplus_controller
-        if controller is None:
-            return None
-        return self.entity_description.value_fn(controller.snapshot)
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        controller = self._runtime_data.solar_surplus_controller
-        if controller is None:
-            return
-
-        @callback
-        def _handle_update() -> None:
-            self.async_write_ha_state()
-
-        self._unsub_listener = controller.async_add_update_listener(_handle_update)
-
-    async def async_will_remove_from_hass(self) -> None:
-        if self._unsub_listener is not None:
-            self._unsub_listener()
-            self._unsub_listener = None
-        await super().async_will_remove_from_hass()

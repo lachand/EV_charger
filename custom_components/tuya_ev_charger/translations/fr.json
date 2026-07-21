@@ -27,36 +27,16 @@
     "step": {
       "init": {
         "title": "Options de la borne Tuya",
-        "description": "Mode surplus simplifie.",
+        "description": "Options de connexion et de mapping DP.",
         "data": {
           "scan_interval": "Intervalle de rafraichissement (secondes)",
           "charger_profile": "Profil chargeur / mapping DP",
-          "charger_profile_json": "Mapping DP custom (JSON, optionnel)",
-          "surplus_mode_enabled": "Activer le mode surplus solaire",
-          "surplus_sensor_entity_id": "Entite capteur puissance reseau (W) (sensor.xxx)",
-          "surplus_sensor_inverted": "Inverser le signe capteur reseau",
-          "surplus_curtailment_sensor_entity_id": "Entite puissance bridee potentielle (W) (optionnel)",
-          "surplus_curtailment_sensor_inverted": "Inverser le signe capteur puissance bridee",
-          "surplus_battery_soc_sensor_entity_id": "Entite % batterie (optionnel)",
-          "surplus_battery_soc_high_threshold_pct": "Seuil haut batterie (%)",
-          "surplus_battery_soc_low_threshold_pct": "Seuil bas batterie (%)",
-          "surplus_battery_net_discharge_sensor_entity_id": "Entite puissance decharge batterie nette (W) (optionnel)",
-          "surplus_battery_net_discharge_sensor_inverted": "Inverser le signe capteur decharge batterie nette",
-          "surplus_allow_battery_discharge_for_ev": "Autoriser la decharge batterie pour la voiture",
-          "surplus_max_battery_discharge_for_ev_w": "Puissance max decharge batterie autorisee (W)",
-          "surplus_start_threshold_w": "Seuil de demarrage surplus (W)",
-          "surplus_stop_threshold_w": "Seuil d'arret surplus (W)",
-          "surplus_forecast_sensor_entity_id": "Entite capteur prevision solaire 1h (W) (optionnel)"
+          "charger_profile_json": "Mapping DP custom (JSON, optionnel)"
         }
       }
     }
   },
   "entity": {
-    "binary_sensor": {
-      "surplus_regulation_active": {
-        "name": "Regulation surplus active"
-      }
-    },
     "button": {
       "reboot_charger": {
         "name": "Redemarrer la borne"
@@ -101,41 +81,11 @@
       },
       "session_energy": {
         "name": "Energie de la session"
-      },
-      "surplus_last_decision_reason": {
-        "name": "Derniere raison decision surplus"
-      },
-      "surplus_raw_w": {
-        "name": "Surplus brut"
-      },
-      "surplus_effective_w": {
-        "name": "Surplus effectif"
-      },
-      "surplus_battery_discharge_over_limit_w": {
-        "name": "Depassement decharge batterie"
-      },
-      "surplus_target_current_a": {
-        "name": "Courant cible surplus"
       }
     },
     "number": {
       "charge_current": {
         "name": "Consigne d'intensite"
-      },
-      "surplus_battery_soc_high_threshold_pct": {
-        "name": "Seuil haut batterie surplus"
-      },
-      "surplus_battery_soc_low_threshold_pct": {
-        "name": "Seuil bas batterie surplus"
-      },
-      "surplus_start_threshold_w": {
-        "name": "Seuil de demarrage surplus"
-      },
-      "surplus_stop_threshold_w": {
-        "name": "Seuil d'arret surplus"
-      },
-      "surplus_max_battery_discharge_for_ev_w": {
-        "name": "Decharge batterie max autorisee EV"
       }
     },
     "switch": {
@@ -144,9 +94,6 @@
       },
       "nfc_enabled": {
         "name": "NFC"
-      },
-      "surplus_mode": {
-        "name": "Mode surplus solaire"
       },
       "schedule_enabled": {
         "name": "Charge programmée"
@@ -158,11 +105,6 @@
       },
       "schedule_end": {
         "name": "Heure de fin de plage"
-      }
-    },
-    "select": {
-      "surplus_profile": {
-        "name": "Profil surplus"
       }
     }
   }
