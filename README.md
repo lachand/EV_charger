@@ -301,10 +301,89 @@ charging, instead of holding the last value.
 
 ## Services
 
-- `tuya_ev_charger.force_charge_for`
-- `tuya_ev_charger.pause_surplus`
-- `tuya_ev_charger.profile_assistant`
-- `tuya_ev_charger.set_surplus_profile`
+All of them take an optional `entry_id`, which is only needed if you have more
+than one charger.
+
+### `force_charge_for`
+
+Charge at full rate for a set time, ignoring surplus regulation — the "I need to
+leave in an hour" button.
+
+```yaml
+action: tuya_ev_charger.force_charge_for
+data:
+  duration_minutes: 60
+  current_a: 16 # optional; the maximum available current if omitted
+```
+
+### `pause_surplus`
+
+Suspend surplus regulation for a while without turning the mode off, so it
+resumes by itself. Useful before running the oven, or while testing.
+
+```yaml
+action: tuya_ev_charger.pause_surplus
+data:
+  duration_minutes: 30
+```
+
+### `set_surplus_profile`
+
+Switch between `eco`, `balanced` and `fast` — the same thing
+`select.surplus_profile` does, callable from an automation.
+
+```yaml
+action: tuya_ev_charger.set_surplus_profile
+data:
+  profile: eco
+```
+
+### `set_vehicle_energy`
+
+Correct a per-vehicle total. Attribution depends on `select.active_vehicle`
+being right *at the time of the charge*, so a forgotten switch credits the wrong
+car; this is how you fix it after the fact.
+
+```yaml
+action: tuya_ev_charger.set_vehicle_energy
+data:
+  vehicle: Zoe # must match a name in the `vehicles` option
+  energy_kwh: 412.5
+```
+
+### `profile_assistant`
+
+Dumps what the charger actually reports and suggests a DP profile. Set
+`apply: true` to apply the suggestion. The report is posted as a persistent
+notification and fired on the event bus as `tuya_ev_charger_profile_assistant` —
+**attach it when opening an issue about an unsupported model.**
+
+```yaml
+action: tuya_ev_charger.profile_assistant
+data:
+  apply: false
+```
+
+---
+
+## Blueprints
+
+Three automation blueprints ship in
+[`blueprints/automation/tuya_ev_charger/`](blueprints/automation/tuya_ev_charger):
+
+| Blueprint | What it does |
+|---|---|
+| `charge_notifications.yaml` | Notify on charge complete, on a fault, and on an unplug mid-charge |
+| `night_charge.yaml` | Start and stop on a schedule, only when a car is plugged in |
+| `vehicle_from_presence.yaml` | Set `select.active_vehicle` from a tracker, so energy lands on the right car |
+
+Copy them into `config/blueprints/automation/tuya_ev_charger/` and reload
+automations, or import them by URL from **Settings → Automations → Blueprints →
+Import**.
+
+`night_charge.yaml` overlaps with the built-in off-peak windows on purpose: use
+the option for a fixed schedule, the blueprint when the schedule has to depend
+on something else (a Tempo colour, a calendar, the day of the week).
 
 ## Lovelace
 

@@ -71,6 +71,16 @@ class VehicleEnergyTracker:
         self._active = vehicle
         await self._async_save()
 
+    async def async_set_total(self, vehicle: str, total_kwh: float) -> None:
+        """Overwrite a vehicle's cumulative total.
+
+        Attribution depends on the active-vehicle select being correct at the
+        time of the charge, so a forgotten switch silently credits the wrong car
+        with no way to fix it. This is that way.
+        """
+        self._totals[vehicle] = round(max(0.0, float(total_kwh)), 3)
+        await self._async_save()
+
     async def async_process_counter(self, counter_kwh: float | None) -> bool:
         """Attribute the increase of the charger's session counter.
 

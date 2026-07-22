@@ -25,6 +25,7 @@ from .const import (
     CONF_MAC,
     CONF_PROTOCOL_VERSION,
     CONF_SCAN_INTERVAL,
+    CONF_VEHICLES,
     DEFAULT_CHARGER_PROFILE,
     DEFAULT_CHARGER_PROFILE_JSON,
     DEFAULT_SCAN_INTERVAL_SECONDS,
@@ -37,6 +38,7 @@ from .const import (
     SERVICE_PAUSE_SURPLUS,
     SERVICE_PROFILE_ASSISTANT,
     SERVICE_SET_SURPLUS_PROFILE,
+    SERVICE_SET_VEHICLE_ENERGY,
 )
 from .coordinator import TuyaEVChargerDataUpdateCoordinator
 from .entity_cleanup import async_disable_entities, unavailable_capability_keys
@@ -48,7 +50,7 @@ from .surplus_profiles import (
     normalize_surplus_profile,
 )
 from .tuya_ev_charger import TuyaEVChargerClient
-from .vehicles import VehicleEnergyTracker
+from .vehicles import VehicleEnergyTracker, configured_vehicles
 
 LOGGER = logging.getLogger(__name__)
 
@@ -57,6 +59,8 @@ SERVICE_DATA_DURATION_MINUTES = "duration_minutes"
 SERVICE_DATA_CURRENT_A = "current_a"
 SERVICE_DATA_APPLY = "apply"
 SERVICE_DATA_PROFILE = "profile"
+SERVICE_DATA_VEHICLE = "vehicle"
+SERVICE_DATA_ENERGY_KWH = "energy_kwh"
 
 SERVICE_FORCE_CHARGE_SCHEMA = vol.Schema(
     {
@@ -90,6 +94,17 @@ SERVICE_SET_SURPLUS_PROFILE_SCHEMA = vol.Schema(
     {
         vol.Optional(SERVICE_DATA_ENTRY_ID): str,
         vol.Required(SERVICE_DATA_PROFILE): vol.All(str, vol.Length(min=1)),
+    }
+)
+
+SERVICE_SET_VEHICLE_ENERGY_SCHEMA = vol.Schema(
+    {
+        vol.Optional(SERVICE_DATA_ENTRY_ID): str,
+        vol.Required(SERVICE_DATA_VEHICLE): vol.All(str, vol.Length(min=1)),
+        vol.Required(SERVICE_DATA_ENERGY_KWH): vol.All(
+            vol.Coerce(float),
+            vol.Range(min=0),
+        ),
     }
 )
 
@@ -368,11 +383,34 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         _handle_profile_assistant,
         schema=SERVICE_PROFILE_ASSISTANT_SCHEMA,
     )
+    async def _handle_set_vehicle_energy(call: ServiceCall) -> None:
+        entry = _resolve_entry_from_call(hass, call)
+        tracker = _resolve_vehicle_tracker(entry)
+        vehicle = str(call.data[SERVICE_DATA_VEHICLE]).strip()
+        known = configured_vehicles(entry.options.get(CONF_VEHICLES))
+        if vehicle not in known:
+            raise ServiceValidationError(
+                f"Unknown vehicle '{vehicle}'. Configured vehicles: "
+                f"{', '.join(known) if known else '(none)'}."
+            )
+        await tracker.async_set_total(vehicle, float(call.data[SERVICE_DATA_ENERGY_KWH]))
+        runtime_data: TuyaEVChargerRuntimeData = entry.runtime_data
+        # The per-vehicle sensors read from the tracker, so they need a nudge —
+        # but not a poll: the charger has a single local connection, and nothing
+        # about a manual correction requires reading the device.
+        runtime_data.coordinator.async_update_listeners()
+
     hass.services.async_register(
         DOMAIN,
         SERVICE_SET_SURPLUS_PROFILE,
         _handle_set_surplus_profile,
         schema=SERVICE_SET_SURPLUS_PROFILE_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_VEHICLE_ENERGY,
+        _handle_set_vehicle_energy,
+        schema=SERVICE_SET_VEHICLE_ENERGY_SCHEMA,
     )
     domain_data["services_registered"] = True
 
@@ -397,6 +435,16 @@ def _resolve_entry_from_call(hass: HomeAssistant, call: ServiceCall) -> ConfigEn
     raise ServiceValidationError(
         f"Multiple '{DOMAIN}' entries loaded, provide '{SERVICE_DATA_ENTRY_ID}'."
     )
+
+
+def _resolve_vehicle_tracker(entry: ConfigEntry) -> VehicleEnergyTracker:
+    runtime_data: TuyaEVChargerRuntimeData | None = getattr(entry, "runtime_data", None)
+    if runtime_data is None or runtime_data.vehicle_tracker is None:
+        raise ServiceValidationError(
+            f"Per-vehicle tracking is not enabled for entry '{entry.entry_id}'. "
+            "Set the 'vehicles' option first."
+        )
+    return runtime_data.vehicle_tracker
 
 
 def _resolve_controller(entry: ConfigEntry) -> SolarSurplusController:

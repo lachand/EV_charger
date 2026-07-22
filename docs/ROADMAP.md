@@ -11,12 +11,16 @@ to know where we are and what to do next, without re-auditing the repository.
 
 ## Resume here
 
-- **Current version:** 2.7.0
-- **Phase in progress:** Phases 1–6 done → **start Phase 7** (B4, B5, B7, B8, B9, B10)
-- **Next concrete action:** pick from phase 7. Cheapest first: **B7 blueprints** (the `blueprints/`
-  tree is still empty) and **B10's `set_vehicle_energy` service**, both small and self-contained.
-  **B4 (cost tracking)** now has what it needs — `charge_planner.py` knows the tariff windows, so a
-  per-session cost is off-peak/peak minutes × the two prices. Suite is at **121 tests**.
+- **Current version:** 2.8.0
+- **Phase in progress:** Phase 7, partly done — B7 ✅, B10's service + notifications ✅, A6.1 ✅.
+  Remaining: **B8** (device triggers), **B4** (cost tracking), **B9** (session history),
+  **B5** (vehicle auto-identification), and the rest of B10.
+- **Next concrete action:** **B8 device triggers** — a `device_trigger.py` exposing "charge started",
+  "charge complete", "fault", "cable plugged in" so the automation editor offers them natively.
+  The state transitions are already pinned down by `charge_notifications.yaml`, so the semantics are
+  decided; this is mostly `async_get_triggers` + `async_attach_trigger` over the `status` sensor.
+  After that, **B4 (cost tracking)** has what it needs: `charge_planner.py` knows the tariff windows,
+  so a per-session cost is off-peak/peak minutes × the two prices. Suite is at **124 tests**.
 - **Hardware:** unblocked as of 2026-07-22. Read paths were re-validated live (status, phases,
   energy, evcc letter, capability detection, 1 A steps).
 - **Still unvalidated on hardware:** the DP 101 write behind `button.ready_to_charge` — it needs the
@@ -46,7 +50,7 @@ does not justify that.
 | 4 | Lot 3.2/3.3 + Lot 5.2/5.3 — remaining tests and refactoring | 2.5.1 | ✅ done |
 | 5 | B3 — dynamic load balancing | 2.6.0 | ✅ done |
 | 6 | B1 then B2 — tariffs, departure planning | 2.7.0 | ✅ done |
-| 7 | B4, B5, B7, B8, B9, B10 | 2.8+ | 🔄 next |
+| 7 | B4, B5, B7, B8, B9, B10 | 2.8+ | 🔄 in progress (B7 + part of B10 done in 2.8.0) |
 | 8 | Lot 6 — documentation | ongoing | ⬜ to do |
 
 The order is not arbitrary: each phase removes an obstacle for the next. The linter (phase 2) must
@@ -122,7 +126,7 @@ annotations without an import, hidden by `from __future__ import annotations`. R
 
 | # | State | Finding |
 |---|---|---|
-| A6.1 | ⬜ | The four services are not documented in the README. |
+| A6.1 | ✅ 2.8.0 | Services documented in the README, one section each with a YAML example — including that `profile_assistant` output is what to attach to an issue. |
 | A6.2 | ⬜ | No issue templates, although a DP dump was requested by hand in #5 and #7. A "device report" template demanding `python -m tinytuya scan` plus a dump **while charging** would pay for itself immediately. |
 | A6.3 | ⬜ | No `CHANGELOG.md` and no `CONTRIBUTING.md`, despite four external PRs — three closed for lack of a frame (they also stripped the surplus module). |
 
@@ -138,10 +142,10 @@ annotations without an import, hidden by `from __future__ import annotations`. R
 | B4 | ⬜ | **Cost tracking** (phase 7) | Cost per session and per vehicle from a price sensor. Extends 2.2.0's per-vehicle tracking: we know the kWh per car, not the euros. |
 | B5 | ⬜ | **Automatic vehicle identification** (phase 7) | The "Active vehicle" select is manual because the charger cannot know which car is plugged in. Linking a car integration (Tesla, MyRenault, Kia/Hyundai…) gives the real SoC and the identity — removing the manual step *and* enabling "charge to 80 %" rather than in kWh. |
 | B6 | ❌ | ~~Push updates~~ | **Dropped.** Holding the socket open would lock out every other client including the Smart Life app. |
-| B7 | ⬜ | **Automation blueprints** (phase 7) | `blueprints/` exists and is empty. Three would cover most uses: off-peak night charging, solar-surplus charging, fault/unexpected-unplug alert. |
+| B7 | ✅ 2.8.0 | **Automation blueprints** (phase 7) | Three shipped: `charge_notifications` (complete / fault / unplugged mid-charge), `night_charge` (schedule, skipping nights with no car plugged in), `vehicle_from_presence` (sets `active_vehicle` from a tracker). A surplus blueprint was *not* written: surplus is a built-in mode with its own options, so a blueprint would only duplicate it worse. |
 | B8 | ⬜ | **Device triggers** (phase 7) | Expose "charging started", "car full", "fault", "cable plugged in" as native automation triggers instead of raw state comparisons. |
 | B9 | ⬜ | **Session history** (phase 7) | DP 105 gives the **last** session (start, end, duration, energy). Accumulating them enables a browsable history — useful for expense claims or simply knowing last month's usage. |
-| B10 | ⬜ | **Comfort and reliability** (phase 7) | Notifications (charge complete, fault, unexpected unplug); a connection-health sensor; a `set_vehicle_energy` service to correct a mis-attributed total; assisted custom DP mapping (validate `charger_profile_json`, show the DPs actually detected); richer diagnostics including the discovery scan result and the fault verdict — the two things always requested in reports (#5, #7). |
+| B10 | 🔄 partly 2.8.0 | **Comfort and reliability** (phase 7) | **Done:** `set_vehicle_energy` service (with a clamp at zero and validation against the configured names), and notifications via the blueprint rather than a hardcoded notifier. **Left:** connection-health sensor; assisted custom DP mapping; richer diagnostics. Original note: notifications (charge complete, fault, unexpected unplug); a connection-health sensor; a `set_vehicle_energy` service to correct a mis-attributed total; assisted custom DP mapping (validate `charger_profile_json`, show the DPs actually detected); richer diagnostics including the discovery scan result and the fault verdict — the two things always requested in reports (#5, #7). |
 
 ---
 

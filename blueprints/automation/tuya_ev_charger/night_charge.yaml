@@ -1,0 +1,100 @@
+blueprint:
+  name: EV charger — charge during a time window
+  description: >-
+    Starts charging at a set time and stops at another, optionally only when the
+    car is actually plugged in.
+
+    The integration has built-in off-peak windows since 2.7.0, which handle the
+    common case without an automation. Use this blueprint when you want the
+    schedule to live in Home Assistant instead — for instance to make it depend
+    on a Tempo colour, on a calendar, or on which day it is.
+  domain: automation
+  source_url: https://github.com/lachand/EV_charger/blob/main/blueprints/automation/tuya_ev_charger/night_charge.yaml
+  input:
+    charge_switch:
+      name: Charge session switch
+      description: The `charge_session` switch of your charger.
+      selector:
+        entity:
+          filter:
+            - integration: tuya_ev_charger
+              domain: switch
+    status_sensor:
+      name: Charger status
+      description: Used to skip nights when no car is plugged in.
+      selector:
+        entity:
+          filter:
+            - integration: tuya_ev_charger
+              domain: sensor
+    start_time:
+      name: Start charging at
+      default: "22:00:00"
+      selector:
+        time:
+    stop_time:
+      name: Stop charging at
+      default: "06:00:00"
+      selector:
+        time:
+    weekdays:
+      name: Days
+      default: [mon, tue, wed, thu, fri, sat, sun]
+      selector:
+        select:
+          multiple: true
+          options:
+            - label: Monday
+              value: mon
+            - label: Tuesday
+              value: tue
+            - label: Wednesday
+              value: wed
+            - label: Thursday
+              value: thu
+            - label: Friday
+              value: fri
+            - label: Saturday
+              value: sat
+            - label: Sunday
+              value: sun
+
+mode: single
+
+triggers:
+  - trigger: time
+    at: !input start_time
+    id: start
+  - trigger: time
+    at: !input stop_time
+    id: stop
+
+conditions:
+  - condition: time
+    weekday: !input weekdays
+
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: start
+          # No car, nothing to do — and writing the DP anyway would make the
+          # charger beep for nothing.
+          - condition: not
+            conditions:
+              - condition: state
+                entity_id: !input status_sensor
+                state:
+                  - idle
+                  - sleep
+        sequence:
+          - action: switch.turn_on
+            target:
+              entity_id: !input charge_switch
+      - conditions:
+          - condition: trigger
+            id: stop
+        sequence:
+          - action: switch.turn_off
+            target:
+              entity_id: !input charge_switch

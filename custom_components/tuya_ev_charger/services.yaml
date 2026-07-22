@@ -59,3 +59,22 @@ set_surplus_profile:
             - eco
             - balanced
             - fast
+
+set_vehicle_energy:
+  fields:
+    entry_id:
+      selector:
+        config_entry:
+          integration: tuya_ev_charger
+    vehicle:
+      required: true
+      selector:
+        text:
+    energy_kwh:
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 100000
+          step: 0.1
+          mode: box

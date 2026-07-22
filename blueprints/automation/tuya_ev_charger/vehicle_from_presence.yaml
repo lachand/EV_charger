@@ -1,0 +1,60 @@
+blueprint:
+  name: EV charger — pick the active vehicle automatically
+  description: >-
+    Sets the `active_vehicle` select from a tracker, so per-vehicle energy is
+    attributed to the right car without remembering to switch it.
+
+    The charger cannot tell which car is plugged in, so the select is manual by
+    design — but it is a normal entity. Point this at whatever does know: a car
+    integration's presence, a BLE beacon, a GPS tracker, an NFC tag.
+  domain: automation
+  source_url: https://github.com/lachand/EV_charger/blob/main/blueprints/automation/tuya_ev_charger/vehicle_from_presence.yaml
+  input:
+    vehicle_select:
+      name: Active vehicle select
+      description: The `active_vehicle` select of your charger.
+      selector:
+        entity:
+          filter:
+            - integration: tuya_ev_charger
+              domain: select
+    tracker:
+      name: Tracker for this vehicle
+      description: >-
+        A device tracker, binary sensor or any entity that turns to the state
+        below when this particular car is at home.
+      selector:
+        entity:
+    tracker_home_state:
+      name: State meaning "this car is here"
+      default: home
+      selector:
+        text:
+    vehicle_name:
+      name: Vehicle name
+      description: >-
+        Must match one of the names in the integration's `vehicles` option,
+        exactly.
+      selector:
+        text:
+
+mode: single
+
+triggers:
+  - trigger: state
+    entity_id: !input tracker
+
+conditions:
+  - condition: template
+    value_template: "{{ trigger.to_state.state == tracker_home_state }}"
+
+variables:
+  tracker_home_state: !input tracker_home_state
+  vehicle_name: !input vehicle_name
+
+actions:
+  - action: select.select_option
+    target:
+      entity_id: !input vehicle_select
+    data:
+      option: "{{ vehicle_name }}"

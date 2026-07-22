@@ -122,6 +122,7 @@ SERVICE_DRY_RUN_SURPLUS = "dry_run_surplus"
 SERVICE_PAUSE_SURPLUS = "pause_surplus"
 SERVICE_PROFILE_ASSISTANT = "profile_assistant"
 SERVICE_SET_SURPLUS_PROFILE = "set_surplus_profile"
+SERVICE_SET_VEHICLE_ENERGY = "set_vehicle_energy"
 
 SURPLUS_PROFILE_ECO = "eco"
 SURPLUS_PROFILE_BALANCED = "balanced"

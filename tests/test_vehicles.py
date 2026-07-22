@@ -119,3 +119,36 @@ def test_totals_survive_a_restart(tracker, monkeypatch):
 
 def test_unknown_vehicle_reads_as_zero(tracker):
     assert tracker.total_for("Never seen") == 0.0
+
+
+def test_a_total_can_be_corrected_by_hand(tracker):
+    """Attribution depends on the select being right at the time of the charge;
+    a forgotten switch has to be fixable afterwards."""
+    asyncio.run(tracker.async_set_active_vehicle("Zoe"))
+    _feed(tracker, 0.0, 5.0)
+    assert tracker.total_for("Zoe") == 5.0
+
+    asyncio.run(tracker.async_set_total("Zoe", 2.0))
+    assert tracker.total_for("Zoe") == 2.0
+
+    # Correcting a total must not disturb the counter baseline: the next
+    # increment is still attributed normally.
+    _feed(tracker, 6.0)
+    assert tracker.total_for("Zoe") == 3.0
+
+
+def test_a_corrected_total_survives_a_restart(tracker, monkeypatch):
+    from tuya_ev_charger import vehicles
+
+    asyncio.run(tracker.async_set_total("Kangoo", 12.5))
+
+    store = tracker._store
+    monkeypatch.setattr(vehicles, "Store", lambda *a, **kw: store)
+    revived = vehicles.VehicleEnergyTracker(hass=None, entry_id="test")
+    asyncio.run(revived.async_load())
+    assert revived.total_for("Kangoo") == 12.5
+
+
+def test_a_negative_correction_is_clamped_to_zero(tracker):
+    asyncio.run(tracker.async_set_total("Zoe", -5.0))
+    assert tracker.total_for("Zoe") == 0.0

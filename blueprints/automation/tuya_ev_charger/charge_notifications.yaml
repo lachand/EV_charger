@@ -1,0 +1,84 @@
+blueprint:
+  name: EV charger — notifications
+  description: >-
+    Tells you when the charge finishes, when the charger reports a fault, and
+    when the cable is unplugged while a charge was running.
+
+    The last one is the useful one: an interrupted charge is otherwise silent,
+    and you find out in the morning.
+  domain: automation
+  source_url: https://github.com/lachand/EV_charger/blob/main/blueprints/automation/tuya_ev_charger/charge_notifications.yaml
+  input:
+    status_sensor:
+      name: Charger status
+      description: The `status` sensor of your charger.
+      selector:
+        entity:
+          filter:
+            - integration: tuya_ev_charger
+              domain: sensor
+    notify_service:
+      name: Notification service
+      description: e.g. `notify.mobile_app_pixel`.
+      selector:
+        text:
+    notify_on_complete:
+      name: Notify when the charge completes
+      default: true
+      selector:
+        boolean:
+    notify_on_fault:
+      name: Notify on a charger fault
+      default: true
+      selector:
+        boolean:
+    notify_on_unexpected_unplug:
+      name: Notify when unplugged mid-charge
+      default: true
+      selector:
+        boolean:
+
+mode: queued
+max: 5
+
+triggers:
+  - trigger: state
+    entity_id: !input status_sensor
+    to: charged
+    id: complete
+  - trigger: state
+    entity_id: !input status_sensor
+    to: fault
+    id: fault
+  # Charging -> idle means the cable came out; charging -> charged is a normal
+  # finish and is handled above.
+  - trigger: state
+    entity_id: !input status_sensor
+    from: charging
+    to: idle
+    id: unplugged
+
+conditions:
+  - condition: template
+    value_template: >-
+      {% set enabled = {
+        'complete': notify_on_complete,
+        'fault': notify_on_fault,
+        'unplugged': notify_on_unexpected_unplug,
+      } %}
+      {{ enabled.get(trigger.id, false) }}
+
+variables:
+  notify_on_complete: !input notify_on_complete
+  notify_on_fault: !input notify_on_fault
+  notify_on_unexpected_unplug: !input notify_on_unexpected_unplug
+  messages:
+    complete: The car has finished charging.
+    fault: The charger reports a fault. Check the charger and the cable.
+    unplugged: The cable was unplugged while charging was still running.
+
+actions:
+  - action: !input notify_service
+    data:
+      title: EV charger
+      message: "{{ messages[trigger.id] }}"
