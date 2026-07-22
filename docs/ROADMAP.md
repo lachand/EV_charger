@@ -11,11 +11,13 @@ to know where we are and what to do next, without re-auditing the repository.
 
 ## Resume here
 
-- **Current version:** 2.11.1
+- **Current version:** 2.12.0
 - **Phase in progress:** Phase 7 done except **B5**. B4 ✅, B7 ✅, B8 ✅, B9 ✅, B10 ✅, A6.1 ✅.
-- **Next concrete action:** the roadmap is **complete except B5**. What is left is a decision, not
-  a task: **all 2.x releases are pre-releases**, so `/releases/latest` returns 1.0.4 and HACS users
-  on stable have received none of this work. Promoting one to a full release is the owner's call.
+- **Next concrete action:** the roadmap is **complete except B5**; work is now driven by issues.
+  **2.11.1 was promoted to the latest release**, so HACS stable users finally receive the 2.x line
+  (they had been on 1.0.4 the whole time).
+  Open: #21 answered by 2.12.0; #5 and #7 still awaiting reporter data (a DP dump while charging,
+  and confirmation that `button.ready_to_charge` actually works).
   **B5** (vehicle auto-identification) is deliberately undone: it needs a third-party car
   integration to test against, which nobody here has, and the blueprint `vehicle_from_presence.yaml`
   already covers the practical case.

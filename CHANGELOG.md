@@ -6,6 +6,15 @@ are on the [releases page](https://github.com/lachand/EV_charger/releases).
 Everything from 2.0.0 onward is currently published as a **pre-release**, so
 HACS installs 1.0.4 unless beta versions are enabled.
 
+## 2.12.0
+
+- **Installation current limit** (#21, reported by @SergioMonC): `max_charge_current_a`
+  and `min_charge_current_a`. A charger's rating is not its circuit's rating — a
+  32 A unit on a 25 A breaker has a real ceiling of 20 A under ITC-BT-52.
+  Applied inside `allowed_currents()`, the single list both the number entity and
+  surplus regulation draw from, so nothing can write above it afterwards.
+  Needs no grid sensor, unlike load balancing.
+
 ## 2.11.0
 
 - `sensor.connection_health`: share of polls answered, with consecutive

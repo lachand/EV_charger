@@ -96,6 +96,10 @@ CONF_DEPARTURE_ENERGY_KWH = "departure_energy_kwh"
 # converts, it only multiplies.
 CONF_OFF_PEAK_PRICE = "off_peak_price"
 CONF_PEAK_PRICE = "peak_price"
+# The circuit's rating, which is not the charger's rating: a 32 A unit is often
+# wired to a smaller breaker. 0 means "no override", i.e. trust the charger.
+CONF_MAX_CHARGE_CURRENT_A = "max_charge_current_a"
+CONF_MIN_CHARGE_CURRENT_A = "min_charge_current_a"
 CONF_DEVICE_ID = "device_id"
 CONF_LOCAL_KEY = "local_key"
 CONF_MAC = "mac"
@@ -188,6 +192,12 @@ MAX_DEPARTURE_ENERGY_KWH = 200
 # than as zero.
 DEFAULT_OFF_PEAK_PRICE = 0.0
 DEFAULT_PEAK_PRICE = 0.0
+DEFAULT_MAX_CHARGE_CURRENT_A = 0
+DEFAULT_MIN_CHARGE_CURRENT_A = 0
+# The bounds of the form field, not of the applied limit: 0 disables it, and the
+# ceiling is the highest current any supported charger offers.
+MIN_CHARGE_CURRENT_LIMIT_A = 0
+MAX_CHARGE_CURRENT_LIMIT_A = 32
 MIN_SCAN_INTERVAL_SECONDS = 5
 MAX_SCAN_INTERVAL_SECONDS = 300
 DEFAULT_SCAN_INTERVAL = timedelta(seconds=DEFAULT_SCAN_INTERVAL_SECONDS)

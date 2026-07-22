@@ -56,6 +56,8 @@
           "charger_profile": "Profil chargeur / mapping DP",
           "charger_profile_json": "Mapping DP custom (JSON, optionnel)",
           "continuous_current": "Regulation continue de l'intensite (1A)",
+          "max_charge_current_a": "Courant de charge maximal (A, 0 = limite de la borne) - le calibre de ton circuit, pas celui de la borne",
+          "min_charge_current_a": "Courant de charge minimal (A, 0 = limite de la borne)",
           "surplus_mode_enabled": "Activer le mode surplus solaire",
           "surplus_sensor_entity_id": "Entite capteur puissance reseau (W) (sensor.xxx)",
           "surplus_sensor_inverted": "Inverser le signe capteur reseau",

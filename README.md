@@ -146,6 +146,24 @@ Everything else — battery thresholds, forecast, curtailment — is optional.
 - The rest (line voltage, ramp, delays, cooldowns, protections) is fixed
   internally.
 
+### Installation limit
+
+A charger's rating is not its circuit's rating: a 32 A unit is often wired to a
+smaller breaker, and many wiring rules require the circuit to be sized above the
+charging current (Spain's ITC-BT-52 asks for 125 %, making 20 A the real ceiling
+on a 25 A breaker).
+
+Set **Maximum charging current** to what your *installation* can carry (`0` uses
+the charger's own limit). It caps `number.charge_current` **and** everything
+surplus regulation and load balancing may write — they all draw from the same
+list, so nothing can widen it afterwards.
+
+**Minimum charging current** raises the floor, for cars that refuse to start
+below 8 A.
+
+Unlike load balancing below, this needs no grid sensor: it is a fixed property
+of your wiring, not a live measurement.
+
 ---
 
 ## Load balancing
@@ -302,6 +320,7 @@ charging, instead of holding the last value.
 | `scan_interval` | Polling interval, seconds |
 | `charger_profile` / `charger_profile_json` | DP mapping; custom JSON overrides, validated on save |
 | `continuous_current` | 1 A steps (default **on**) |
+| `max_charge_current_a` / `min_charge_current_a` | Your circuit's rating; `0` uses the charger's |
 | `vehicles` | Comma-separated car names; enables per-vehicle tracking |
 | `max_house_power_w` | Subscribed power for load balancing; `0` disables it |
 | `off_peak_windows` | `22:00-06:00, 12:30-14:30`; empty charges at any hour |
