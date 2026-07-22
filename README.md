@@ -366,6 +366,25 @@ data:
 
 ---
 
+## Device triggers
+
+In the automation editor, pick the charger as a device and these appear directly
+— no need to know which sensor holds the state or what its values are called:
+
+| Trigger | Fires when |
+|---|---|
+| Started charging | status → `charging` |
+| Finished charging | status → `charged` |
+| Reported a fault | status → `fault` |
+| A cable was plugged in | status → `plugged_in` |
+| Unplugged while charging | status `charging` → `idle` |
+
+The last one is a *transition*, not a state, which is why it is worth exposing:
+an interrupted charge is otherwise indistinguishable from a normal finish
+without knowing the internal vocabulary.
+
+---
+
 ## Blueprints
 
 Three automation blueprints ship in

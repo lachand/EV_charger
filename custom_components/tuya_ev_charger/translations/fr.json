@@ -229,12 +229,12 @@
         "name": "Mode surplus solaire"
       },
       "schedule_enabled": {
-        "name": "Charge programmée"
+        "name": "Charge programm\u00e9e"
       }
     },
     "time": {
       "schedule_start": {
-        "name": "Heure de début de plage"
+        "name": "Heure de d\u00e9but de plage"
       },
       "schedule_end": {
         "name": "Heure de fin de plage"
@@ -334,6 +334,15 @@
           "description": "Parmi eco, balanced ou fast."
         }
       }
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "charge_started": "{entity_name} a commence a charger",
+      "charge_complete": "{entity_name} a termine la charge",
+      "fault": "{entity_name} signale un defaut",
+      "plugged_in": "Un cable a ete branche sur {entity_name}",
+      "unplugged_while_charging": "{entity_name} a ete debranche pendant la charge"
     }
   }
 }

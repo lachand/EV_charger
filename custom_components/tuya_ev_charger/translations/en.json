@@ -17,7 +17,7 @@
       },
       "cloud": {
         "title": "Tuya Cloud credentials",
-        "description": "From iot.tuya.com: create a Cloud project, link your Smart Life account, then paste the Access ID and Access Secret here. Used only to read your device list (device_id + local key) — never for telemetry.",
+        "description": "From iot.tuya.com: create a Cloud project, link your Smart Life account, then paste the Access ID and Access Secret here. Used only to read your device list (device_id + local key) \u2014 never for telemetry.",
         "data": {
           "cloud_api_key": "Access ID (API key)",
           "cloud_api_secret": "Access Secret",
@@ -291,7 +291,7 @@
   "issues": {
     "connection_refused": {
       "title": "Charger refused the connection",
-      "description": "The charger at {host} is reachable but refuses its control port. These chargers accept a single local connection at a time — check that the Smart Life app or another Tuya integration is not holding it."
+      "description": "The charger at {host} is reachable but refuses its control port. These chargers accept a single local connection at a time \u2014 check that the Smart Life app or another Tuya integration is not holding it."
     },
     "tidy_entities": {
       "title": "Hide advanced entities",
@@ -365,6 +365,15 @@
           "description": "One of eco, balanced or fast."
         }
       }
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "charge_started": "{entity_name} started charging",
+      "charge_complete": "{entity_name} finished charging",
+      "fault": "{entity_name} reported a fault",
+      "plugged_in": "A cable was plugged into {entity_name}",
+      "unplugged_while_charging": "{entity_name} was unplugged while charging"
     }
   }
 }

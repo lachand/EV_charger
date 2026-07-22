@@ -15,6 +15,7 @@ from enum import StrEnum
 from typing import Any
 
 import pytest
+import voluptuous as _vol
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 COMPONENTS = REPO_ROOT / "custom_components"
@@ -84,6 +85,12 @@ def _install_stubs() -> None:
         "homeassistant.const",
         Platform=Platform,
         CONF_HOST="host",
+        CONF_DEVICE_ID="device_id",
+        CONF_DOMAIN="domain",
+        CONF_ENTITY_ID="entity_id",
+        CONF_FOR="for",
+        CONF_PLATFORM="platform",
+        CONF_TYPE="type",
         PERCENTAGE="%",
         STATE_UNAVAILABLE="unavailable",
         STATE_UNKNOWN="unknown",
@@ -118,6 +125,7 @@ def _install_stubs() -> None:
     _module(
         "homeassistant.core",
         HomeAssistant=type("HomeAssistant", (), {}),
+        CALLBACK_TYPE=object,
         ServiceCall=type("ServiceCall", (), {}),
         Event=_Generic,
         EventStateChangedData=dict,
@@ -171,6 +179,7 @@ def _install_stubs() -> None:
         "homeassistant.helpers.entity_registry",
         async_get=lambda hass: None,
         async_entries_for_config_entry=lambda registry, entry_id: [],
+        async_entries_for_device=lambda registry, device_id: [],
         RegistryEntry=object,
         RegistryEntryDisabler=RegistryEntryDisabler,
     )
@@ -199,6 +208,17 @@ def _install_stubs() -> None:
         TextSelector=type("TextSelector", (_Selector,), {}),
         TextSelectorConfig=lambda **k: k,
     )
+    _module(
+        "homeassistant.helpers.config_validation",
+        entity_id=str,
+        positive_time_period_dict=dict,
+    )
+    _module(
+        "homeassistant.helpers.trigger",
+        TriggerActionType=object,
+        TriggerInfo=object,
+    )
+    _module("homeassistant.helpers.typing", ConfigType=dict)
     _module("homeassistant.helpers.service_info")
     _module("homeassistant.helpers.service_info.dhcp", DhcpServiceInfo=object)
     _module(
@@ -219,6 +239,22 @@ def _install_stubs() -> None:
     # --- entity platforms --------------------------------------------------
     _module("homeassistant.components")
     _module("homeassistant.components.diagnostics", async_redact_data=lambda d, keys: d)
+    # Device automation: only the base schema and the state trigger it delegates to.
+    _module(
+        "homeassistant.components.device_automation",
+        DEVICE_TRIGGER_BASE_SCHEMA=_vol.Schema({}, extra=_vol.ALLOW_EXTRA),
+    )
+    _module("homeassistant.components.homeassistant")
+    _module("homeassistant.components.homeassistant.triggers")
+    _module(
+        "homeassistant.components.homeassistant.triggers.state",
+        CONF_PLATFORM="platform",
+        CONF_ENTITY_ID="entity_id",
+        CONF_FROM="from",
+        CONF_TO="to",
+        async_validate_trigger_config=None,
+        async_attach_trigger=None,
+    )
     _module("homeassistant.components.persistent_notification", async_create=lambda **k: None)
     _module("homeassistant.components.binary_sensor",
             BinarySensorEntity=object, BinarySensorEntityDescription=_EntityDescription)
