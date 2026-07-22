@@ -522,6 +522,17 @@ alphabetical).
 
 ---
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) — it says what gets merged, what does
+not, and why. [CHANGELOG.md](CHANGELOG.md) summarises each release;
+[docs/ROADMAP.md](docs/ROADMAP.md) records what is planned and what was
+deliberately dropped.
+
+Reporting an unsupported charger? The **Unsupported or misbehaving charger**
+issue template asks for the three things every previous report has needed a
+follow-up to obtain.
+
 ## Licence
 
 [MIT](LICENSE).

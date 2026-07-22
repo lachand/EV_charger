@@ -1,0 +1,60 @@
+name: Bug report
+description: Something the integration does wrong on a charger that otherwise works
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If the charger will not connect at all, or reports wrong values, use
+        **Unsupported or misbehaving charger** instead — it asks for the device
+        data needed to answer that.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happens
+      description: What you expected, and what happened instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      placeholder: |
+        1. Turn on surplus mode
+        2. Set the grid sensor to ...
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Integration version
+    validations:
+      required: true
+
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Add this to `configuration.yaml`, restart, and reproduce:
+
+        ```yaml
+        logger:
+          logs:
+            custom_components.tuya_ev_charger: debug
+        ```
+
+        Then paste the relevant lines. Debug logs may contain your charger's IP
+        and device ID; both are safe to redact.
+      render: text

@@ -1,0 +1,94 @@
+name: Unsupported or misbehaving charger
+description: A charger that will not connect, reports wrong values, or is missing entities
+labels: ["device-report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Every previous device report has needed a
+        follow-up asking for the same three things, so they are all below —
+        filling them in now usually turns a week of back-and-forth into one
+        reply.
+
+        **The diagnostics download already redacts your `local_key`, device ID,
+        IP and Tuya Cloud credentials.** Please attach it rather than pasting
+        parts of it by hand.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong
+      description: What you expected, and what happens instead.
+    validations:
+      required: true
+
+  - type: input
+    id: model
+    attributes:
+      label: Charger model
+      description: The exact name from the Smart Life app, or the label on the unit.
+      placeholder: "dé Portable EV Charger 3.5 kW v2"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Integration version
+      description: Settings → Devices & Services → Tuya EV Charger Local, or the `version` in the diagnostics download.
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: |
+        The integration's **Download diagnostics** button (⋮ menu on the device
+        page). It contains the raw DPs, the DP profile in use, the connection
+        record and the last discovery scan — with every secret redacted.
+
+        Attach the file, or paste it here.
+      render: json
+    validations:
+      required: true
+
+  - type: textarea
+    id: scan
+    attributes:
+      label: Output of `python -m tinytuya scan`
+      description: |
+        Run on the same network as the charger. **Redact the `key` line before
+        posting** — that one is your `local_key`.
+
+        This shows the protocol version and whether the charger broadcasts at
+        all, which the diagnostics cannot tell us if the integration never
+        connected.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: dp_dump
+    attributes:
+      label: DP dump while charging
+      description: |
+        **The single most useful thing in this form**, and the one always missing.
+
+        Call the `tuya_ev_charger.profile_assistant` service (Developer tools →
+        Actions) **while a car is actually charging**. It posts a notification
+        with every DP the charger reports and a suggested profile.
+
+        Values differ completely between idle and charging, so an idle dump
+        cannot answer questions about power, current or session energy.
+      render: json
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: Home Assistant is on the same subnet as the charger (UDP broadcasts do not cross VLANs)
+        - label: I redacted the `key` line from the tinytuya scan output

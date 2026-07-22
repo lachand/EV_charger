@@ -11,17 +11,15 @@ to know where we are and what to do next, without re-auditing the repository.
 
 ## Resume here
 
-- **Current version:** 2.11.0
+- **Current version:** 2.11.1
 - **Phase in progress:** Phase 7 done except **B5**. B4 ✅, B7 ✅, B8 ✅, B9 ✅, B10 ✅, A6.1 ✅.
-- **Next concrete action:** **phase 8, Lot 6** — issue templates (A6.2) and `CHANGELOG.md` +
-  `CONTRIBUTING.md` (A6.3). The issue template is the highest-value item left: every device report
-  so far has needed a manual round trip asking for `python -m tinytuya scan` and a DP dump while
-  charging. The template should demand both, plus the diagnostics download, which now carries the
-  version, the fault verdict and the discovery scan.
-  **B5** (vehicle auto-identification) is deliberately last and may stay undone: it needs a
-  third-party car integration to test against, which nobody here has. The blueprint
-  `vehicle_from_presence.yaml` already covers the practical case.
-  Suite is at **184 tests**.
+- **Next concrete action:** the roadmap is **complete except B5**. What is left is a decision, not
+  a task: **all 2.x releases are pre-releases**, so `/releases/latest` returns 1.0.4 and HACS users
+  on stable have received none of this work. Promoting one to a full release is the owner's call.
+  **B5** (vehicle auto-identification) is deliberately undone: it needs a third-party car
+  integration to test against, which nobody here has, and the blueprint `vehicle_from_presence.yaml`
+  already covers the practical case.
+  Suite is at **184 tests**; all four CI jobs green.
 - **Hardware:** unblocked as of 2026-07-22. Read paths were re-validated live (status, phases,
   energy, evcc letter, capability detection, 1 A steps).
 - **Still unvalidated on hardware:** the DP 101 write behind `button.ready_to_charge` — it needs the
@@ -52,7 +50,7 @@ does not justify that.
 | 5 | B3 — dynamic load balancing | 2.6.0 | ✅ done |
 | 6 | B1 then B2 — tariffs, departure planning | 2.7.0 | ✅ done |
 | 7 | B4, B5, B7, B8, B9, B10 | 2.8+ | ✅ done except B5 (2.8.0 → 2.11.0) |
-| 8 | Lot 6 — documentation | ongoing | 🔄 next (A6.1 done in 2.8.0) |
+| 8 | Lot 6 — documentation | ongoing | ✅ done (A6.1 in 2.8.0; A6.2 + A6.3 in 2.11.1) |
 
 The order is not arbitrary: each phase removes an obstacle for the next. The linter (phase 2) must
 exist before part B adds code; the surplus decision layer (phase 3) is the technical prerequisite
@@ -128,8 +126,8 @@ annotations without an import, hidden by `from __future__ import annotations`. R
 | # | State | Finding |
 |---|---|---|
 | A6.1 | ✅ 2.8.0 | Services documented in the README, one section each with a YAML example — including that `profile_assistant` output is what to attach to an issue. |
-| A6.2 | ⬜ | No issue templates, although a DP dump was requested by hand in #5 and #7. A "device report" template demanding `python -m tinytuya scan` plus a dump **while charging** would pay for itself immediately. |
-| A6.3 | ⬜ | No `CHANGELOG.md` and no `CONTRIBUTING.md`, despite four external PRs — three closed for lack of a frame (they also stripped the surplus module). |
+| A6.2 | ✅ 2.11.1 | No issue templates, although a DP dump was requested by hand in #5 and #7. A "device report" template demanding `python -m tinytuya scan` plus a dump **while charging** would pay for itself immediately. |
+| A6.3 | ✅ 2.11.1 | No `CHANGELOG.md` and no `CONTRIBUTING.md`, despite four external PRs — three closed for lack of a frame (they also stripped the surplus module). |
 
 ---
 
