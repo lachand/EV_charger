@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, replace
+from typing import Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -370,7 +371,89 @@ async def async_setup_entry(
             entry.options.get(CONF_VEHICLES, DEFAULT_VEHICLES)
         )
     )
+    entities.append(TuyaEVChargerLastSessionCostSensor(entry, runtime_data))
+    entities.append(TuyaEVChargerSessionHistorySensor(entry, runtime_data))
     async_add_entities(entities)
+
+
+class TuyaEVChargerLastSessionCostSensor(TuyaEVChargerEntity, SensorEntity):
+    """Estimated cost of the last completed session.
+
+    Unavailable until a price is configured: showing 0 for every session would
+    read as a working meter reporting free electricity.
+    """
+
+    _attr_translation_key = "last_session_cost"
+    _attr_state_class = SensorStateClass.TOTAL
+    _attr_suggested_display_precision = 2
+
+    def __init__(
+        self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData
+    ) -> None:
+        super().__init__(entry=entry, runtime_data=runtime_data)
+        self._attr_unique_id = f"{runtime_data.client.device_id}_last_session_cost"
+
+    @property
+    def _latest(self) -> dict | None:
+        history = self._runtime_data.session_history
+        return history.latest if history is not None else None
+
+    @property
+    def available(self) -> bool:
+        latest = self._latest
+        return super().available and latest is not None and latest.get("cost") is not None
+
+    @property
+    def native_value(self) -> float | None:
+        latest = self._latest
+        return None if latest is None else latest.get("cost")
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        latest = self._latest
+        if latest is None:
+            return None
+        return {
+            "ended_at": latest.get("ended_at"),
+            "energy_kwh": latest.get("energy_kwh"),
+            "off_peak_minutes": latest.get("off_peak_minutes"),
+            "peak_minutes": latest.get("peak_minutes"),
+            "vehicle": latest.get("vehicle"),
+        }
+
+
+class TuyaEVChargerSessionHistorySensor(TuyaEVChargerEntity, SensorEntity):
+    """How many completed sessions are on record, with the log as attributes.
+
+    The charger keeps exactly one session; this keeps the last few dozen, so
+    "what did I charge last month" is answerable at all.
+    """
+
+    _attr_translation_key = "session_count"
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(
+        self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData
+    ) -> None:
+        super().__init__(entry=entry, runtime_data=runtime_data)
+        self._attr_unique_id = f"{runtime_data.client.device_id}_session_count"
+
+    @property
+    def native_value(self) -> int | None:
+        history = self._runtime_data.session_history
+        return None if history is None else len(history.sessions)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        history = self._runtime_data.session_history
+        if history is None:
+            return None
+        return {
+            "sessions": history.sessions,
+            "total_energy_kwh": history.total_energy_kwh(),
+            "total_cost": history.total_cost(),
+        }
 
 
 class TuyaEVChargerVehicleEnergySensor(TuyaEVChargerEntity, SensorEntity):

@@ -92,6 +92,10 @@ CONF_MAX_HOUSE_POWER_W = "max_house_power_w"
 CONF_OFF_PEAK_WINDOWS = "off_peak_windows"
 CONF_DEPARTURE_TIME = "departure_time"
 CONF_DEPARTURE_ENERGY_KWH = "departure_energy_kwh"
+# Prices per kWh, in whatever currency the user thinks in; the integration never
+# converts, it only multiplies.
+CONF_OFF_PEAK_PRICE = "off_peak_price"
+CONF_PEAK_PRICE = "peak_price"
 CONF_DEVICE_ID = "device_id"
 CONF_LOCAL_KEY = "local_key"
 CONF_MAC = "mac"
@@ -180,6 +184,10 @@ DEFAULT_DEPARTURE_TIME = ""
 DEFAULT_DEPARTURE_ENERGY_KWH = 0
 MIN_DEPARTURE_ENERGY_KWH = 0
 MAX_DEPARTURE_ENERGY_KWH = 200
+# Both zero means "no prices configured", and cost is reported as unknown rather
+# than as zero.
+DEFAULT_OFF_PEAK_PRICE = 0.0
+DEFAULT_PEAK_PRICE = 0.0
 MIN_SCAN_INTERVAL_SECONDS = 5
 MAX_SCAN_INTERVAL_SECONDS = 300
 DEFAULT_SCAN_INTERVAL = timedelta(seconds=DEFAULT_SCAN_INTERVAL_SECONDS)

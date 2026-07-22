@@ -295,3 +295,27 @@ def test_translation_keys_are_valid_for_hassfest():
     for name in ("strings.json", "translations/en.json", "translations/fr.json"):
         payload = json.loads((root / name).read_text(encoding="utf-8"))
         _walk(payload, name)
+
+
+def test_every_options_form_kind_is_handled():
+    """An unknown `kind` falls through to the free-text branch silently.
+
+    That is how a price field would become a text box that accepts "0,16" and
+    stores a string, so the set of kinds is pinned to what the builder handles.
+    """
+    from tuya_ev_charger.config_flow import _OPTIONS_FORM
+
+    handled = {"bool", "entity", "int", "price", "text", "choice", "multiline"}
+    assert {opt.kind for opt in _OPTIONS_FORM} <= handled
+
+
+def test_prices_are_not_rounded_to_integers():
+    """A 0.16 EUR tariff coerced through int() becomes 0: every session free."""
+    from tuya_ev_charger.config_flow import _option_float
+
+    assert _option_float({"peak_price": 0.16}, "peak_price", 0.0) == 0.16
+    assert _option_float({"peak_price": "0.27"}, "peak_price", 0.0) == 0.27
+    # Typed by hand, so junk must fall back rather than raise.
+    assert _option_float({"peak_price": "0,27"}, "peak_price", 0.0) == 0.0
+    assert _option_float({"peak_price": -1}, "peak_price", 0.0) == 0.0
+    assert _option_float({}, "peak_price", 0.0) == 0.0

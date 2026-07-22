@@ -8,13 +8,18 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
+from .charge_planner import parse_windows
 from .cloud import TuyaCloudError, async_fetch_local_key
 from .const import (
     CONF_CLOUD_API_KEY,
     CONF_CLOUD_API_SECRET,
     CONF_CLOUD_REGION,
     CONF_DEVICE_ID,
+    CONF_OFF_PEAK_PRICE,
+    CONF_OFF_PEAK_WINDOWS,
+    CONF_PEAK_PRICE,
     DEFAULT_CLOUD_REGION,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
@@ -26,6 +31,8 @@ from .const import (
 )
 from .discovery import async_scan_devices_by_id
 from .repairs import ISSUE_CONNECTION_REFUSED, async_clear, async_raise
+from .session_costing import session_cost, split_session
+from .session_history import SessionRecord
 from .tuya_ev_charger import EVMetrics, TuyaEVChargerClient
 
 LOGGER = logging.getLogger(__name__)
@@ -60,6 +67,10 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         self.new_local_key: str | None = None
         # Set by async_setup_entry once storage has been loaded.
         self.vehicle_tracker: Any = None
+        self.session_history: Any = None
+        # The charger's stored last session is only logged from the *second*
+        # sighting onward: see _async_log_completed_session.
+        self._session_log_primed = False
         self._last_rediscovery_at: float = 0.0
         self._last_key_refresh_at: float = 0.0
         # Diagnosing a failure costs a TCP connect and possibly a full read, so
@@ -73,7 +84,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         metrics = await self._async_fetch_metrics()
         if metrics is not None:
             self._async_note_success()
-            await self._async_track_vehicle_energy(metrics)
+            await self._async_on_metrics(metrics)
             return metrics
 
         # Communication failed: after a power cycle the charger's DHCP IP may
@@ -82,7 +93,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
             metrics = await self._async_fetch_metrics()
             if metrics is not None:
                 self._async_note_success()
-                await self._async_track_vehicle_energy(metrics)
+                await self._async_on_metrics(metrics)
                 return metrics
 
         # Still failing while the control port answers: the payload does not
@@ -91,7 +102,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
             metrics = await self._async_fetch_metrics()
             if metrics is not None:
                 self._async_note_success()
-                await self._async_track_vehicle_energy(metrics)
+                await self._async_on_metrics(metrics)
                 return metrics
 
         message = await self._async_failure_message()
@@ -161,6 +172,68 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
             self._last_fault = None
             self._last_fault_at = 0.0
             async_clear(self.hass, self.entry.entry_id, ISSUE_CONNECTION_REFUSED)
+
+    async def _async_on_metrics(self, metrics: EVMetrics) -> None:
+        """Bookkeeping that follows a successful poll.
+
+        Both steps are best-effort: a failure here is an accounting problem, not
+        a reason to report the charger as unreachable.
+        """
+        await self._async_track_vehicle_energy(metrics)
+        await self._async_log_completed_session(metrics)
+
+    async def _async_log_completed_session(self, metrics: EVMetrics) -> None:
+        """Append DP 105 to the session log when it describes a new session.
+
+        DP 105 is re-read on every poll and only changes when a session ends, so
+        the history decides for itself whether this is one it has already seen.
+        """
+        history = self.session_history
+        if history is None:
+            return
+        duration_s = metrics.last_session_duration_s
+        energy_kwh = metrics.last_session_energy_kwh
+        if not history.is_new_session(duration_s, energy_kwh):
+            return
+        try:
+            if self._session_log_primed:
+                await history.async_record(
+                    self._build_session_record(metrics, duration_s, energy_kwh)
+                )
+            else:
+                # First successful poll of this run: the charger's stored session
+                # may predate it by weeks, and logging it would invent a session
+                # that just happened.
+                await history.async_note_seen(duration_s, energy_kwh)
+        except Exception as err:
+            LOGGER.debug("Session logging failed: %s", err)
+        finally:
+            self._session_log_primed = True
+
+    def _build_session_record(
+        self, metrics: EVMetrics, duration_s: int, energy_kwh: float
+    ) -> SessionRecord:
+        options = self.entry.options
+        windows = parse_windows(_option_text(options, CONF_OFF_PEAK_WINDOWS))
+        ended_at = dt_util.now()
+        split = split_session(
+            ended_at=ended_at, duration_s=duration_s, off_peak_windows=windows
+        )
+        tracker = self.vehicle_tracker
+        return SessionRecord(
+            ended_at=ended_at.isoformat(timespec="seconds"),
+            duration_s=int(duration_s),
+            energy_kwh=float(energy_kwh),
+            off_peak_minutes=split.off_peak_minutes,
+            peak_minutes=split.peak_minutes,
+            cost=session_cost(
+                energy_kwh=float(energy_kwh),
+                split=split,
+                off_peak_price=_option_float(options, CONF_OFF_PEAK_PRICE),
+                peak_price=_option_float(options, CONF_PEAK_PRICE),
+            ),
+            vehicle=tracker.active_vehicle if tracker is not None else None,
+        )
 
     async def _async_track_vehicle_energy(self, metrics: EVMetrics) -> None:
         """Route charged energy into the active vehicle's total.
@@ -356,3 +429,16 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
             if str(info.get("ip", "")).strip() == host:
                 return info
         return {"ip": host}
+
+
+def _option_text(options: Any, key: str) -> str:
+    value = options.get(key)
+    return "" if value is None else str(value)
+
+
+def _option_float(options: Any, key: str) -> float:
+    """Prices are typed by hand, so a stray comma must not break a poll."""
+    try:
+        return float(options.get(key) or 0.0)
+    except (TypeError, ValueError):
+        return 0.0

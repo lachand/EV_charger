@@ -106,7 +106,9 @@
           "max_house_power_w": "Maximum house power for load balancing (W, 0 = off)",
           "off_peak_windows": "Off-peak windows (e.g. 22:00-06:00, 12:30-14:30; empty = charge any time)",
           "departure_time": "Departure time (HH:MM, empty = no deadline)",
-          "departure_energy_kwh": "Energy needed by departure (kWh, 0 = off)"
+          "departure_energy_kwh": "Energy needed by departure (kWh, 0 = off)",
+          "off_peak_price": "Off-peak price per kWh (0 = no cost tracking)",
+          "peak_price": "Peak price per kWh (0 = no cost tracking)"
         }
       }
     }
@@ -222,6 +224,12 @@
       },
       "evcc_status": {
         "name": "evcc status"
+      },
+      "last_session_cost": {
+        "name": "Last session cost"
+      },
+      "session_count": {
+        "name": "Recorded sessions"
       }
     },
     "number": {

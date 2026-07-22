@@ -289,6 +289,7 @@ charging, instead of holding the last value.
 | `max_house_power_w` | Subscribed power for load balancing; `0` disables it |
 | `off_peak_windows` | `22:00-06:00, 12:30-14:30`; empty charges at any hour |
 | `departure_time` / `departure_energy_kwh` | Deadline that overrides the off-peak wait |
+| `off_peak_price` / `peak_price` | Price per kWh; enables session cost estimation |
 | `surplus_mode_enabled` | Master switch for surplus mode |
 | `surplus_sensor_entity_id`, `surplus_sensor_inverted` | Grid power sensor and its sign |
 | `surplus_start_threshold_w`, `surplus_stop_threshold_w` | Start/stop thresholds |
@@ -363,6 +364,36 @@ action: tuya_ev_charger.profile_assistant
 data:
   apply: false
 ```
+
+---
+
+## Session history and cost
+
+The charger remembers exactly **one** session: DP 105 is overwritten by the
+next. "How much did I charge last month" is therefore unanswerable from the
+device itself.
+
+Each completed session is now logged as it is announced, with its duration,
+energy, off-peak/peak split, the vehicle it was attributed to, and its estimated
+cost. The last 60 are kept.
+
+Two entities:
+
+- `sensor.last_session_cost` — cost of the most recent session, with the
+  breakdown as attributes. Unavailable until a price is set.
+- `sensor.session_count` — how many sessions are on record, with the whole log,
+  total energy and total cost as attributes. **Disabled by default**, since its
+  attributes are large.
+
+Set **Off-peak price per kWh** and **Peak price per kWh** to enable costing. One
+of the two is enough for a flat tariff. With both at `0` the cost is reported as
+*unknown* rather than as `0` — a sensor showing 0 € for every session reads as a
+working meter reporting free electricity.
+
+**The cost is an estimate.** The charger gives a duration and a total, with no
+timestamps and no breakdown, so the off-peak share is reconstructed from the
+session's wall-clock window and the energy apportioned by time. That is accurate
+for a wallbox holding a setpoint, and less so while a nearly-full car tapers.
 
 ---
 

@@ -43,6 +43,7 @@ from .const import (
 from .coordinator import TuyaEVChargerDataUpdateCoordinator
 from .entity_cleanup import async_disable_entities, unavailable_capability_keys
 from .repairs import ISSUE_TIDY_ENTITIES, async_clear, async_offer_entity_cleanup
+from .session_history import SessionHistory
 from .solar_surplus import SolarSurplusController
 from .surplus_profiles import (
     apply_surplus_profile,
@@ -115,6 +116,7 @@ class TuyaEVChargerRuntimeData:
     coordinator: TuyaEVChargerDataUpdateCoordinator
     solar_surplus_controller: SolarSurplusController | None = None
     vehicle_tracker: VehicleEnergyTracker | None = None
+    session_history: SessionHistory | None = None
 
 
 def _scan_interval_seconds(entry: ConfigEntry) -> int:
@@ -187,6 +189,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await vehicle_tracker.async_load()
     runtime_data.vehicle_tracker = vehicle_tracker
     coordinator.vehicle_tracker = vehicle_tracker
+
+    session_history = SessionHistory(hass, entry.entry_id)
+    await session_history.async_load()
+    runtime_data.session_history = session_history
+    coordinator.session_history = session_history
 
     runtime_data.solar_surplus_controller = SolarSurplusController(
         hass=hass,

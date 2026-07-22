@@ -30,7 +30,9 @@ from .const import (
     CONF_LOCAL_KEY,
     CONF_MAC,
     CONF_MAX_HOUSE_POWER_W,
+    CONF_OFF_PEAK_PRICE,
     CONF_OFF_PEAK_WINDOWS,
+    CONF_PEAK_PRICE,
     CONF_PROTOCOL_VERSION,
     CONF_SCAN_INTERVAL,
     CONF_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
@@ -58,7 +60,9 @@ from .const import (
     DEFAULT_DEPARTURE_TIME,
     DEFAULT_MAX_HOUSE_POWER_W,
     DEFAULT_NAME,
+    DEFAULT_OFF_PEAK_PRICE,
     DEFAULT_OFF_PEAK_WINDOWS,
+    DEFAULT_PEAK_PRICE,
     DEFAULT_PROTOCOL_VERSION,
     DEFAULT_SCAN_INTERVAL_SECONDS,
     DEFAULT_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
@@ -137,7 +141,7 @@ class _Opt:
     """
 
     key: str
-    kind: str  # bool | entity | int | text | choice | multiline
+    kind: str  # bool | entity | int | price | text | choice | multiline
     default: Any = None
     minimum: int = 0
     maximum: int = 0
@@ -157,6 +161,8 @@ _OPTIONS_FORM: tuple[_Opt, ...] = (
     _Opt(CONF_DEPARTURE_TIME, "text", DEFAULT_DEPARTURE_TIME),
     _Opt(CONF_DEPARTURE_ENERGY_KWH, "int", DEFAULT_DEPARTURE_ENERGY_KWH,
          MIN_DEPARTURE_ENERGY_KWH, MAX_DEPARTURE_ENERGY_KWH),
+    _Opt(CONF_OFF_PEAK_PRICE, "price", DEFAULT_OFF_PEAK_PRICE),
+    _Opt(CONF_PEAK_PRICE, "price", DEFAULT_PEAK_PRICE),
     _Opt(CONF_SURPLUS_MODE_ENABLED, "bool", DEFAULT_SURPLUS_MODE_ENABLED),
     _Opt(CONF_SURPLUS_SENSOR_ENTITY_ID, "entity", DEFAULT_SURPLUS_SENSOR_ENTITY_ID),
     _Opt(CONF_SURPLUS_SENSOR_INVERTED, "bool", DEFAULT_SURPLUS_SENSOR_INVERTED),
@@ -651,6 +657,14 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                         opt.choices,
                     )
                 fields[vol.Required(opt.key, default=default)] = vol.In(opt.choices)
+            elif opt.kind == "price":
+                # Prices are small floats, so the int path would round a 0.16
+                # tariff to 0 and silently report every session as free.
+                if default is None:
+                    default = _option_float(options, opt.key, opt.default)
+                fields[vol.Required(opt.key, default=default)] = vol.All(
+                    vol.Coerce(float), vol.Range(min=0, max=100)
+                )
             elif opt.kind == "multiline":
                 if default is None:
                     default = _option_text(options, opt.key, opt.default)
@@ -801,6 +815,13 @@ def _option_int(
     except (TypeError, ValueError):
         value = default
     return max(minimum, min(maximum, value))
+
+
+def _option_float(options: Mapping[str, Any], key: str, default: float) -> float:
+    try:
+        return max(0.0, float(options.get(key, default)))
+    except (TypeError, ValueError):
+        return float(default)
 
 
 def _option_bool(options: Mapping[str, Any], key: str, default: bool) -> bool:
