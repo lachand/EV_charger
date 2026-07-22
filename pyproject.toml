@@ -23,3 +23,20 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["custom_components"]
+
+[tool.coverage.run]
+source = ["custom_components/tuya_ev_charger"]
+omit = [
+    # Entity platforms are thin wrappers over the coordinator; covering them
+    # would mostly assert that Home Assistant works.
+    "*/binary_sensor.py",
+    "*/button.py",
+    "*/time.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]

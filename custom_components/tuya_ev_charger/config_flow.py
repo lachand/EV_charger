@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 import voluptuous as vol
@@ -111,6 +112,63 @@ OPTIONAL_ENTITY_OPTIONS: tuple[str, ...] = (
     CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
     CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
     CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
+)
+
+
+
+@dataclass(frozen=True, slots=True)
+class _Opt:
+    """One row of the options form.
+
+    The surplus form is twenty fields following three repeating shapes, so it is
+    described rather than written out: the order here is the order on screen.
+    """
+
+    key: str
+    kind: str  # bool | entity | int | text | choice | multiline
+    default: Any = None
+    minimum: int = 0
+    maximum: int = 0
+    choices: tuple[str, ...] = ()
+
+
+_OPTIONS_FORM: tuple[_Opt, ...] = (
+    _Opt(CONF_SCAN_INTERVAL, "int", DEFAULT_SCAN_INTERVAL_SECONDS,
+         MIN_SCAN_INTERVAL_SECONDS, MAX_SCAN_INTERVAL_SECONDS),
+    _Opt(CONF_CHARGER_PROFILE, "choice", DEFAULT_CHARGER_PROFILE, choices=CHARGER_PROFILES),
+    _Opt(CONF_CHARGER_PROFILE_JSON, "multiline", DEFAULT_CHARGER_PROFILE_JSON),
+    _Opt(CONF_CONTINUOUS_CURRENT, "bool", DEFAULT_CONTINUOUS_CURRENT),
+    _Opt(CONF_VEHICLES, "text", DEFAULT_VEHICLES),
+    _Opt(CONF_SURPLUS_MODE_ENABLED, "bool", DEFAULT_SURPLUS_MODE_ENABLED),
+    _Opt(CONF_SURPLUS_SENSOR_ENTITY_ID, "entity", DEFAULT_SURPLUS_SENSOR_ENTITY_ID),
+    _Opt(CONF_SURPLUS_SENSOR_INVERTED, "bool", DEFAULT_SURPLUS_SENSOR_INVERTED),
+    _Opt(CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID, "entity",
+         DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID),
+    _Opt(CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED, "bool",
+         DEFAULT_SURPLUS_CURTAILMENT_SENSOR_INVERTED),
+    _Opt(CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID, "entity",
+         DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID),
+    _Opt(CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT, "int",
+         DEFAULT_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
+         MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT),
+    _Opt(CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT, "int",
+         DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
+         MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT),
+    _Opt(CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID, "entity",
+         DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID),
+    _Opt(CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED, "bool",
+         DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED),
+    _Opt(CONF_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV, "bool",
+         DEFAULT_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV),
+    _Opt(CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W, "int",
+         DEFAULT_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
+         MIN_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W, MAX_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W),
+    _Opt(CONF_SURPLUS_START_THRESHOLD_W, "int", DEFAULT_SURPLUS_START_THRESHOLD_W,
+         MIN_SURPLUS_THRESHOLD_W, MAX_SURPLUS_THRESHOLD_W),
+    _Opt(CONF_SURPLUS_STOP_THRESHOLD_W, "int", DEFAULT_SURPLUS_STOP_THRESHOLD_W,
+         MIN_SURPLUS_THRESHOLD_W, MAX_SURPLUS_THRESHOLD_W),
+    _Opt(CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID, "entity",
+         DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID),
 )
 
 
@@ -530,6 +588,63 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         self._config_entry = config_entry
 
+
+    def _build_options_schema(
+        self,
+        options: Mapping[str, Any],
+        computed: Mapping[str, Any],
+    ) -> vol.Schema:
+        """Turn the options table into a voluptuous schema.
+
+        ``computed`` carries the values that cannot come straight from storage,
+        such as thresholds clamped against each other.
+        """
+        fields: dict[Any, Any] = {}
+        for opt in _OPTIONS_FORM:
+            if opt.kind == "entity":
+                # No voluptuous default here: an inserted None fails the entity
+                # selector, and wrapping the selector to tolerate it breaks the
+                # schema serialisation the frontend needs.
+                current = _option_entity(options, opt.key, opt.default)
+                fields[
+                    vol.Optional(opt.key, description={"suggested_value": current})
+                ] = _sensor_selector()
+                continue
+
+            default = computed.get(opt.key)
+            if opt.kind == "bool":
+                if default is None:
+                    default = _option_bool(options, opt.key, opt.default)
+                fields[vol.Required(opt.key, default=default)] = bool
+            elif opt.kind == "int":
+                if default is None:
+                    default = _option_int(
+                        options, opt.key, opt.default, opt.minimum, opt.maximum
+                    )
+                fields[vol.Required(opt.key, default=default)] = vol.All(
+                    vol.Coerce(int), vol.Range(min=opt.minimum, max=opt.maximum)
+                )
+            elif opt.kind == "choice":
+                if default is None:
+                    default = _option_choice(
+                        options,
+                        opt.key,
+                        str(self._config_entry.data.get(opt.key, opt.default)),
+                        opt.choices,
+                    )
+                fields[vol.Required(opt.key, default=default)] = vol.In(opt.choices)
+            elif opt.kind == "multiline":
+                if default is None:
+                    default = _option_text(options, opt.key, opt.default)
+                fields[vol.Optional(opt.key, default=default)] = selector.TextSelector(
+                    selector.TextSelectorConfig(multiline=True)
+                )
+            else:  # text
+                if default is None:
+                    default = _option_text(options, opt.key, opt.default)
+                fields[vol.Optional(opt.key, default=default)] = str
+        return vol.Schema(fields)
+
     async def async_step_init(
         self,
         user_input: dict[str, Any] | None = None,
@@ -631,182 +746,17 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_SCAN_INTERVAL, default=current_scan_interval): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_SCAN_INTERVAL_SECONDS,
-                            max=MAX_SCAN_INTERVAL_SECONDS,
-                        ),
-                    ),
-                    vol.Required(
-                        CONF_CHARGER_PROFILE,
-                        default=_option_choice(
-                            options,
-                            CONF_CHARGER_PROFILE,
-                            str(
-                                self._config_entry.data.get(
-                                    CONF_CHARGER_PROFILE,
-                                    DEFAULT_CHARGER_PROFILE,
-                                )
-                            ),
-                            CHARGER_PROFILES,
-                        ),
-                    ): vol.In(CHARGER_PROFILES),
-                    vol.Optional(
-                        CONF_CHARGER_PROFILE_JSON,
-                        default=charger_profile_json,
-                    ): selector.TextSelector(
-                        selector.TextSelectorConfig(
-                            multiline=True,
-                        )
-                    ),
-                    vol.Required(
-                        CONF_CONTINUOUS_CURRENT,
-                        default=_option_bool(
-                            options,
-                            CONF_CONTINUOUS_CURRENT,
-                            DEFAULT_CONTINUOUS_CURRENT,
-                        ),
-                    ): bool,
-                    vol.Optional(
-                        CONF_VEHICLES,
-                        default=_option_text(
-                            options, CONF_VEHICLES, DEFAULT_VEHICLES
-                        ),
-                    ): str,
-                    vol.Required(
-                        CONF_SURPLUS_MODE_ENABLED,
-                        default=_option_bool(
-                            options,
-                            CONF_SURPLUS_MODE_ENABLED,
-                            DEFAULT_SURPLUS_MODE_ENABLED,
-                        ),
-                    ): bool,
-                    vol.Optional(
-                        CONF_SURPLUS_SENSOR_ENTITY_ID,
-                        description={"suggested_value": _option_entity(
-                            options,
-                            CONF_SURPLUS_SENSOR_ENTITY_ID,
-                            DEFAULT_SURPLUS_SENSOR_ENTITY_ID,
-                        )},
-                    ): _sensor_selector(),
-                    vol.Required(
-                        CONF_SURPLUS_SENSOR_INVERTED,
-                        default=_option_bool(
-                            options,
-                            CONF_SURPLUS_SENSOR_INVERTED,
-                            DEFAULT_SURPLUS_SENSOR_INVERTED,
-                        ),
-                    ): bool,
-                    vol.Optional(
-                        CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
-                        description={"suggested_value": _option_entity(
-                            options,
-                            CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
-                            DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
-                        )},
-                    ): _sensor_selector(),
-                    vol.Required(
-                        CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
-                        default=_option_bool(
-                            options,
-                            CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
-                            DEFAULT_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
-                        ),
-                    ): bool,
-                    vol.Optional(
-                        CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
-                        description={"suggested_value": _option_entity(
-                            options,
-                            CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
-                            DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
-                        )},
-                    ): _sensor_selector(),
-                    vol.Required(
-                        CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
-                        default=high_threshold,
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-                            max=MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-                        ),
-                    ),
-                    vol.Required(
-                        CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
-                        default=low_threshold,
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-                            max=MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-                        ),
-                    ),
-                    vol.Optional(
-                        CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
-                        description={"suggested_value": _option_entity(
-                            options,
-                            CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
-                            DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
-                        )},
-                    ): _sensor_selector(),
-                    vol.Required(
-                        CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
-                        default=_option_bool(
-                            options,
-                            CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
-                            DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
-                        ),
-                    ): bool,
-                    vol.Required(
-                        CONF_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
-                        default=_option_bool(
-                            options,
-                            CONF_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
-                            DEFAULT_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
-                        ),
-                    ): bool,
-                    vol.Required(
-                        CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-                        default=max_battery_discharge,
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-                            max=MAX_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-                        ),
-                    ),
-                    vol.Required(
-                        CONF_SURPLUS_START_THRESHOLD_W,
-                        default=start_threshold_w,
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_SURPLUS_THRESHOLD_W,
-                            max=MAX_SURPLUS_THRESHOLD_W,
-                        ),
-                    ),
-                    vol.Required(
-                        CONF_SURPLUS_STOP_THRESHOLD_W,
-                        default=stop_threshold_w,
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(
-                            min=MIN_SURPLUS_THRESHOLD_W,
-                            max=MAX_SURPLUS_THRESHOLD_W,
-                        ),
-                    ),
-                    vol.Optional(
-                        CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
-                        description={"suggested_value": _option_entity(
-                            options,
-                            CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
-                            DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
-                        )},
-                    ): _sensor_selector(),
-                }
+            data_schema=self._build_options_schema(
+                options,
+                computed={
+                    CONF_SCAN_INTERVAL: current_scan_interval,
+                    CONF_CHARGER_PROFILE_JSON: charger_profile_json,
+                    CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT: high_threshold,
+                    CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT: low_threshold,
+                    CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W: max_battery_discharge,
+                    CONF_SURPLUS_START_THRESHOLD_W: start_threshold_w,
+                    CONF_SURPLUS_STOP_THRESHOLD_W: stop_threshold_w,
+                },
             ),
         )
 

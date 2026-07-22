@@ -11,12 +11,12 @@ to know where we are and what to do next, without re-auditing the repository.
 
 ## Resume here
 
-- **Current version:** 2.5.0
-- **Phase in progress:** Phases 1–3 done → **start Phase 4** (A3.2/A3.3 + A5.2/A5.3)
-- **Next concrete action:** cover the remaining untested modules — `vehicles.py` (energy
-  accounting), `cloud.py`, `config_flow.py` — add coverage reporting to CI, then make the options
-  schema data-driven (A5.2) and fold `async_tcp_reachable` into `async_classify_fault` (A5.3).
-  Suite is at **77 tests**; `surplus_decision.py` is the pure layer B1/B2/B3 will build on.
+- **Current version:** 2.5.1
+- **Phase in progress:** Phases 1–4 done → **start Phase 5** (B3, dynamic load balancing)
+- **Next concrete action:** cap the charging current so the house main breaker cannot trip. The
+  grid power sensor is already read for surplus mode and `cap_to_available_power()` already exists
+  in `surplus_decision.py`; what is missing is the option (main breaker rating), wiring it into the
+  controller, and tests. Suite is at **91 tests**, coverage **42 %**.
 - **Blocked on hardware:** the charger refuses local TCP connections (its single local slot is held
   by something else). Anything needing a live read is stuck until a real power-cycle frees it. This
   blocks *verification* only, not implementation.
@@ -38,8 +38,8 @@ does not justify that.
 | 1 | Lot 1 — verified bugs | 2.3.1 | ✅ done |
 | 2 | Lot 2 + Lot 4 — HA conventions, tooling | 2.4.0 | ✅ done |
 | 3 | Lot 5.1 + Lot 3.1 — extract and test the surplus decision layer | 2.5.0 | ✅ done |
-| 4 | Lot 3.2/3.3 + Lot 5.2/5.3 — remaining tests and refactoring | 2.5.x | 🔄 next |
-| 5 | B3 — dynamic load balancing | 2.6.0 | ⬜ to do |
+| 4 | Lot 3.2/3.3 + Lot 5.2/5.3 — remaining tests and refactoring | 2.5.1 | ✅ done |
+| 5 | B3 — dynamic load balancing | 2.6.0 | 🔄 next |
 | 6 | B1 then B2 — tariffs, departure planning | 2.7.0 | ⬜ to do |
 | 7 | B4, B5, B7, B8, B9, B10 | 2.8+ | ⬜ to do |
 | 8 | Lot 6 — documentation | ongoing | ⬜ to do |
@@ -80,13 +80,17 @@ Notes from the implementation:
 | A2.3 | ✅ 2.4.0 | `manifest.json` lacks `integration_type: "device"` and `quality_scale`. |
 | A2.4 | ✅ 2.4.0 | Services take `entry_id` as **free text**; HA provides a `config_entry` selector, and `target:` would address the device naturally. Service names/descriptions should move from `services.yaml` to the `services` key of `strings.json`. |
 
-### Lot 3 — Tests 🟠 (phases 3–4)
+### Lot 3 — Tests 🟠 (phases 3–4) — ✅ done
+
+Coverage now measured in CI. `surplus_decision` 98 %, `vehicles` 97 %, `cloud` 91 %, `helpers` 96 %.
+The two low scores are deliberate: `solar_surplus` (17 %) is the state machine left unrefactored,
+and the entity platforms are thin wrappers omitted from the report.
 
 | # | State | Finding |
 |---|---|---|
 | A3.1 | ✅ 2.5.0 | **`solar_surplus.py` (1 197 lines) has zero tests** — state machine, thresholds, battery hysteresis, ramps, cooldowns. The costliest place for a regression and the least visible. |
-| A3.2 | ⬜ | Also uncovered: `vehicles.py` (energy accounting, re-baselining on reset), `cloud.py`, `config_flow.py`, and every entity platform. 6 of 20 modules covered. |
-| A3.3 | ⬜ | No coverage measurement in CI, so drift is invisible. |
+| A3.2 | ✅ 2.5.1 | Also uncovered: `vehicles.py` (energy accounting, re-baselining on reset), `cloud.py`, `config_flow.py`, and every entity platform. 6 of 20 modules covered. |
+| A3.3 | ✅ 2.5.1 | No coverage measurement in CI, so drift is invisible. |
 
 ### Lot 4 — Tooling and hygiene 🟡 (phase 2) — ✅ shipped in 2.4.0
 
@@ -106,8 +110,8 @@ annotations without an import, hidden by `from __future__ import annotations`. R
 | # | State | Finding |
 |---|---|---|
 | A5.1 | ✅ 2.5.0 | *(partial: the arithmetic is out in `surplus_decision.py`; the state machine stays in the controller — rewriting it blind, on hardware that cannot currently be reached, would be reckless)* **`solar_surplus.py` was a 1 197-line monolith** mixing sensor reading, state machine, decision, ramping and snapshotting. This is the direct cause of A3.1: untestable because it does everything. Extract a **pure decision layer** (inputs → decision) testable without HA. |
-| A5.2 | ⬜ | `config_flow.py` is 914 lines, with the options schema as one giant literal. Make it data-driven. |
-| A5.3 | ⬜ | `async_classify_fault()` re-implements `async_tcp_reachable()`. |
+| A5.2 | ✅ 2.5.1 | `config_flow.py` is 914 lines, with the options schema as one giant literal. Make it data-driven. |
+| A5.3 | ✅ 2.5.1 | `async_classify_fault()` re-implements `async_tcp_reachable()`. |
 
 ### Lot 6 — Documentation 🟢 (phase 8)
 

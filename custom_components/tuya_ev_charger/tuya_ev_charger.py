@@ -282,13 +282,9 @@ class TuyaEVChargerClient:
         self._local_key = local_key
         await self.async_connect()
 
-    async def async_classify_fault(self) -> str:
-        """Work out why reads are failing, so the user gets an actionable message.
+    async def _async_probe_port(self) -> str:
+        """Classify what the control port does when we knock on it."""
 
-        Distinguishes a wrong/absent address from a control port that actively
-        refuses us (its single local connection is taken) from a port that talks
-        but whose payload no longer decrypts (rotated local_key).
-        """
         def _connect() -> str:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(SOCKET_TIMEOUT_S)
@@ -296,13 +292,24 @@ class TuyaEVChargerClient:
                 sock.connect((self._host, TUYA_CONTROL_PORT))
                 return ConnectionFault.OK
             except ConnectionRefusedError:
+                # The host is up and actively rejecting us: a Tuya charger takes
+                # a single local connection, so something else almost certainly
+                # holds it.
                 return ConnectionFault.REFUSED
             except OSError:
                 return ConnectionFault.UNREACHABLE
             finally:
                 sock.close()
 
-        verdict = await asyncio.to_thread(_connect)
+        return await asyncio.to_thread(_connect)
+
+    async def async_classify_fault(self) -> str:
+        """Work out why reads are failing, so the user gets an actionable message.
+
+        Separates a wrong or absent address, from a port that refuses us, from a
+        port that talks but whose payload no longer decrypts (rotated local_key).
+        """
+        verdict = await self._async_probe_port()
         if verdict != ConnectionFault.OK:
             return verdict
         # The port answers, so a failed read points at the credentials.
@@ -313,24 +320,8 @@ class TuyaEVChargerClient:
         )
 
     async def async_tcp_reachable(self) -> bool:
-        """True if the charger's control port accepts a TCP connection.
-
-        Lets the caller tell a network/IP problem (port unreachable) apart from a
-        credential problem (port answers but the payload will not decrypt).
-        """
-
-        def _connect() -> bool:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(SOCKET_TIMEOUT_S)
-            try:
-                sock.connect((self._host, TUYA_CONTROL_PORT))
-                return True
-            except OSError:
-                return False
-            finally:
-                sock.close()
-
-        return await asyncio.to_thread(_connect)
+        """True when the control port accepts a TCP connection."""
+        return await self._async_probe_port() == ConnectionFault.OK
 
     async def async_close(self) -> None:
         """Close the socket so it never lingers on the charger's single slot.

@@ -179,15 +179,24 @@ def _install_stubs() -> None:
         RepairsFlow=type("RepairsFlow", (), {}),
         ConfirmRepairFlow=type("ConfirmRepairFlow", (), {}),
     )
+    class _Selector:
+        """Selectors must be callable: voluptuous compiles them as validators."""
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            self.config = args[0] if args else kwargs
+
+        def __call__(self, value: Any) -> Any:
+            return value
+
     _module(
         "homeassistant.helpers.selector",
-        EntitySelector=type("EntitySelector", (), {"__init__": lambda self, *a, **k: None}),
+        EntitySelector=type("EntitySelector", (_Selector,), {}),
         EntitySelectorConfig=lambda **k: k,
-        SelectSelector=type("SelectSelector", (), {"__init__": lambda self, *a, **k: None}),
+        SelectSelector=type("SelectSelector", (_Selector,), {}),
         SelectSelectorConfig=lambda **k: k,
         SelectOptionDict=lambda **k: k,
         SelectSelectorMode=types.SimpleNamespace(LIST="list"),
-        TextSelector=type("TextSelector", (), {"__init__": lambda self, *a, **k: None}),
+        TextSelector=type("TextSelector", (_Selector,), {}),
         TextSelectorConfig=lambda **k: k,
     )
     _module("homeassistant.helpers.service_info")

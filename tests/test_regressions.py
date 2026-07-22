@@ -64,11 +64,36 @@ def test_optional_entity_left_empty_still_validates():
 
 
 def test_options_form_declares_no_defaults_on_entity_pickers():
-    """A voluptuous default is validated on insert, so None fails the selector."""
-    source = (COMPONENT / "config_flow.py").read_text()
-    options_step = source.split('step_id="init"')[1]
-    assert "vol.Any(_sensor_selector" not in options_step
-    assert options_step.count('description={"suggested_value"') == 5
+    """A voluptuous default is validated on insert, so None fails the selector.
+
+    Checked on the schema the flow actually builds, not on its source text, so
+    the guard survives the form being restructured.
+    """
+    import types
+
+    from tuya_ev_charger.config_flow import (
+        OPTIONAL_ENTITY_OPTIONS,
+        TuyaEVChargerOptionsFlow,
+    )
+
+    flow = TuyaEVChargerOptionsFlow(
+        types.SimpleNamespace(data={}, options={}, entry_id="test")
+    )
+    schema = flow._build_options_schema({}, computed={})
+
+    entity_markers = [
+        marker for marker in schema.schema if str(marker) in OPTIONAL_ENTITY_OPTIONS
+    ]
+    assert len(entity_markers) == len(OPTIONAL_ENTITY_OPTIONS)
+
+    for marker in entity_markers:
+        assert marker.default is vol.UNDEFINED, (
+            f"{marker} carries a default; voluptuous validates inserted defaults, "
+            "so an untouched picker would fail with 'not a valid entity ID'"
+        )
+        assert marker.description == {"suggested_value": None} or "suggested_value" in (
+            marker.description or {}
+        )
 
 
 def test_diagnostics_redacts_every_secret():
