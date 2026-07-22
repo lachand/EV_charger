@@ -148,6 +148,48 @@ Everything else — battery thresholds, forecast, curtailment — is optional.
 
 ---
 
+## Load balancing
+
+Set **Maximum house power** to your subscribed power in watts (`0` disables it).
+Using the same grid sensor as surplus mode, the integration keeps the whole
+house — car included — under that limit: it caps the charging current, and stops
+charging outright if even the minimum current would not fit.
+
+This is a safety limit, not a surplus feature: it applies **whether or not
+surplus mode is on**, and nothing raises the current above the cap afterwards.
+With no grid sensor, or when its reading is unavailable, no cap is applied —
+capping on a stale measurement would be worse than not capping at all.
+
+Typical case: a 6 kVA subscription with the oven, the hob and the car all on.
+
+---
+
+## Off-peak hours and departure time
+
+Two optional settings, both empty by default and both inert until filled in:
+
+| Option | Example | Meaning |
+|---|---|---|
+| **Off-peak windows** | `22:00-06:00, 12:30-14:30` | Only charge during these hours |
+| **Departure time** | `07:00` | Be ready by then… |
+| **Energy needed by departure** | `20` | …with this many kWh delivered |
+
+With windows configured, charging waits for off-peak. The deadline overrides
+that: once waiting any longer would miss the departure — the remaining energy at
+the current charging power, plus a 20-minute safety margin — the charge starts
+immediately, off-peak or not. A departure time without an energy target does
+nothing, since there is no way to know how long the charge takes.
+
+Malformed windows are ignored rather than fatal, so a typo narrows the schedule
+instead of breaking the integration.
+
+**Current limitation:** the planner applies when surplus mode is **off**. With
+surplus mode on, surplus regulation decides alone and the off-peak schedule is
+not consulted — combining the two (solar first, off-peak next, full price last)
+is planned but not implemented.
+
+---
+
 ## Per-vehicle energy tracking
 
 Set the `vehicles` option to a comma-separated list, e.g. `Zoe, Kangoo`. That
@@ -244,6 +286,9 @@ charging, instead of holding the last value.
 | `charger_profile` / `charger_profile_json` | DP mapping; custom JSON overrides |
 | `continuous_current` | 1 A steps (default **on**) |
 | `vehicles` | Comma-separated car names; enables per-vehicle tracking |
+| `max_house_power_w` | Subscribed power for load balancing; `0` disables it |
+| `off_peak_windows` | `22:00-06:00, 12:30-14:30`; empty charges at any hour |
+| `departure_time` / `departure_energy_kwh` | Deadline that overrides the off-peak wait |
 | `surplus_mode_enabled` | Master switch for surplus mode |
 | `surplus_sensor_entity_id`, `surplus_sensor_inverted` | Grid power sensor and its sign |
 | `surplus_start_threshold_w`, `surplus_stop_threshold_w` | Start/stop thresholds |

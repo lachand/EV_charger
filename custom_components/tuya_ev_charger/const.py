@@ -89,6 +89,9 @@ CONF_CLOUD_REGION = "cloud_region"
 CONF_CONTINUOUS_CURRENT = "continuous_current"
 CONF_VEHICLES = "vehicles"
 CONF_MAX_HOUSE_POWER_W = "max_house_power_w"
+CONF_OFF_PEAK_WINDOWS = "off_peak_windows"
+CONF_DEPARTURE_TIME = "departure_time"
+CONF_DEPARTURE_ENERGY_KWH = "departure_energy_kwh"
 CONF_DEVICE_ID = "device_id"
 CONF_LOCAL_KEY = "local_key"
 CONF_MAC = "mac"
@@ -166,6 +169,16 @@ DEFAULT_VEHICLES = ""
 DEFAULT_MAX_HOUSE_POWER_W = 0
 MIN_MAX_HOUSE_POWER_W = 0
 MAX_MAX_HOUSE_POWER_W = 36000
+# Tariff-aware charging. Windows like "22:00-06:00, 12:30-14:30"; empty means no
+# tariff arbitration at all, so the feature can never block a charge for someone
+# who has not configured it.
+DEFAULT_OFF_PEAK_WINDOWS = ""
+# Optional deadline: be at this time with this much energy delivered. Charging
+# is deferred to off-peak until waiting would miss it.
+DEFAULT_DEPARTURE_TIME = ""
+DEFAULT_DEPARTURE_ENERGY_KWH = 0
+MIN_DEPARTURE_ENERGY_KWH = 0
+MAX_DEPARTURE_ENERGY_KWH = 200
 MIN_SCAN_INTERVAL_SECONDS = 5
 MAX_SCAN_INTERVAL_SECONDS = 300
 DEFAULT_SCAN_INTERVAL = timedelta(seconds=DEFAULT_SCAN_INTERVAL_SECONDS)

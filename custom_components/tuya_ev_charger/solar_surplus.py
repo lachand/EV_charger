@@ -13,9 +13,20 @@ from homeassistant.core import Event, EventStateChangedData, HomeAssistant, call
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.util import dt as dt_util
 
+from .charge_planner import (
+    ChargeWindow,
+    Plan,
+    PlanRequest,
+    parse_clock,
+    parse_windows,
+    plan_charge,
+)
 from .const import (
     CHARGER_PROFILE_DEPOW_V2,
+    CONF_DEPARTURE_ENERGY_KWH,
+    CONF_DEPARTURE_TIME,
     CONF_MAX_HOUSE_POWER_W,
+    CONF_OFF_PEAK_WINDOWS,
     CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
     CONF_SURPLUS_ADJUST_UP_COOLDOWN_S,
     CONF_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
@@ -34,7 +45,10 @@ from .const import (
     CONF_SURPLUS_SENSOR_INVERTED,
     CONF_SURPLUS_START_THRESHOLD_W,
     CONF_SURPLUS_STOP_THRESHOLD_W,
+    DEFAULT_DEPARTURE_ENERGY_KWH,
+    DEFAULT_DEPARTURE_TIME,
     DEFAULT_MAX_HOUSE_POWER_W,
+    DEFAULT_OFF_PEAK_WINDOWS,
     DEFAULT_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
     DEFAULT_SURPLUS_ADJUST_UP_COOLDOWN_S,
     DEFAULT_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
@@ -57,11 +71,13 @@ from .const import (
     DP_DO_CHARGE,
     DP_METRICS,
     DP_WORK_STATE_DEBUG,
+    MAX_DEPARTURE_ENERGY_KWH,
     MAX_MAX_HOUSE_POWER_W,
     MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MAX_SURPLUS_DELAY_S,
     MAX_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
     MAX_SURPLUS_THRESHOLD_W,
+    MIN_DEPARTURE_ENERGY_KWH,
     MIN_MAX_HOUSE_POWER_W,
     MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MIN_SURPLUS_DELAY_S,
@@ -71,6 +87,7 @@ from .const import (
 from .coordinator import TuyaEVChargerDataUpdateCoordinator
 from .helpers import allowed_currents
 from .surplus_decision import (
+    DEFAULT_LINE_VOLTAGE_V,
     ForecastState,
     SurplusInputs,
     apply_forecast,
@@ -97,12 +114,19 @@ FIXED_FORECAST_WEIGHT_PCT = 35
 FIXED_FORECAST_SMOOTHING_S = 180
 FIXED_FORECAST_DROP_GUARD_W = 500
 
+# Decisions taken outside surplus regulation, which must survive the
+# "surplus mode is off" branch rather than be flattened to "mode_disabled".
+_ACTIVE_WITHOUT_SURPLUS_REASONS = frozenset({"load_limit_reduced", "tariff_deadline"})
+
 
 @dataclass(slots=True, frozen=True)
 class SolarSurplusSettings:
     mode_enabled: bool
     grid_sensor_entity_id: str
     max_house_power_w: int
+    off_peak_windows: str
+    departure_time: str
+    departure_energy_kwh: int
     grid_sensor_inverted: bool
     curtailment_sensor_entity_id: str
     curtailment_sensor_inverted: bool
@@ -378,6 +402,28 @@ class SolarSurplusController:
             self._notify_state_listeners()
             return
 
+        # Tariff arbitration comes before load balancing only because refusing
+        # to charge at all makes capping moot. Surplus is exempt: free solar is
+        # cheaper than any off-peak rate, so it must not be deferred.
+        if not self._settings.mode_enabled:
+            tariff = self._plan_tariff(data, available_currents)
+            if tariff is not None and not tariff.allowed:
+                if is_charging:
+                    await self._client.async_set_charge_enabled(False)
+                    self._register_stop(now)
+                    await self._coordinator.async_request_refresh()
+                self._set_decision(f"tariff_{tariff.window.value}")
+                self._regulation_active = False
+                self._clear_surplus_debug_state()
+                self._notify_state_listeners()
+                return
+            if tariff is not None and tariff.window is ChargeWindow.DEADLINE and not is_charging:
+                # Waiting any longer would miss the departure deadline.
+                await self._client.async_set_charge_enabled(True)
+                self._start_session(now)
+                await self._coordinator.async_request_refresh()
+                self._set_decision("tariff_deadline")
+
         # Load balancing is a safety limit, not a surplus feature: it has to
         # apply even with surplus mode off, and nothing may raise the current
         # above it afterwards.
@@ -404,7 +450,9 @@ class SolarSurplusController:
         if not self._settings.mode_enabled:
             self._regulation_active = False
             self._clear_surplus_debug_state()
-            if self._last_decision_reason != "load_limit_reduced":
+            # Load balancing and the tariff planner both act with surplus mode
+            # off, and their reason is more informative than "disabled".
+            if self._last_decision_reason not in _ACTIVE_WITHOUT_SURPLUS_REASONS:
                 self._set_decision("mode_disabled")
             self._notify_state_listeners()
             return
@@ -768,6 +816,51 @@ class SolarSurplusController:
             self._forecast_last_sample_ts = result.state.last_sample_ts
         return result.effective_surplus_w
 
+    def _plan_tariff(
+        self,
+        data: EVMetrics,
+        available_currents: tuple[int, ...],
+    ) -> Plan | None:
+        """Whether the tariff schedule allows charging right now.
+
+        Returns None when no off-peak window is configured, so the caller can
+        skip the feature entirely rather than reason about an "always allowed"
+        plan.
+        """
+        windows = parse_windows(self._settings.off_peak_windows)
+        if not windows:
+            return None
+
+        target_kwh = float(self._settings.departure_energy_kwh)
+        return plan_charge(
+            PlanRequest(
+                now=dt_util.now(),
+                off_peak_windows=windows,
+                departure=parse_clock(self._settings.departure_time),
+                # Only what is still missing counts towards the deadline.
+                energy_needed_kwh=max(0.0, target_kwh - self._session_energy_kwh),
+                charge_power_kw=self._estimate_charge_power_kw(data, available_currents),
+            )
+        )
+
+    def _estimate_charge_power_kw(
+        self,
+        data: EVMetrics,
+        available_currents: tuple[int, ...],
+    ) -> float:
+        """Power to assume when estimating how long the charge will take.
+
+        While charging, the measurement. Otherwise a deliberately pessimistic
+        single-phase estimate: under-estimating power over-estimates the time
+        needed and starts the charge earlier, which is the harmless direction to
+        be wrong in when a departure deadline is at stake.
+        """
+        if data.total_power and data.total_power > 0:
+            return float(data.total_power)
+        if not available_currents:
+            return 0.0
+        return max(available_currents) * DEFAULT_LINE_VOLTAGE_V / 1000.0
+
     def _load_limit_current(
         self,
         data: EVMetrics,
@@ -1016,6 +1109,12 @@ def _settings_from_entry(entry: ConfigEntry) -> SolarSurplusSettings:
             options,
             CONF_SURPLUS_MODE_ENABLED,
             DEFAULT_SURPLUS_MODE_ENABLED,
+        ),
+        off_peak_windows=_option_str(options, CONF_OFF_PEAK_WINDOWS, DEFAULT_OFF_PEAK_WINDOWS),
+        departure_time=_option_str(options, CONF_DEPARTURE_TIME, DEFAULT_DEPARTURE_TIME),
+        departure_energy_kwh=_option_int(
+            options, CONF_DEPARTURE_ENERGY_KWH, DEFAULT_DEPARTURE_ENERGY_KWH,
+            MIN_DEPARTURE_ENERGY_KWH, MAX_DEPARTURE_ENERGY_KWH,
         ),
         max_house_power_w=_option_int(
             options, CONF_MAX_HOUSE_POWER_W, DEFAULT_MAX_HOUSE_POWER_W,
