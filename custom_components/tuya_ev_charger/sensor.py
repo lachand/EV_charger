@@ -13,6 +13,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
+    PERCENTAGE,
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
     UnitOfEnergy,
@@ -371,9 +372,49 @@ async def async_setup_entry(
             entry.options.get(CONF_VEHICLES, DEFAULT_VEHICLES)
         )
     )
+    entities.append(TuyaEVChargerConnectionHealthSensor(entry, runtime_data))
     entities.append(TuyaEVChargerLastSessionCostSensor(entry, runtime_data))
     entities.append(TuyaEVChargerSessionHistorySensor(entry, runtime_data))
     async_add_entities(entities)
+
+
+class TuyaEVChargerConnectionHealthSensor(TuyaEVChargerEntity, SensorEntity):
+    """Share of polls the charger answered, with the details as attributes.
+
+    A Tuya charger accepts a single local connection, so contention shows up as
+    intermittent failures rather than a clean outage — invisible on any other
+    entity, since the coordinator retries and the values simply go stale.
+    """
+
+    _attr_translation_key = "connection_health"
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_suggested_display_precision = 1
+
+    def __init__(
+        self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData
+    ) -> None:
+        super().__init__(entry=entry, runtime_data=runtime_data)
+        self._attr_unique_id = f"{runtime_data.client.device_id}_connection_health"
+
+    @property
+    def available(self) -> bool:
+        # Deliberately not gated on coordinator success: this sensor is most
+        # useful precisely when the charger is unreachable.
+        return True
+
+    @property
+    def native_value(self) -> float | None:
+        return self.coordinator.connection_health["success_rate_pct"]
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        health = dict(self.coordinator.connection_health)
+        # The IP is already on the device page and the discovery record is a
+        # diagnostics-sized blob; neither belongs in every state write.
+        health.pop("last_discovery", None)
+        return health
 
 
 class TuyaEVChargerLastSessionCostSensor(TuyaEVChargerEntity, SensorEntity):

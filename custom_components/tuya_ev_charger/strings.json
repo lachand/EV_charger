@@ -111,6 +111,9 @@
           "peak_price": "Peak price per kWh (0 = no cost tracking)"
         }
       }
+    },
+    "error": {
+      "invalid_dp_profile": "Custom DP mapping rejected: {dp_profile_problem}. Valid fields: {dp_profile_fields}."
     }
   },
   "entity": {
@@ -230,6 +233,9 @@
       },
       "session_count": {
         "name": "Recorded sessions"
+      },
+      "connection_health": {
+        "name": "Connection health"
       }
     },
     "number": {

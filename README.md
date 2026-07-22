@@ -254,6 +254,23 @@ Writes are skipped when the charger already holds the target value: every DP
 write makes the charger beep, and controllers re-assert the same setpoint on a
 timer.
 
+## Connection health
+
+`sensor.connection_health` reports the share of polls the charger answered, with
+the details as attributes: consecutive failures, last success and last failure,
+the cached fault verdict, how many times the charger was relocated after an IP
+change, and how many times the `local_key` was re-fetched.
+
+It stays **available while the charger is unreachable** — that is when it is
+worth reading. A Tuya charger accepts a single local connection, so contention
+with the Smart Life app shows up as intermittent failures rather than a clean
+outage, which is invisible on every other entity.
+
+The same information, plus the last discovery scan, is included in the
+diagnostics download.
+
+---
+
 ## Reconfiguring
 
 Use **Configure → Reconfigure** to change the address, `device_id` or
@@ -283,7 +300,7 @@ charging, instead of holding the last value.
 | Option | Purpose |
 |---|---|
 | `scan_interval` | Polling interval, seconds |
-| `charger_profile` / `charger_profile_json` | DP mapping; custom JSON overrides |
+| `charger_profile` / `charger_profile_json` | DP mapping; custom JSON overrides, validated on save |
 | `continuous_current` | 1 A steps (default **on**) |
 | `vehicles` | Comma-separated car names; enables per-vehicle tracking |
 | `max_house_power_w` | Subscribed power for load balancing; `0` disables it |

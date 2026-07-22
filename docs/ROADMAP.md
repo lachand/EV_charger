@@ -11,16 +11,17 @@ to know where we are and what to do next, without re-auditing the repository.
 
 ## Resume here
 
-- **Current version:** 2.10.0
-- **Phase in progress:** Phase 7 nearly done — B4 ✅, B7 ✅, B8 ✅, B9 ✅, B10 partly ✅, A6.1 ✅.
-  Remaining: **B5** (vehicle auto-identification) and the rest of **B10** (connection-health sensor,
-  assisted DP mapping, richer diagnostics).
-- **Next concrete action:** finish **B10**, which is three independent small pieces — start with
-  **richer diagnostics** (include the discovery scan result and the cached fault verdict), because
-  it is the one asked for by hand in every issue report (#5, #7) and it is a few lines in
-  `diagnostics.py`. Then the **connection-health sensor** (the coordinator already tracks
-  `_last_fault` and success timestamps). **B5** is last on purpose: it needs a third-party car
-  integration to test against, which no one here has. Suite is at **170 tests**.
+- **Current version:** 2.11.0
+- **Phase in progress:** Phase 7 done except **B5**. B4 ✅, B7 ✅, B8 ✅, B9 ✅, B10 ✅, A6.1 ✅.
+- **Next concrete action:** **phase 8, Lot 6** — issue templates (A6.2) and `CHANGELOG.md` +
+  `CONTRIBUTING.md` (A6.3). The issue template is the highest-value item left: every device report
+  so far has needed a manual round trip asking for `python -m tinytuya scan` and a DP dump while
+  charging. The template should demand both, plus the diagnostics download, which now carries the
+  version, the fault verdict and the discovery scan.
+  **B5** (vehicle auto-identification) is deliberately last and may stay undone: it needs a
+  third-party car integration to test against, which nobody here has. The blueprint
+  `vehicle_from_presence.yaml` already covers the practical case.
+  Suite is at **184 tests**.
 - **Hardware:** unblocked as of 2026-07-22. Read paths were re-validated live (status, phases,
   energy, evcc letter, capability detection, 1 A steps).
 - **Still unvalidated on hardware:** the DP 101 write behind `button.ready_to_charge` — it needs the
@@ -50,8 +51,8 @@ does not justify that.
 | 4 | Lot 3.2/3.3 + Lot 5.2/5.3 — remaining tests and refactoring | 2.5.1 | ✅ done |
 | 5 | B3 — dynamic load balancing | 2.6.0 | ✅ done |
 | 6 | B1 then B2 — tariffs, departure planning | 2.7.0 | ✅ done |
-| 7 | B4, B5, B7, B8, B9, B10 | 2.8+ | 🔄 in progress (B7 + part of B10 in 2.8.0; B8 in 2.9.0; B4 + B9 in 2.10.0) |
-| 8 | Lot 6 — documentation | ongoing | ⬜ to do |
+| 7 | B4, B5, B7, B8, B9, B10 | 2.8+ | ✅ done except B5 (2.8.0 → 2.11.0) |
+| 8 | Lot 6 — documentation | ongoing | 🔄 next (A6.1 done in 2.8.0) |
 
 The order is not arbitrary: each phase removes an obstacle for the next. The linter (phase 2) must
 exist before part B adds code; the surplus decision layer (phase 3) is the technical prerequisite
@@ -145,7 +146,7 @@ annotations without an import, hidden by `from __future__ import annotations`. R
 | B7 | ✅ 2.8.0 | **Automation blueprints** (phase 7) | Three shipped: `charge_notifications` (complete / fault / unplugged mid-charge), `night_charge` (schedule, skipping nights with no car plugged in), `vehicle_from_presence` (sets `active_vehicle` from a tracker). A surplus blueprint was *not* written: surplus is a built-in mode with its own options, so a blueprint would only duplicate it worse. |
 | B8 | ✅ 2.9.0 | **Device triggers** (phase 7) | `device_trigger.py`, five triggers over the `status` sensor. The status sensor is located by unique_id suffix, not entity_id, so renaming it does not break automations — and `evcc_status` shares that suffix, which is the trap the tests pin down. `unplugged_while_charging` is a transition (`charging → idle`), the one thing genuinely not expressible without reading the source. |
 | B9 | ✅ 2.10.0 | **Session history** (phase 7) | DP 105 gives the **last** session (start, end, duration, energy). Accumulating them enables a browsable history — useful for expense claims or simply knowing last month's usage. |
-| B10 | 🔄 partly 2.8.0 | **Comfort and reliability** (phase 7) | **Done:** `set_vehicle_energy` service (with a clamp at zero and validation against the configured names), and notifications via the blueprint rather than a hardcoded notifier. **Left:** connection-health sensor; assisted custom DP mapping; richer diagnostics. Original note: notifications (charge complete, fault, unexpected unplug); a connection-health sensor; a `set_vehicle_energy` service to correct a mis-attributed total; assisted custom DP mapping (validate `charger_profile_json`, show the DPs actually detected); richer diagnostics including the discovery scan result and the fault verdict — the two things always requested in reports (#5, #7). |
+| B10 | ✅ 2.11.0 | **Comfort and reliability** (phase 7) | **Done:** `set_vehicle_energy` service (with a clamp at zero and validation against the configured names), and notifications via the blueprint rather than a hardcoded notifier. **2.11.0:** `sensor.connection_health` (available *while* the charger is unreachable, which is the point); diagnostics now carry the integration version, the connection record and the discovery scan — with `ip`/`gwId`/`key` newly redacted, since a tinytuya scan record spells the same secrets differently from the config entry; custom DP mappings validated on save instead of silently falling back to the default profile. Original note: notifications (charge complete, fault, unexpected unplug); a connection-health sensor; a `set_vehicle_energy` service to correct a mis-attributed total; assisted custom DP mapping (validate `charger_profile_json`, show the DPs actually detected); richer diagnostics including the discovery scan result and the fault verdict — the two things always requested in reports (#5, #7). |
 
 ---
 

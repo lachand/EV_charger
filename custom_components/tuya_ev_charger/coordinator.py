@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -78,6 +78,16 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         # on every single poll.
         self._last_fault: ConnectionFault | None = None
         self._last_fault_at: float = 0.0
+        # Connection health. Kept here rather than derived from entity history
+        # because the interesting events (a relocation, a key refresh) happen
+        # between polls and leave no trace in the entity state.
+        self._polls_ok = 0
+        self._polls_failed = 0
+        self._consecutive_failures = 0
+        self._last_success_at: datetime | None = None
+        self._last_failure_at: datetime | None = None
+        self._relocations = 0
+        self._key_refreshes = 0
         self._relocating: Any = None
 
     async def _async_update_data(self) -> EVMetrics:
@@ -104,6 +114,10 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
                 self._async_note_success()
                 await self._async_on_metrics(metrics)
                 return metrics
+
+        self._polls_failed += 1
+        self._consecutive_failures += 1
+        self._last_failure_at = dt_util.now()
 
         message = await self._async_failure_message()
         if self._last_fault == ConnectionFault.UNDECRYPTABLE:
@@ -166,8 +180,38 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         self._last_fault_at = now
         return fault
 
+    @property
+    def connection_health(self) -> dict[str, Any]:
+        """Everything worth knowing about the local link, in one place.
+
+        Surfaced both as a sensor and in diagnostics: the two things asked for by
+        hand in every connection report are exactly the fault verdict and the
+        result of the last discovery scan.
+        """
+        total = self._polls_ok + self._polls_failed
+        return {
+            "polls_ok": self._polls_ok,
+            "polls_failed": self._polls_failed,
+            "success_rate_pct": round(self._polls_ok * 100 / total, 1) if total else None,
+            "consecutive_failures": self._consecutive_failures,
+            "last_success_at": self._last_success_at.isoformat(timespec="seconds")
+            if self._last_success_at
+            else None,
+            "last_failure_at": self._last_failure_at.isoformat(timespec="seconds")
+            if self._last_failure_at
+            else None,
+            "last_fault": str(self._last_fault) if self._last_fault else None,
+            "host": self.client.host,
+            "relocations": self._relocations,
+            "key_refreshes": self._key_refreshes,
+            "last_discovery": self.last_discovery,
+        }
+
     def _async_note_success(self) -> None:
         """The charger answered: drop any stale diagnosis and repair issue."""
+        self._polls_ok += 1
+        self._consecutive_failures = 0
+        self._last_success_at = dt_util.now()
         if self._last_fault is not None:
             self._last_fault = None
             self._last_fault_at = 0.0
@@ -330,6 +374,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
                 )
                 self.last_discovery = mine
                 await self.client.async_update_host(new_host)
+                self._relocations += 1
                 return True
             LOGGER.debug(
                 "Charger %s still advertises %s; connection issue is not an IP change.",
@@ -360,6 +405,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
             )
             self.last_discovery = self._discovery_for_host(candidates, host)
             await self.client.async_update_host(host)
+            self._relocations += 1
             return True
 
         LOGGER.debug(
@@ -411,6 +457,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         )
         await self.client.async_update_local_key(new_key)
         self.new_local_key = new_key
+        self._key_refreshes += 1
         return True
 
     @staticmethod

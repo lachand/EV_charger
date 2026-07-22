@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import pathlib
 from dataclasses import asdict
 from typing import Any
 
@@ -33,10 +35,29 @@ TO_REDACT = {
     CONF_MAC,
     CONF_CLOUD_API_KEY,
     CONF_CLOUD_API_SECRET,
+    # A discovery record carries the charger's identity under tinytuya's own
+    # names, which do not match the config keys above.
+    "ip",
+    "gwId",
+    "key",
     "serial",
     "serial_number",
     "sn",
 }
+
+
+def _integration_version() -> str | None:
+    """Read the version from the manifest.
+
+    Reports invariably omit it, and half the answers depend on it.
+    """
+    try:
+        manifest = json.loads(
+            (pathlib.Path(__file__).parent / "manifest.json").read_text(encoding="utf-8")
+        )
+    except (OSError, ValueError):
+        return None
+    return manifest.get("version")
 
 
 async def async_get_config_entry_diagnostics(
@@ -47,6 +68,12 @@ async def async_get_config_entry_diagnostics(
     coordinator_data: dict[str, Any] | None = None
     profile: str | None = None
     raw_dps: dict[str, Any] | None = None
+    # Connection health and the discovery result are the two things asked for by
+    # hand in every connection report (#5, #7); they belong in the dump rather
+    # than in a follow-up comment.
+    connection: dict[str, Any] | None = None
+    if runtime_data is not None:
+        connection = runtime_data.coordinator.connection_health
     if runtime_data is not None and runtime_data.coordinator.data is not None:
         coordinator_data = asdict(runtime_data.coordinator.data)
         profile = runtime_data.client.dp_profile
@@ -82,7 +109,9 @@ async def async_get_config_entry_diagnostics(
             "data": dict(entry.data),
             "options": dict(entry.options),
         },
+        "integration": {"version": _integration_version()},
         "client": {"dp_profile": profile},
+        "connection": connection,
         "coordinator_data": coordinator_data,
         "raw_dps": raw_dps,
         "configured_surplus_sensors": sensors,

@@ -104,6 +104,33 @@ def test_diagnostics_redacts_every_secret():
         assert secret in TO_REDACT, f"{secret} would be published in diagnostics"
 
 
+def test_a_discovery_record_is_redacted_under_tinytuyas_own_names():
+    """Diagnostics now embed the last discovery scan, which is a tinytuya dict.
+
+    Its keys are `ip`, `gwId`, `key` -- not the config-entry names covered
+    above -- so the same identity would have been published under a different
+    spelling.
+    """
+    from tuya_ev_charger.diagnostics import TO_REDACT
+
+    scan_result = {
+        "ip": "192.168.1.237",
+        "gwId": "bf23dbbd3d2eb2c804aswb",
+        "key": "a-local-key",
+        "version": "3.5",
+        "productKey": "keyxxxx",
+        "name": "Charger",
+    }
+    leaked = {
+        field: value
+        for field, value in scan_result.items()
+        if field in {"ip", "gwId", "key"} and field not in TO_REDACT
+    }
+    assert not leaked, f"discovery scan would publish {sorted(leaked)}"
+    # Deliberately kept: it identifies the model, which is the point of the dump.
+    assert "productKey" not in TO_REDACT
+
+
 def test_every_module_imports():
     """A constant imported but never defined breaks the whole integration."""
     import importlib
@@ -180,23 +207,68 @@ def test_fault_diagnosis_is_throttled():
     assert len(calls) == 2
 
 
-def test_success_clears_the_cached_fault():
-    """A stale verdict must not survive the charger coming back."""
+def _bare_coordinator(**overrides):
+    """A coordinator without HA, for the bookkeeping that needs no I/O."""
     import types
 
-    from tuya_ev_charger.const import ConnectionFault
     from tuya_ev_charger.coordinator import TuyaEVChargerDataUpdateCoordinator
 
     coordinator = TuyaEVChargerDataUpdateCoordinator.__new__(
         TuyaEVChargerDataUpdateCoordinator
     )
-    coordinator._last_fault = ConnectionFault.REFUSED
-    coordinator._last_fault_at = 1000.0
+    coordinator._last_fault = None
+    coordinator._last_fault_at = 0.0
+    coordinator._polls_ok = 0
+    coordinator._polls_failed = 0
+    coordinator._consecutive_failures = 0
+    coordinator._last_success_at = None
+    coordinator._last_failure_at = None
+    coordinator._relocations = 0
+    coordinator._key_refreshes = 0
+    coordinator.last_discovery = None
     coordinator.hass = types.SimpleNamespace()
     coordinator.entry = types.SimpleNamespace(entry_id="test")
+    coordinator.client = types.SimpleNamespace(host="192.168.1.237")
+    for name, value in overrides.items():
+        setattr(coordinator, name, value)
+    return coordinator
+
+
+def test_success_clears_the_cached_fault():
+    """A stale verdict must not survive the charger coming back."""
+    from tuya_ev_charger.const import ConnectionFault
+
+    coordinator = _bare_coordinator(
+        _last_fault=ConnectionFault.REFUSED, _last_fault_at=1000.0
+    )
 
     coordinator._async_note_success()
     assert coordinator._last_fault is None
+
+
+def test_connection_health_starts_unknown_not_perfect():
+    """Before the first poll there is no rate; 100% would be a lie."""
+    coordinator = _bare_coordinator()
+    assert coordinator.connection_health["success_rate_pct"] is None
+
+
+def test_connection_health_counts_and_resets():
+    """Consecutive failures are what distinguish a blip from an outage."""
+    coordinator = _bare_coordinator()
+
+    coordinator._async_note_success()
+    coordinator._async_note_success()
+    coordinator._polls_failed += 1
+    coordinator._consecutive_failures += 1
+
+    health = coordinator.connection_health
+    assert health["polls_ok"] == 2
+    assert health["polls_failed"] == 1
+    assert health["success_rate_pct"] == 66.7
+    assert health["consecutive_failures"] == 1
+
+    coordinator._async_note_success()
+    assert coordinator.connection_health["consecutive_failures"] == 0
 
 
 def test_routine_poll_does_not_block_on_the_scan():

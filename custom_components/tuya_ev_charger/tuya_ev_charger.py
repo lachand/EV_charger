@@ -594,6 +594,54 @@ def _parse_custom_dp_profile(raw_json: str) -> DPProfile | None:
     return DPProfile(**values)
 
 
+def validate_custom_dp_profile(raw_json: str) -> str | None:
+    """Why a custom DP mapping would be rejected, or None when it is usable.
+
+    The parser above silently falls back to the default profile and logs a
+    warning, which the user never sees: the form accepts the JSON, the charger
+    then reports nothing, and the mapping looks applied. This says what is wrong
+    while the dialog is still open.
+    """
+    text = str(raw_json or "").strip()
+    if not text:
+        return None
+
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError as err:
+        return f"not valid JSON ({err.msg} at line {err.lineno})"
+    if not isinstance(payload, dict):
+        return "must be a JSON object mapping field names to DP numbers"
+
+    known = set(DPProfile.__dataclass_fields__)
+    unknown = sorted(set(payload) - known)
+    if unknown:
+        return f"unknown field(s): {', '.join(unknown)}"
+
+    empty = sorted(
+        name
+        for name, value in payload.items()
+        if value is None or not str(value).strip()
+    )
+    if empty:
+        return f"empty value(s) for: {', '.join(empty)}"
+
+    # Two fields on the same DP is always a mistake and produces silently wrong
+    # readings rather than an error.
+    seen: dict[str, str] = {}
+    for name, value in payload.items():
+        dp = str(value).strip()
+        if dp in seen:
+            return f"'{name}' and '{seen[dp]}' both map to DP {dp}"
+        seen[dp] = name
+    return None
+
+
+def known_dp_profile_fields() -> tuple[str, ...]:
+    """Field names a custom mapping may set, for showing in the UI."""
+    return tuple(DPProfile.__dataclass_fields__)
+
+
 def _parse_phases(
     metrics_dict: dict[str, Any],
     charging: bool,

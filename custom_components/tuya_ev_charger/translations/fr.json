@@ -80,6 +80,9 @@
           "peak_price": "Prix du kWh en heures pleines (0 = pas de suivi des couts)"
         }
       }
+    },
+    "error": {
+      "invalid_dp_profile": "Mapping DP personnalise refuse : {dp_profile_problem}. Champs valides : {dp_profile_fields}."
     }
   },
   "entity": {
@@ -199,6 +202,9 @@
       },
       "session_count": {
         "name": "Sessions enregistrees"
+      },
+      "connection_health": {
+        "name": "Sante de la connexion"
       }
     },
     "number": {

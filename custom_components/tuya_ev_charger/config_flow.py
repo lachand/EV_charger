@@ -16,6 +16,7 @@ from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 
 from .cloud import TuyaCloudError, async_fetch_devices
 from .const import (
+    CHARGER_PROFILE_CUSTOM_JSON,
     CHARGER_PROFILES,
     CLOUD_REGIONS,
     CONF_CHARGER_PROFILE,
@@ -98,7 +99,11 @@ from .const import (
     ConnectionFault,
 )
 from .discovery import async_scan_devices_by_id
-from .tuya_ev_charger import TuyaEVChargerClient
+from .tuya_ev_charger import (
+    TuyaEVChargerClient,
+    known_dp_profile_fields,
+    validate_custom_dp_profile,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -611,6 +616,8 @@ class TuyaEVChargerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         self._config_entry = config_entry
+        # Why the custom DP mapping was rejected, shown next to the field.
+        self._profile_json_problem: str | None = None
 
 
     def _build_options_schema(
@@ -714,9 +721,30 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
             )
             _normalize_text_value(cleaned_input, CONF_VEHICLES, DEFAULT_VEHICLES)
             _normalize_surplus_options(cleaned_input)
+
+            # A bad custom mapping is otherwise accepted, logged, and silently
+            # replaced by the default profile: the form closes, the charger
+            # reports nothing, and the mapping looks applied.
+            if cleaned_input.get(CONF_CHARGER_PROFILE) == CHARGER_PROFILE_CUSTOM_JSON:
+                problem = validate_custom_dp_profile(
+                    cleaned_input.get(CONF_CHARGER_PROFILE_JSON, "")
+                )
+                if problem is not None:
+                    self._profile_json_problem = problem
+                    return await self._async_show_options_form(
+                        cleaned_input, errors={CONF_CHARGER_PROFILE_JSON: "invalid_dp_profile"}
+                    )
+
+            self._profile_json_problem = None
             return self.async_create_entry(data=cleaned_input)
 
-        options = self._config_entry.options
+        return await self._async_show_options_form(self._config_entry.options)
+
+    async def _async_show_options_form(
+        self,
+        options: Mapping[str, Any],
+        errors: dict[str, str] | None = None,
+    ) -> FlowResult:
 
         current_scan_interval = _option_int(
             options,
@@ -790,6 +818,11 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                     CONF_SURPLUS_STOP_THRESHOLD_W: stop_threshold_w,
                 },
             ),
+            errors=errors or {},
+            description_placeholders={
+                "dp_profile_problem": self._profile_json_problem or "",
+                "dp_profile_fields": ", ".join(known_dp_profile_fields()),
+            },
         )
 
 
