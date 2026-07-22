@@ -1,0 +1,141 @@
+# Roadmap
+
+Working document for the multi-release improvement effort started after **2.3.0**.
+
+It exists so the work can be picked up from a cold start: reading this file alone should be enough
+to know where we are and what to do next, without re-auditing the repository.
+
+**Update it in the same commit as the work it describes — never afterwards.**
+
+---
+
+## Resume here
+
+- **Current version:** 2.3.0
+- **Phase in progress:** Phase 0 — tracking file
+- **Next concrete action:** start Phase 1 (Lot 1) with **A1.1**, the broken Lovelace card submodule
+- **Blocked on hardware:** the charger refuses local TCP connections (its single local slot is held
+  by something else). Anything needing a live read is stuck until a real power-cycle frees it. This
+  blocks *verification* only, not implementation.
+
+---
+
+## Scope
+
+Everything from the audit **except B6** (push updates). B6 is deliberately dropped: holding the
+socket open would monopolise the charger's single local connection and lock out the Smart Life app —
+the exact conflict that made this charger unreachable during the audit session. Sub-second latency
+does not justify that.
+
+## Phases
+
+| Phase | Contents | Target version | State |
+|---|---|---|---|
+| 0 | This file | — | 🔄 in progress |
+| 1 | Lot 1 — verified bugs | 2.3.1 | ⬜ to do |
+| 2 | Lot 2 + Lot 4 — HA conventions, tooling | 2.4.0 | ⬜ to do |
+| 3 | Lot 5.1 + Lot 3.1 — extract and test the surplus decision layer | 2.5.0 | ⬜ to do |
+| 4 | Lot 3.2/3.3 + Lot 5.2/5.3 — remaining tests and refactoring | 2.5.x | ⬜ to do |
+| 5 | B3 — dynamic load balancing | 2.6.0 | ⬜ to do |
+| 6 | B1 then B2 — tariffs, departure planning | 2.7.0 | ⬜ to do |
+| 7 | B4, B5, B7, B8, B9, B10 | 2.8+ | ⬜ to do |
+| 8 | Lot 6 — documentation | ongoing | ⬜ to do |
+
+The order is not arbitrary: each phase removes an obstacle for the next. The linter (phase 2) must
+exist before part B adds code; the surplus decision layer (phase 3) is the technical prerequisite
+for B1/B2/B3, which all plug into it.
+
+---
+
+## Part A — Verified defects
+
+Every item below was confirmed in the repository, not assumed.
+
+### Lot 1 — Bugs 🔴 (phase 1)
+
+| # | State | Finding | Action |
+|---|---|---|---|
+| A1.1 | ⬜ | `git ls-files -s` shows `160000 … tuya-ev-charger-card` (a gitlink) but **`.gitmodules` does not exist**. A `git clone` therefore yields an **empty** directory and `git submodule update --init` fails with no URL. The card the README advertises cannot be obtained from the repo. | Restore `.gitmodules`, or unlink the gitlink and vendor the card / split it into its own HACS repo |
+| A1.2 | ⬜ | `coordinator._async_failure_message()` calls `async_classify_fault()` on **every** failed cycle: a TCP connect, then a **full `status()`** if the port answers. On a charger with an open port but a wrong key that is a complete read every 30 s, forever. The repair issue is also re-created each pass. *(regression introduced in 2.2.0)* | Cache the verdict behind a cooldown, mirroring `REDISCOVERY_COOLDOWN_SECONDS` |
+| A1.3 | ⬜ | `ConnectionFault.UNDECRYPTABLE` (key rotated by re-pairing) is **detected** but `ConfigEntryAuthFailed` is never raised, so Home Assistant never shows the re-authentication banner. | Add `async_step_reauth` / `async_step_reauth_confirm`, reusing `_build_credentials_schema()` and `_async_validate_input()` |
+| A1.4 | ⬜ | The re-discovery scan (up to 12 s) runs **inside** `_async_update_data`, delaying the coordinator and startup by that much | Move it out of the update cycle |
+
+### Lot 2 — Home Assistant conventions 🟠 (phase 2)
+
+| # | State | Finding |
+|---|---|---|
+| A2.1 | ⬜ | `hacs.json` declares **no minimum HA version**, yet the code needs ≈ **2024.11** (`runtime_data`, `_get_reconfigure_entry`, `async_update_reload_and_abort`, `helpers.service_info.dhcp`). Older installs get cryptic errors. |
+| A2.2 | ⬜ | No `icons.json`: 20 hardcoded `icon="mdi:…"` (14 in `sensor.py`, 6 in `number.py`). HA 2024.2+ expects `icons.json`. |
+| A2.3 | ⬜ | `manifest.json` lacks `integration_type: "device"` and `quality_scale`. |
+| A2.4 | ⬜ | Services take `entry_id` as **free text**; HA provides a `config_entry` selector, and `target:` would address the device naturally. Service names/descriptions should move from `services.yaml` to the `services` key of `strings.json`. |
+
+### Lot 3 — Tests 🟠 (phases 3–4)
+
+| # | State | Finding |
+|---|---|---|
+| A3.1 | ⬜ | **`solar_surplus.py` (1 197 lines) has zero tests** — state machine, thresholds, battery hysteresis, ramps, cooldowns. The costliest place for a regression and the least visible. |
+| A3.2 | ⬜ | Also uncovered: `vehicles.py` (energy accounting, re-baselining on reset), `cloud.py`, `config_flow.py`, and every entity platform. 6 of 20 modules covered. |
+| A3.3 | ⬜ | No coverage measurement in CI, so drift is invisible. |
+
+### Lot 4 — Tooling and hygiene 🟡 (phase 2)
+
+| # | State | Finding |
+|---|---|---|
+| A4.1 | ⬜ | No linter, formatter or type checker (no `ruff`, `mypy`, `pre-commit`, `pyproject.toml`). CI runs only hassfest + HACS + pytest. `ruff` would have caught the import ordering fixed by hand several times. |
+| A4.2 | ⬜ | `blueprints/automation/tuya_ev_charger/` is an **empty directory tree** (0 files) that git does not even track, and no blueprint is mentioned in the README. |
+| A4.3 | ⬜ | **19 dead `CONF_*` constants** in `const.py`, used nowhere and not exposed in the UI: the whole surplus fine-tuning set (`RAMP_STEP_A`, `ADJUST_COOLDOWN_S`, `FORECAST_*`, `MAX_SESSION_*`, `LINE_VOLTAGE`…). The features exist but are hardcoded; the constants suggest otherwise to anyone reading `const.py`. |
+| A4.4 | ⬜ | No Dependabot for `tinytuya` and the GitHub actions. |
+
+### Lot 5 — Architecture 🟡 (phases 3–4)
+
+| # | State | Finding |
+|---|---|---|
+| A5.1 | ⬜ | **`solar_surplus.py` is a 1 197-line monolith** mixing sensor reading, state machine, decision, ramping and snapshotting. This is the direct cause of A3.1: untestable because it does everything. Extract a **pure decision layer** (inputs → decision) testable without HA. |
+| A5.2 | ⬜ | `config_flow.py` is 914 lines, with the options schema as one giant literal. Make it data-driven. |
+| A5.3 | ⬜ | `async_classify_fault()` re-implements `async_tcp_reachable()`. |
+
+### Lot 6 — Documentation 🟢 (phase 8)
+
+| # | State | Finding |
+|---|---|---|
+| A6.1 | ⬜ | The four services are not documented in the README. |
+| A6.2 | ⬜ | No issue templates, although a DP dump was requested by hand in #5 and #7. A "device report" template demanding `python -m tinytuya scan` plus a dump **while charging** would pay for itself immediately. |
+| A6.3 | ⬜ | No `CHANGELOG.md` and no `CONTRIBUTING.md`, despite four external PRs — three closed for lack of a frame (they also stripped the surplus module). |
+
+---
+
+## Part B — Features
+
+| # | State | Feature | Notes |
+|---|---|---|---|
+| B1 | ⬜ | **Tariff-aware charging** (phase 6) | Charge when electricity is cheapest: off-peak, Tempo, or hourly prices. Combined with the existing surplus mode this delivers the real promise: **solar first, off-peak next, full price last**. The infrastructure (current regulation, thresholds, state machine) already exists. |
+| B2 | ⬜ | **Departure-time charging** (phase 6) | **Already half-started**: `const.py` declares `CONF_SURPLUS_DEPARTURE_MODE_ENABLED`, `_TIME` and `_TARGET_ENERGY_KWH` with defaults, but `solar_surplus.py` contains no trace of them and nothing is exposed in the UI. Finish it: "X kWh by 07:00", deferring as late as possible while still meeting the target. |
+| B3 | ⬜ | **Dynamic load balancing** (phase 5) | Cut charging current when the house draws too much, to avoid tripping the main breaker — the classic 6 kVA case with oven + hob + car. Grid power is **already** read for surplus mode: invert the logic (cap instead of follow) and reuse the existing ramp. Best value/effort ratio in part B. |
+| B4 | ⬜ | **Cost tracking** (phase 7) | Cost per session and per vehicle from a price sensor. Extends 2.2.0's per-vehicle tracking: we know the kWh per car, not the euros. |
+| B5 | ⬜ | **Automatic vehicle identification** (phase 7) | The "Active vehicle" select is manual because the charger cannot know which car is plugged in. Linking a car integration (Tesla, MyRenault, Kia/Hyundai…) gives the real SoC and the identity — removing the manual step *and* enabling "charge to 80 %" rather than in kWh. |
+| B6 | ❌ | ~~Push updates~~ | **Dropped.** Holding the socket open would lock out every other client including the Smart Life app. |
+| B7 | ⬜ | **Automation blueprints** (phase 7) | `blueprints/` exists and is empty. Three would cover most uses: off-peak night charging, solar-surplus charging, fault/unexpected-unplug alert. |
+| B8 | ⬜ | **Device triggers** (phase 7) | Expose "charging started", "car full", "fault", "cable plugged in" as native automation triggers instead of raw state comparisons. |
+| B9 | ⬜ | **Session history** (phase 7) | DP 105 gives the **last** session (start, end, duration, energy). Accumulating them enables a browsable history — useful for expense claims or simply knowing last month's usage. |
+| B10 | ⬜ | **Comfort and reliability** (phase 7) | Notifications (charge complete, fault, unexpected unplug); a connection-health sensor; a `set_vehicle_energy` service to correct a mis-attributed total; assisted custom DP mapping (validate `charger_profile_json`, show the DPs actually detected); richer diagnostics including the discovery scan result and the fault verdict — the two things always requested in reports (#5, #7). |
+
+---
+
+## Working rules
+
+- `docs/ROADMAP.md` is updated **in the same commit** as the work it describes.
+- One release per phase, with notes explaining the *why*, not just the *what*.
+- `pytest` green before every commit; no lot closes without tests covering what it introduced.
+- Commits carry **no** `Co-Authored-By` trailer.
+- Keep crediting contributors whose ideas are used: `@alexsxb`, `@algirdasc`, `@1ud0v1c0`.
+
+## Verification notes
+
+- **A1.1**: `git clone` into a temp directory, check `tuya-ev-charger-card/` is not empty.
+- **A1.2**: force a poll failure, confirm the log shows **one** classification per cooldown period,
+  not one per cycle.
+- **A1.3**: change the `local_key` in the entry; HA must show the re-authentication banner, and
+  fixing it must reload the integration.
+- **B1/B2/B3**: test the decision layer as pure unit tests (prices, thresholds, caps in → expected
+  current out), no hardware. This is exactly what the A5.1 refactor unlocks.
+- Hardware validation once the charger accepts local connections again.
