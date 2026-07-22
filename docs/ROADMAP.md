@@ -11,11 +11,12 @@ to know where we are and what to do next, without re-auditing the repository.
 
 ## Resume here
 
-- **Current version:** 2.4.0
-- **Phase in progress:** Phases 1–2 done → **start Phase 3** (A5.1 + A3.1)
-- **Next concrete action:** extract a pure decision layer out of `solar_surplus.py` (1 197 lines,
-  zero tests), then test it. This is also the prerequisite for B1/B2/B3, which all plug into it.
-  Suite is at **53 tests**; `ruff check .` is clean and enforced in CI.
+- **Current version:** 2.5.0
+- **Phase in progress:** Phases 1–3 done → **start Phase 4** (A3.2/A3.3 + A5.2/A5.3)
+- **Next concrete action:** cover the remaining untested modules — `vehicles.py` (energy
+  accounting), `cloud.py`, `config_flow.py` — add coverage reporting to CI, then make the options
+  schema data-driven (A5.2) and fold `async_tcp_reachable` into `async_classify_fault` (A5.3).
+  Suite is at **77 tests**; `surplus_decision.py` is the pure layer B1/B2/B3 will build on.
 - **Blocked on hardware:** the charger refuses local TCP connections (its single local slot is held
   by something else). Anything needing a live read is stuck until a real power-cycle frees it. This
   blocks *verification* only, not implementation.
@@ -36,8 +37,8 @@ does not justify that.
 | 0 | This file | — | ✅ done |
 | 1 | Lot 1 — verified bugs | 2.3.1 | ✅ done |
 | 2 | Lot 2 + Lot 4 — HA conventions, tooling | 2.4.0 | ✅ done |
-| 3 | Lot 5.1 + Lot 3.1 — extract and test the surplus decision layer | 2.5.0 | 🔄 next |
-| 4 | Lot 3.2/3.3 + Lot 5.2/5.3 — remaining tests and refactoring | 2.5.x | ⬜ to do |
+| 3 | Lot 5.1 + Lot 3.1 — extract and test the surplus decision layer | 2.5.0 | ✅ done |
+| 4 | Lot 3.2/3.3 + Lot 5.2/5.3 — remaining tests and refactoring | 2.5.x | 🔄 next |
 | 5 | B3 — dynamic load balancing | 2.6.0 | ⬜ to do |
 | 6 | B1 then B2 — tariffs, departure planning | 2.7.0 | ⬜ to do |
 | 7 | B4, B5, B7, B8, B9, B10 | 2.8+ | ⬜ to do |
@@ -83,7 +84,7 @@ Notes from the implementation:
 
 | # | State | Finding |
 |---|---|---|
-| A3.1 | ⬜ | **`solar_surplus.py` (1 197 lines) has zero tests** — state machine, thresholds, battery hysteresis, ramps, cooldowns. The costliest place for a regression and the least visible. |
+| A3.1 | ✅ 2.5.0 | **`solar_surplus.py` (1 197 lines) has zero tests** — state machine, thresholds, battery hysteresis, ramps, cooldowns. The costliest place for a regression and the least visible. |
 | A3.2 | ⬜ | Also uncovered: `vehicles.py` (energy accounting, re-baselining on reset), `cloud.py`, `config_flow.py`, and every entity platform. 6 of 20 modules covered. |
 | A3.3 | ⬜ | No coverage measurement in CI, so drift is invisible. |
 
@@ -104,7 +105,7 @@ annotations without an import, hidden by `from __future__ import annotations`. R
 
 | # | State | Finding |
 |---|---|---|
-| A5.1 | ⬜ | **`solar_surplus.py` is a 1 197-line monolith** mixing sensor reading, state machine, decision, ramping and snapshotting. This is the direct cause of A3.1: untestable because it does everything. Extract a **pure decision layer** (inputs → decision) testable without HA. |
+| A5.1 | ✅ 2.5.0 | *(partial: the arithmetic is out in `surplus_decision.py`; the state machine stays in the controller — rewriting it blind, on hardware that cannot currently be reached, would be reckless)* **`solar_surplus.py` was a 1 197-line monolith** mixing sensor reading, state machine, decision, ramping and snapshotting. This is the direct cause of A3.1: untestable because it does everything. Extract a **pure decision layer** (inputs → decision) testable without HA. |
 | A5.2 | ⬜ | `config_flow.py` is 914 lines, with the options schema as one giant literal. Make it data-driven. |
 | A5.3 | ⬜ | `async_classify_fault()` re-implements `async_tcp_reachable()`. |
 

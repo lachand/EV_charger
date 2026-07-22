@@ -66,6 +66,14 @@ from .const import (
 )
 from .coordinator import TuyaEVChargerDataUpdateCoordinator
 from .helpers import allowed_currents
+from .surplus_decision import (
+    ForecastState,
+    SurplusInputs,
+    apply_forecast,
+    current_supported_by,
+    ramp_towards,
+    raw_surplus_w,
+)
 from .tuya_ev_charger import EVMetrics, TuyaEVChargerClient
 
 LOGGER = logging.getLogger(__name__)
@@ -689,20 +697,21 @@ class SolarSurplusController:
         grid_power_w: float,
         battery_ready: bool,
     ) -> tuple[float, float]:
-        # Positive grid power means import. Reconstruct natural surplus by
-        # adding EV consumption back into the grid balance.
-        ev_power_w = _ev_power_w(data)
-        reconstructed_surplus_w = ev_power_w - grid_power_w
-
-        # Auto detect strategy: curtailment sensor configured => zero-injection mode.
-        if self._settings.curtailment_sensor_entity_id and battery_ready:
-            reconstructed_surplus_w += self._read_curtailment_power_w()
-
         discharge_over_limit_w = self._battery_discharge_over_limit_w()
-        if discharge_over_limit_w > 0:
-            reconstructed_surplus_w -= discharge_over_limit_w
-
-        return reconstructed_surplus_w, discharge_over_limit_w
+        # Curtailment only counts in zero-injection setups, which is what having
+        # the sensor configured signals.
+        curtailed_w = (
+            self._read_curtailment_power_w()
+            if self._settings.curtailment_sensor_entity_id
+            else 0.0
+        )
+        inputs = SurplusInputs(
+            grid_power_w=grid_power_w,
+            ev_power_w=_ev_power_w(data),
+            curtailed_power_w=curtailed_w,
+            battery_discharge_over_limit_w=discharge_over_limit_w,
+        )
+        return raw_surplus_w(inputs, battery_ready=battery_ready), discharge_over_limit_w
 
     def _apply_forecast_model(
         self,
@@ -711,37 +720,22 @@ class SolarSurplusController:
         raw_surplus_w: float,
         update_state: bool,
     ) -> float:
-        forecast_sensor_w = self._read_sensor_power_w(self._settings.forecast_sensor_entity_id)
-        if forecast_sensor_w is None:
-            if update_state:
-                self._forecast_ema_surplus_w = raw_surplus_w
-                self._forecast_last_sample_ts = now
-            return raw_surplus_w
-
-        weight = max(0.0, min(1.0, FIXED_FORECAST_WEIGHT_PCT / 100.0))
-        blended_surplus_w = (raw_surplus_w * (1.0 - weight)) + (forecast_sensor_w * weight)
-
-        ema_value = self._forecast_ema_surplus_w
-        if ema_value is None:
-            ema_value = blended_surplus_w
-        else:
-            elapsed_s = 0.0
-            if self._forecast_last_sample_ts is not None:
-                elapsed_s = max(0.0, now - self._forecast_last_sample_ts)
-            smoothing_s = max(1.0, float(FIXED_FORECAST_SMOOTHING_S))
-            alpha = min(1.0, elapsed_s / smoothing_s) if elapsed_s > 0 else 0.0
-            ema_value = ema_value + (blended_surplus_w - ema_value) * alpha
-
-        # Drop guard: avoid stopping on a short cloud transient.
-        effective_surplus_w = max(
-            blended_surplus_w,
-            ema_value - float(FIXED_FORECAST_DROP_GUARD_W),
+        result = apply_forecast(
+            raw_w=raw_surplus_w,
+            forecast_w=self._read_sensor_power_w(self._settings.forecast_sensor_entity_id),
+            now=now,
+            state=ForecastState(
+                ema_w=self._forecast_ema_surplus_w,
+                last_sample_ts=self._forecast_last_sample_ts,
+            ),
+            weight_pct=FIXED_FORECAST_WEIGHT_PCT,
+            smoothing_s=FIXED_FORECAST_SMOOTHING_S,
+            drop_guard_w=FIXED_FORECAST_DROP_GUARD_W,
         )
-
         if update_state:
-            self._forecast_ema_surplus_w = ema_value
-            self._forecast_last_sample_ts = now
-        return effective_surplus_w
+            self._forecast_ema_surplus_w = result.state.ema_w
+            self._forecast_last_sample_ts = result.state.last_sample_ts
+        return result.effective_surplus_w
 
     def _read_grid_power_w(self) -> float | None:
         value = self._read_sensor_power_w(self._settings.grid_sensor_entity_id)
@@ -1074,13 +1068,9 @@ def _current_supported_by_surplus(
     effective_surplus_w: float,
     line_voltage: int,
 ) -> int:
-    if line_voltage <= 0 or effective_surplus_w <= 0:
-        return 0
-    target_current = int(effective_surplus_w // line_voltage)
-    candidates = [current for current in available_currents if current <= target_current]
-    if not candidates:
-        return 0
-    return max(candidates)
+    return current_supported_by(
+        effective_surplus_w, available_currents, line_voltage=line_voltage
+    )
 
 
 def _ramp_current(
@@ -1089,25 +1079,7 @@ def _ramp_current(
     available_currents: tuple[int, ...],
     ramp_step: int,
 ) -> int:
-    if target == current:
-        return current
-
-    ordered = tuple(sorted(set(available_currents)))
-    if not ordered:
-        return current
-
-    steps = max(1, ramp_step)
-
-    if current not in ordered:
-        current = min(ordered, key=lambda candidate: abs(candidate - current))
-    if target not in ordered:
-        target = min(ordered, key=lambda candidate: abs(candidate - target))
-
-    current_index = ordered.index(current)
-    target_index = ordered.index(target)
-    if target_index > current_index:
-        return ordered[min(current_index + steps, target_index)]
-    return ordered[max(current_index - steps, target_index)]
+    return ramp_towards(current, target, available_currents, step=ramp_step)
 
 
 def _parse_end_time(raw: str) -> int | None:
