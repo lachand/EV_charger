@@ -1,0 +1,12 @@
+version: 2
+updates:
+  # tinytuya drives every local protocol change; a silent lag there is what
+  # makes new charger firmwares stop working.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: monthly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

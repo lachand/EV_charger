@@ -11,11 +11,11 @@ to know where we are and what to do next, without re-auditing the repository.
 
 ## Resume here
 
-- **Current version:** 2.3.1
-- **Phase in progress:** Phase 1 done → **start Phase 2** (Lot 2 + Lot 4)
-- **Next concrete action:** A2.1 — declare the minimum Home Assistant version in `hacs.json`
-  (`2024.11.0`), then A4.1 (add `ruff` + `pyproject.toml` + a CI lint job) before anything else adds
-  code. Suite is at **51 tests**.
+- **Current version:** 2.4.0
+- **Phase in progress:** Phases 1–2 done → **start Phase 3** (A5.1 + A3.1)
+- **Next concrete action:** extract a pure decision layer out of `solar_surplus.py` (1 197 lines,
+  zero tests), then test it. This is also the prerequisite for B1/B2/B3, which all plug into it.
+  Suite is at **53 tests**; `ruff check .` is clean and enforced in CI.
 - **Blocked on hardware:** the charger refuses local TCP connections (its single local slot is held
   by something else). Anything needing a live read is stuck until a real power-cycle frees it. This
   blocks *verification* only, not implementation.
@@ -35,8 +35,8 @@ does not justify that.
 |---|---|---|---|
 | 0 | This file | — | ✅ done |
 | 1 | Lot 1 — verified bugs | 2.3.1 | ✅ done |
-| 2 | Lot 2 + Lot 4 — HA conventions, tooling | 2.4.0 | 🔄 next |
-| 3 | Lot 5.1 + Lot 3.1 — extract and test the surplus decision layer | 2.5.0 | ⬜ to do |
+| 2 | Lot 2 + Lot 4 — HA conventions, tooling | 2.4.0 | ✅ done |
+| 3 | Lot 5.1 + Lot 3.1 — extract and test the surplus decision layer | 2.5.0 | 🔄 next |
 | 4 | Lot 3.2/3.3 + Lot 5.2/5.3 — remaining tests and refactoring | 2.5.x | ⬜ to do |
 | 5 | B3 — dynamic load balancing | 2.6.0 | ⬜ to do |
 | 6 | B1 then B2 — tariffs, departure planning | 2.7.0 | ⬜ to do |
@@ -70,14 +70,14 @@ Notes from the implementation:
 | A1.3 | ✅ 2.3.1 | `ConnectionFault.UNDECRYPTABLE` (key rotated by re-pairing) is **detected** but `ConfigEntryAuthFailed` is never raised, so Home Assistant never shows the re-authentication banner. | Add `async_step_reauth` / `async_step_reauth_confirm`, reusing `_build_credentials_schema()` and `_async_validate_input()` |
 | A1.4 | ✅ 2.3.1 | The re-discovery scan (up to 12 s) runs **inside** `_async_update_data`, delaying the coordinator and startup by that much | Move it out of the update cycle |
 
-### Lot 2 — Home Assistant conventions 🟠 (phase 2)
+### Lot 2 — Home Assistant conventions 🟠 (phase 2) — ✅ shipped in 2.4.0
 
 | # | State | Finding |
 |---|---|---|
-| A2.1 | ⬜ | `hacs.json` declares **no minimum HA version**, yet the code needs ≈ **2024.11** (`runtime_data`, `_get_reconfigure_entry`, `async_update_reload_and_abort`, `helpers.service_info.dhcp`). Older installs get cryptic errors. |
-| A2.2 | ⬜ | No `icons.json`: 20 hardcoded `icon="mdi:…"` (14 in `sensor.py`, 6 in `number.py`). HA 2024.2+ expects `icons.json`. |
-| A2.3 | ⬜ | `manifest.json` lacks `integration_type: "device"` and `quality_scale`. |
-| A2.4 | ⬜ | Services take `entry_id` as **free text**; HA provides a `config_entry` selector, and `target:` would address the device naturally. Service names/descriptions should move from `services.yaml` to the `services` key of `strings.json`. |
+| A2.1 | ✅ 2.4.0 | `hacs.json` declares **no minimum HA version**, yet the code needs ≈ **2024.11** (`runtime_data`, `_get_reconfigure_entry`, `async_update_reload_and_abort`, `helpers.service_info.dhcp`). Older installs get cryptic errors. |
+| A2.2 | ✅ 2.4.0 | No `icons.json`: 20 hardcoded `icon="mdi:…"` (14 in `sensor.py`, 6 in `number.py`). HA 2024.2+ expects `icons.json`. |
+| A2.3 | ✅ 2.4.0 | `manifest.json` lacks `integration_type: "device"` and `quality_scale`. |
+| A2.4 | ✅ 2.4.0 | Services take `entry_id` as **free text**; HA provides a `config_entry` selector, and `target:` would address the device naturally. Service names/descriptions should move from `services.yaml` to the `services` key of `strings.json`. |
 
 ### Lot 3 — Tests 🟠 (phases 3–4)
 
@@ -87,14 +87,18 @@ Notes from the implementation:
 | A3.2 | ⬜ | Also uncovered: `vehicles.py` (energy accounting, re-baselining on reset), `cloud.py`, `config_flow.py`, and every entity platform. 6 of 20 modules covered. |
 | A3.3 | ⬜ | No coverage measurement in CI, so drift is invisible. |
 
-### Lot 4 — Tooling and hygiene 🟡 (phase 2)
+### Lot 4 — Tooling and hygiene 🟡 (phase 2) — ✅ shipped in 2.4.0
+
+Notes: enabling `ruff` surfaced 35 findings, two of them real — `Any` used in `coordinator.py`
+annotations without an import, hidden by `from __future__ import annotations`. Removing the dead
+`CONF_*` constants also orphaned 31 `DEFAULT_/MIN_/MAX_` companions, so 50 lines went in total.
 
 | # | State | Finding |
 |---|---|---|
-| A4.1 | ⬜ | No linter, formatter or type checker (no `ruff`, `mypy`, `pre-commit`, `pyproject.toml`). CI runs only hassfest + HACS + pytest. `ruff` would have caught the import ordering fixed by hand several times. |
-| A4.2 | ⬜ | `blueprints/automation/tuya_ev_charger/` is an **empty directory tree** (0 files) that git does not even track, and no blueprint is mentioned in the README. |
-| A4.3 | ⬜ | **19 dead `CONF_*` constants** in `const.py`, used nowhere and not exposed in the UI: the whole surplus fine-tuning set (`RAMP_STEP_A`, `ADJUST_COOLDOWN_S`, `FORECAST_*`, `MAX_SESSION_*`, `LINE_VOLTAGE`…). The features exist but are hardcoded; the constants suggest otherwise to anyone reading `const.py`. |
-| A4.4 | ⬜ | No Dependabot for `tinytuya` and the GitHub actions. |
+| A4.1 | ✅ 2.4.0 | No linter, formatter or type checker (no `ruff`, `mypy`, `pre-commit`, `pyproject.toml`). CI runs only hassfest + HACS + pytest. `ruff` would have caught the import ordering fixed by hand several times. |
+| A4.2 | ✅ 2.4.0 | `blueprints/automation/tuya_ev_charger/` is an **empty directory tree** (0 files) that git does not even track, and no blueprint is mentioned in the README. |
+| A4.3 | ✅ 2.4.0 | **19 dead `CONF_*` constants** in `const.py`, used nowhere and not exposed in the UI: the whole surplus fine-tuning set (`RAMP_STEP_A`, `ADJUST_COOLDOWN_S`, `FORECAST_*`, `MAX_SESSION_*`, `LINE_VOLTAGE`…). The features exist but are hardcoded; the constants suggest otherwise to anyone reading `const.py`. |
+| A4.4 | ✅ 2.4.0 | No Dependabot for `tinytuya` and the GitHub actions. |
 
 ### Lot 5 — Architecture 🟡 (phases 3–4)
 

@@ -269,5 +269,67 @@
         }
       }
     }
+  },
+  "services": {
+    "force_charge_for": {
+      "name": "Forcer la charge pendant une duree",
+      "description": "Charge sans condition pendant un nombre de minutes, en ignorant la regulation surplus.",
+      "fields": {
+        "entry_id": {
+          "name": "Borne",
+          "description": "Sur quelle borne agir. Requis si plusieurs sont configurees."
+        },
+        "duration_minutes": {
+          "name": "Duree",
+          "description": "Nombre de minutes de charge forcee."
+        },
+        "current_a": {
+          "name": "Intensite",
+          "description": "Intensite de charge en amperes (optionnel)."
+        }
+      }
+    },
+    "pause_surplus": {
+      "name": "Suspendre le mode surplus",
+      "description": "Suspend la regulation solaire pendant un nombre de minutes.",
+      "fields": {
+        "entry_id": {
+          "name": "Borne",
+          "description": "Sur quelle borne agir. Requis si plusieurs sont configurees."
+        },
+        "duration_minutes": {
+          "name": "Duree",
+          "description": "Nombre de minutes de suspension."
+        }
+      }
+    },
+    "profile_assistant": {
+      "name": "Suggerer un profil surplus",
+      "description": "Analyse le comportement recent et suggere un profil, avec application optionnelle.",
+      "fields": {
+        "entry_id": {
+          "name": "Borne",
+          "description": "Quelle borne analyser. Requis si plusieurs sont configurees."
+        },
+        "apply": {
+          "name": "Appliquer",
+          "description": "Appliquer le profil suggere au lieu de seulement le rapporter."
+        }
+      }
+    },
+    "set_surplus_profile": {
+      "name": "Definir le profil surplus",
+      "description": "Change le profil de regulation surplus (eco, balanced ou fast).",
+      "fields": {
+        "entry_id": {
+          "name": "Borne",
+          "description": "Sur quelle borne agir. Requis si plusieurs sont configurees."
+        },
+        "profile": {
+          "name": "Profil",
+          "description": "Parmi eco, balanced ou fast."
+        }
+      }
+    }
   }
 }

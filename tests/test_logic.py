@@ -82,8 +82,8 @@ def test_gwid_detection(device_id, expected):
 
 def test_advanced_entities_are_created_disabled():
     """A fresh install should not open on 47 entities."""
-    from tuya_ev_charger.const import ADVANCED_ENTITY_KEYS
     from tuya_ev_charger import sensor
+    from tuya_ev_charger.const import ADVANCED_ENTITY_KEYS
 
     described = {
         d.key: d

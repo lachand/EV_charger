@@ -73,9 +73,7 @@ def is_supported_surplus_profile(raw_value: Any) -> bool:
     normalized = str(raw_value or "").strip().lower()
     if normalized in SURPLUS_PROFILES:
         return True
-    if normalized in _LEGACY_ALIASES:
-        return True
-    return False
+    return normalized in _LEGACY_ALIASES
 
 
 def apply_surplus_profile(options: dict[str, Any], profile: str) -> dict[str, Any]:

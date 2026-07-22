@@ -1,0 +1,111 @@
+{
+  "entity": {
+    "binary_sensor": {
+      "surplus_regulation_active": {
+        "default": "mdi:solar-power-variant"
+      }
+    },
+    "button": {
+      "ready_to_charge": {
+        "default": "mdi:play-circle-outline"
+      },
+      "reboot_charger": {
+        "default": "mdi:restart-alert"
+      }
+    },
+    "number": {
+      "charge_current": {
+        "default": "mdi:current-ac"
+      },
+      "surplus_battery_soc_low_threshold_pct": {
+        "default": "mdi:battery-low"
+      },
+      "surplus_max_battery_discharge_for_ev_w": {
+        "default": "mdi:battery-arrow-down"
+      },
+      "surplus_start_threshold_w": {
+        "default": "mdi:solar-power"
+      },
+      "surplus_stop_threshold_w": {
+        "default": "mdi:solar-power-variant-outline"
+      }
+    },
+    "select": {
+      "active_vehicle": {
+        "default": "mdi:car-electric"
+      },
+      "plug_in_action": {
+        "default": "mdi:ev-plug-type2"
+      },
+      "surplus_profile": {
+        "default": "mdi:tune-variant"
+      }
+    },
+    "sensor": {
+      "adjust_current_options": {
+        "default": "mdi:format-list-numbered"
+      },
+      "alarm": {
+        "default": "mdi:alert-circle-outline"
+      },
+      "downcounter": {
+        "default": "mdi:timer-outline"
+      },
+      "evcc_status": {
+        "default": "mdi:ev-plug-type2"
+      },
+      "product_variant": {
+        "default": "mdi:identifier"
+      },
+      "selftest": {
+        "default": "mdi:check-decagram-outline"
+      },
+      "status": {
+        "default": "mdi:ev-station"
+      },
+      "surplus_battery_discharge_over_limit_w": {
+        "default": "mdi:battery-alert-variant"
+      },
+      "surplus_effective_w": {
+        "default": "mdi:solar-power-variant"
+      },
+      "surplus_last_decision_reason": {
+        "default": "mdi:comment-question-outline"
+      },
+      "surplus_raw_w": {
+        "default": "mdi:solar-power"
+      },
+      "surplus_target_current_a": {
+        "default": "mdi:current-ac"
+      },
+      "work_state": {
+        "default": "mdi:counter"
+      },
+      "work_state_debug": {
+        "default": "mdi:state-machine"
+      }
+    },
+    "switch": {
+      "charge_session": {
+        "default": "mdi:ev-station"
+      },
+      "nfc_enabled": {
+        "default": "mdi:nfc"
+      },
+      "schedule_enabled": {
+        "default": "mdi:clock-outline"
+      },
+      "surplus_mode": {
+        "default": "mdi:solar-power-variant"
+      }
+    },
+    "time": {
+      "schedule_end": {
+        "default": "mdi:clock-end"
+      },
+      "schedule_start": {
+        "default": "mdi:clock-start"
+      }
+    }
+  }
+}

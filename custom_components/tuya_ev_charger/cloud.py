@@ -17,7 +17,6 @@ import logging
 from typing import Any
 
 import tinytuya  # type: ignore
-
 from homeassistant.core import HomeAssistant
 
 LOGGER = logging.getLogger(__name__)
@@ -45,7 +44,7 @@ def _sync_fetch_devices(
             apiSecret=api_secret,
             apiDeviceID=device_id or None,
         )
-    except Exception as err:  # noqa: BLE001 - surfaced as TuyaCloudError
+    except Exception as err:
         raise TuyaCloudError(f"Tuya Cloud authentication failed: {err}") from err
 
     if getattr(cloud, "error", None):
@@ -53,7 +52,7 @@ def _sync_fetch_devices(
 
     try:
         devices: Any = cloud.getdevices()
-    except Exception as err:  # noqa: BLE001
+    except Exception as err:
         raise TuyaCloudError(f"Tuya Cloud device listing failed: {err}") from err
 
     # getdevices() returns a list normally, or an error_json dict on failure.

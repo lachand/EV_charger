@@ -102,7 +102,7 @@ def evcc_status(status: str | None, total_power: float) -> str:
     return "A"
 
 
-def _configure_device(device: "tinytuya.Device") -> None:
+def _configure_device(device: tinytuya.Device) -> None:
     device.set_socketTimeout(SOCKET_TIMEOUT_S)
     device.set_socketRetryLimit(SOCKET_RETRY_LIMIT)
     device.set_socketRetryDelay(SOCKET_RETRY_DELAY_S)
@@ -364,7 +364,7 @@ class TuyaEVChargerClient:
             _configure_device(device)
             try:
                 payload: Any = device.status()
-            except Exception:  # noqa: BLE001 - probing is best-effort
+            except Exception:
                 return False
             finally:
                 device.close()
@@ -716,10 +716,7 @@ def _coerce_optional_float(value: Any) -> float | None:
 def _coerce_optional_text(value: Any) -> str | None:
     if value is None:
         return None
-    if isinstance(value, str):
-        text = value.strip()
-    else:
-        text = str(value).strip()
+    text = value.strip() if isinstance(value, str) else str(value).strip()
     if not text:
         return None
     return text

@@ -40,7 +40,6 @@ class TuyaEVChargerReadyToChargeButton(TuyaEVChargerEntity, ButtonEntity):
     """
 
     _attr_translation_key = "ready_to_charge"
-    _attr_icon = "mdi:play-circle-outline"
 
     def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
         super().__init__(entry=entry, runtime_data=runtime_data)
@@ -56,7 +55,6 @@ class TuyaEVChargerReadyToChargeButton(TuyaEVChargerEntity, ButtonEntity):
 
 class TuyaEVChargerRebootButton(TuyaEVChargerEntity, ButtonEntity):
     _attr_translation_key = "reboot_charger"
-    _attr_icon = "mdi:restart-alert"
 
     def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
         super().__init__(

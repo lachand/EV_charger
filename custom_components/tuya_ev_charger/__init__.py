@@ -7,7 +7,6 @@ from datetime import timedelta
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant.components import persistent_notification
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST
@@ -43,13 +42,13 @@ from .coordinator import TuyaEVChargerDataUpdateCoordinator
 from .entity_cleanup import async_disable_entities, unavailable_capability_keys
 from .repairs import ISSUE_TIDY_ENTITIES, async_clear, async_offer_entity_cleanup
 from .solar_surplus import SolarSurplusController
-from .vehicles import VehicleEnergyTracker
 from .surplus_profiles import (
     apply_surplus_profile,
     is_supported_surplus_profile,
     normalize_surplus_profile,
 )
 from .tuya_ev_charger import TuyaEVChargerClient
+from .vehicles import VehicleEnergyTracker
 
 LOGGER = logging.getLogger(__name__)
 

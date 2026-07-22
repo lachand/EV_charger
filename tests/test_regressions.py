@@ -109,8 +109,8 @@ def test_fault_diagnosis_is_throttled():
     import asyncio
     import types
 
-    from tuya_ev_charger.coordinator import TuyaEVChargerDataUpdateCoordinator
     from tuya_ev_charger.const import ConnectionFault
+    from tuya_ev_charger.coordinator import TuyaEVChargerDataUpdateCoordinator
 
     coordinator = TuyaEVChargerDataUpdateCoordinator.__new__(
         TuyaEVChargerDataUpdateCoordinator
@@ -159,8 +159,8 @@ def test_success_clears_the_cached_fault():
     """A stale verdict must not survive the charger coming back."""
     import types
 
-    from tuya_ev_charger.coordinator import TuyaEVChargerDataUpdateCoordinator
     from tuya_ev_charger.const import ConnectionFault
+    from tuya_ev_charger.coordinator import TuyaEVChargerDataUpdateCoordinator
 
     coordinator = TuyaEVChargerDataUpdateCoordinator.__new__(
         TuyaEVChargerDataUpdateCoordinator
@@ -214,3 +214,29 @@ def test_routine_poll_does_not_block_on_the_scan():
 
 async def _returns(value):
     return value
+
+
+def test_manifest_and_hacs_declare_requirements():
+    """An unstated minimum version means cryptic errors on older installs."""
+    manifest = json.loads((COMPONENT / "manifest.json").read_text())
+    hacs = json.loads((REPO_ROOT / "hacs.json").read_text())
+
+    # runtime_data, _get_reconfigure_entry and async_update_reload_and_abort all
+    # need a recent core.
+    assert hacs["homeassistant"] >= "2024.11.0"
+    assert manifest["integration_type"] == "device"
+
+    keys = list(manifest)
+    assert keys[:2] == ["domain", "name"]
+    assert keys[2:] == sorted(keys[2:]), "hassfest wants the rest alphabetical"
+
+
+def test_icons_live_in_icons_json():
+    """HA 2024.2+ declares icons in icons.json, not in entity code."""
+    icons = json.loads((COMPONENT / "icons.json").read_text())
+    assert icons["entity"]["sensor"]["status"]["default"].startswith("mdi:")
+
+    for path in COMPONENT.glob("*.py"):
+        source = path.read_text()
+        assert 'icon="mdi:' not in source, f"{path.name} still hardcodes an icon"
+        assert "_attr_icon" not in source, f"{path.name} still hardcodes an icon"

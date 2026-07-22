@@ -300,5 +300,67 @@
         }
       }
     }
+  },
+  "services": {
+    "force_charge_for": {
+      "name": "Force charge for a duration",
+      "description": "Charge unconditionally for a number of minutes, ignoring surplus regulation.",
+      "fields": {
+        "entry_id": {
+          "name": "Charger",
+          "description": "Which charger to act on. Required when several are configured."
+        },
+        "duration_minutes": {
+          "name": "Duration",
+          "description": "How many minutes to force charging for."
+        },
+        "current_a": {
+          "name": "Current",
+          "description": "Optional charging current in amperes."
+        }
+      }
+    },
+    "pause_surplus": {
+      "name": "Pause surplus mode",
+      "description": "Suspend solar surplus regulation for a number of minutes.",
+      "fields": {
+        "entry_id": {
+          "name": "Charger",
+          "description": "Which charger to act on. Required when several are configured."
+        },
+        "duration_minutes": {
+          "name": "Duration",
+          "description": "How many minutes to suspend regulation for."
+        }
+      }
+    },
+    "profile_assistant": {
+      "name": "Suggest a surplus profile",
+      "description": "Analyse recent behaviour and suggest a surplus profile, optionally applying it.",
+      "fields": {
+        "entry_id": {
+          "name": "Charger",
+          "description": "Which charger to analyse. Required when several are configured."
+        },
+        "apply": {
+          "name": "Apply",
+          "description": "Apply the suggested profile instead of only reporting it."
+        }
+      }
+    },
+    "set_surplus_profile": {
+      "name": "Set the surplus profile",
+      "description": "Switch the surplus regulation profile (eco, balanced or fast).",
+      "fields": {
+        "entry_id": {
+          "name": "Charger",
+          "description": "Which charger to act on. Required when several are configured."
+        },
+        "profile": {
+          "name": "Profile",
+          "description": "One of eco, balanced or fast."
+        }
+      }
+    }
   }
 }

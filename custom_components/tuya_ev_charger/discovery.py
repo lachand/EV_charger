@@ -13,9 +13,8 @@ import logging
 from typing import Any
 
 import tinytuya  # type: ignore
-from tinytuya import scanner  # type: ignore
-
 from homeassistant.core import HomeAssistant
+from tinytuya import scanner  # type: ignore
 
 LOGGER = logging.getLogger(__name__)
 
@@ -39,7 +38,7 @@ def _sync_scan_devices_by_id(
             byID=True,
             wantids=wantids,
         )
-    except Exception:  # noqa: BLE001 - discovery is best-effort
+    except Exception:
         LOGGER.debug("Tuya UDP discovery scan failed.", exc_info=True)
         return {}
 

@@ -38,7 +38,6 @@ from .const import (
     DEFAULT_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
     DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
     DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
-    DEFAULT_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
     DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
     DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
     DEFAULT_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
@@ -51,19 +50,19 @@ from .const import (
     DEFAULT_SURPLUS_SENSOR_INVERTED,
     DEFAULT_SURPLUS_START_THRESHOLD_W,
     DEFAULT_SURPLUS_STOP_THRESHOLD_W,
-    MAX_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
     DP_CHARGER_INFO,
     DP_CURRENT_TARGET,
     DP_DO_CHARGE,
     DP_METRICS,
     DP_WORK_STATE_DEBUG,
-    MAX_SURPLUS_THRESHOLD_W,
-    MIN_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-    MIN_SURPLUS_DELAY_S,
-    MIN_SURPLUS_THRESHOLD_W,
-    MAX_SURPLUS_DELAY_S,
     MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+    MAX_SURPLUS_DELAY_S,
+    MAX_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
+    MAX_SURPLUS_THRESHOLD_W,
     MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+    MIN_SURPLUS_DELAY_S,
+    MIN_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
+    MIN_SURPLUS_THRESHOLD_W,
 )
 from .coordinator import TuyaEVChargerDataUpdateCoordinator
 from .helpers import allowed_currents
@@ -375,8 +374,7 @@ class SolarSurplusController:
             self._set_decision("surplus_paused_active")
             self._regulation_active = False
             self._clear_surplus_debug_state()
-            if is_charging and self._session_active:
-                if await self._client.async_set_charge_enabled(False):
+            if is_charging and self._session_active and await self._client.async_set_charge_enabled(False):
                     self._register_stop(now)
                     await self._coordinator.async_request_refresh()
             self._notify_state_listeners()
@@ -551,8 +549,9 @@ class SolarSurplusController:
 
         self._start_candidate_since = None
         startup_current = min_current
-        if data.current_target != startup_current:
-            if not await self._client.async_set_charge_current(startup_current):
+        if data.current_target != startup_current and not await self._client.async_set_charge_current(
+            startup_current
+        ):
                 self._set_decision("failed_set_startup_current")
                 self._regulation_active = False
                 self._notify_state_listeners()
@@ -655,13 +654,11 @@ class SolarSurplusController:
             return False
 
         # Keep hard safety stops immediate, only guard normal surplus oscillation.
-        if stop_reason in {
+        return stop_reason in {
             "below_stop_threshold",
             "insufficient_surplus_current",
             "battery_soc_below_threshold",
-        }:
-            return True
-        return False
+        }
 
     def _available_surplus_w(
         self,
@@ -1154,9 +1151,8 @@ def _coerce_optional_int(value: Any) -> int | None:
 
 
 def _looks_like_metrics(value: Any) -> bool:
-    if isinstance(value, dict):
-        if "L1" in value:
-            return True
+    if isinstance(value, dict) and "L1" in value:
+        return True
     if isinstance(value, str):
         try:
             payload = json.loads(value)
@@ -1169,7 +1165,7 @@ def _looks_like_metrics(value: Any) -> bool:
 
 def _looks_like_charger_info(value: Any) -> bool:
     if isinstance(value, dict):
-        keys = {str(key).lower() for key in value.keys()}
+        keys = {str(key).lower() for key in value}
         if {"model", "manufacturer"}.intersection(keys):
             return True
     if isinstance(value, str):
@@ -1178,7 +1174,7 @@ def _looks_like_charger_info(value: Any) -> bool:
         except json.JSONDecodeError:
             return False
         if isinstance(payload, dict):
-            keys = {str(key).lower() for key in payload.keys()}
+            keys = {str(key).lower() for key in payload}
             return bool({"model", "manufacturer"}.intersection(keys))
     return False
 

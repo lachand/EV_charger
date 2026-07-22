@@ -38,7 +38,6 @@ async def async_setup_entry(
 
 class TuyaEVChargerChargeSessionSwitch(TuyaEVChargerEntity, SwitchEntity):
     _attr_translation_key = "charge_session"
-    _attr_icon = "mdi:ev-station"
 
     def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
         super().__init__(
@@ -83,7 +82,6 @@ class TuyaEVChargerChargeSessionSwitch(TuyaEVChargerEntity, SwitchEntity):
 
 class TuyaEVChargerNfcSwitch(TuyaEVChargerEntity, SwitchEntity):
     _attr_translation_key = "nfc_enabled"
-    _attr_icon = "mdi:nfc"
     _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
@@ -116,7 +114,6 @@ class TuyaEVChargerNfcSwitch(TuyaEVChargerEntity, SwitchEntity):
 
 class TuyaEVChargerSurplusModeSwitch(TuyaEVChargerEntity, SwitchEntity):
     _attr_translation_key = "surplus_mode"
-    _attr_icon = "mdi:solar-power-variant"
     _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
@@ -154,7 +151,6 @@ class TuyaEVChargerSurplusModeSwitch(TuyaEVChargerEntity, SwitchEntity):
 
 class TuyaEVChargerScheduleSwitch(TuyaEVChargerEntity, SwitchEntity):
     _attr_translation_key = "schedule_enabled"
-    _attr_icon = "mdi:clock-outline"
 
     def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
         super().__init__(

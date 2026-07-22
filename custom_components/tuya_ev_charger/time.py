@@ -48,7 +48,6 @@ def _format_time(t: time) -> str:
 
 class TuyaEVChargerScheduleStartTime(TuyaEVChargerEntity, TimeEntity):
     _attr_translation_key = "schedule_start"
-    _attr_icon = "mdi:clock-start"
 
     def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
         super().__init__(
@@ -75,7 +74,6 @@ class TuyaEVChargerScheduleStartTime(TuyaEVChargerEntity, TimeEntity):
 
 class TuyaEVChargerScheduleEndTime(TuyaEVChargerEntity, TimeEntity):
     _attr_translation_key = "schedule_end"
-    _attr_icon = "mdi:clock-end"
 
     def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
         super().__init__(

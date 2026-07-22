@@ -25,6 +25,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TuyaEVChargerRuntimeData
 from .const import (
+    ADVANCED_ENTITY_KEYS,
     CARD_ROLE_ALARM,
     CARD_ROLE_CURRENT,
     CARD_ROLE_INDEX,
@@ -38,7 +39,6 @@ from .const import (
     CARD_ROLE_TEMPERATURE,
     CARD_ROLE_VOLTAGE,
     CARD_ROLE_WORK_STATE,
-    ADVANCED_ENTITY_KEYS,
     CONF_VEHICLES,
     DEFAULT_VEHICLES,
 )
@@ -220,13 +220,11 @@ SENSOR_DESCRIPTIONS: tuple[TuyaEVChargerSensorDescription, ...] = (
     TuyaEVChargerSensorDescription(
         key="work_state",
         translation_key="work_state",
-        icon="mdi:counter",
         value_fn=lambda data: data.work_state,
     ),
     TuyaEVChargerSensorDescription(
         key="work_state_debug",
         translation_key="work_state_debug",
-        icon="mdi:state-machine",
         value_fn=lambda data: data.work_state_debug,
     ),
     TuyaEVChargerSensorDescription(
@@ -234,7 +232,6 @@ SENSOR_DESCRIPTIONS: tuple[TuyaEVChargerSensorDescription, ...] = (
         translation_key="status",
         device_class=SensorDeviceClass.ENUM,
         options=list(STATUS_OPTIONS),
-        icon="mdi:ev-station",
         value_fn=lambda data: data.status,
     ),
     TuyaEVChargerSensorDescription(
@@ -242,7 +239,6 @@ SENSOR_DESCRIPTIONS: tuple[TuyaEVChargerSensorDescription, ...] = (
         translation_key="evcc_status",
         device_class=SensorDeviceClass.ENUM,
         options=list(EVCC_STATUS_OPTIONS),
-        icon="mdi:ev-plug-type2",
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda data: evcc_status(data.status, data.total_power),
     ),
@@ -252,28 +248,24 @@ SENSOR_DESCRIPTIONS: tuple[TuyaEVChargerSensorDescription, ...] = (
         native_unit_of_measurement=UnitOfTime.SECONDS,
         device_class=SensorDeviceClass.DURATION,
         state_class=SensorStateClass.MEASUREMENT,
-        icon="mdi:timer-outline",
         value_fn=lambda data: data.downcounter,
     ),
     TuyaEVChargerSensorDescription(
         key="selftest",
         translation_key="selftest",
         entity_category=EntityCategory.DIAGNOSTIC,
-        icon="mdi:check-decagram-outline",
         value_fn=lambda data: data.selftest,
     ),
     TuyaEVChargerSensorDescription(
         key="alarm",
         translation_key="alarm",
         entity_category=EntityCategory.DIAGNOSTIC,
-        icon="mdi:alert-circle-outline",
         value_fn=lambda data: data.alarm,
     ),
     TuyaEVChargerSensorDescription(
         key="adjust_current_options",
         translation_key="adjust_current_options",
         entity_category=EntityCategory.DIAGNOSTIC,
-        icon="mdi:format-list-numbered",
         value_fn=lambda data: (
             ",".join(str(value) for value in data.adjust_current_options)
             if data.adjust_current_options
@@ -284,7 +276,6 @@ SENSOR_DESCRIPTIONS: tuple[TuyaEVChargerSensorDescription, ...] = (
         key="product_variant",
         translation_key="product_variant",
         entity_category=EntityCategory.DIAGNOSTIC,
-        icon="mdi:identifier",
         value_fn=lambda data: data.product_variant,
     ),
 )
@@ -293,14 +284,12 @@ SURPLUS_CONTROLLER_SENSOR_DESCRIPTIONS: tuple[TuyaEVChargerSurplusControllerSens
     TuyaEVChargerSurplusControllerSensorDescription(
         key="surplus_last_decision_reason",
         translation_key="surplus_last_decision_reason",
-        icon="mdi:comment-question-outline",
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda snapshot: snapshot.last_decision_reason,
     ),
     TuyaEVChargerSurplusControllerSensorDescription(
         key="surplus_raw_w",
         translation_key="surplus_raw_w",
-        icon="mdi:solar-power",
         entity_category=EntityCategory.DIAGNOSTIC,
         native_unit_of_measurement=UnitOfPower.WATT,
         state_class=SensorStateClass.MEASUREMENT,
@@ -311,7 +300,6 @@ SURPLUS_CONTROLLER_SENSOR_DESCRIPTIONS: tuple[TuyaEVChargerSurplusControllerSens
     TuyaEVChargerSurplusControllerSensorDescription(
         key="surplus_effective_w",
         translation_key="surplus_effective_w",
-        icon="mdi:solar-power-variant",
         entity_category=EntityCategory.DIAGNOSTIC,
         native_unit_of_measurement=UnitOfPower.WATT,
         state_class=SensorStateClass.MEASUREMENT,
@@ -322,7 +310,6 @@ SURPLUS_CONTROLLER_SENSOR_DESCRIPTIONS: tuple[TuyaEVChargerSurplusControllerSens
     TuyaEVChargerSurplusControllerSensorDescription(
         key="surplus_battery_discharge_over_limit_w",
         translation_key="surplus_battery_discharge_over_limit_w",
-        icon="mdi:battery-alert-variant",
         entity_category=EntityCategory.DIAGNOSTIC,
         native_unit_of_measurement=UnitOfPower.WATT,
         state_class=SensorStateClass.MEASUREMENT,
@@ -333,7 +320,6 @@ SURPLUS_CONTROLLER_SENSOR_DESCRIPTIONS: tuple[TuyaEVChargerSurplusControllerSens
     TuyaEVChargerSurplusControllerSensorDescription(
         key="surplus_target_current_a",
         translation_key="surplus_target_current_a",
-        icon="mdi:current-ac",
         entity_category=EntityCategory.DIAGNOSTIC,
         native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -398,7 +384,6 @@ class TuyaEVChargerVehicleEnergySensor(TuyaEVChargerEntity, SensorEntity):
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
     _attr_suggested_display_precision = 2
-    _attr_icon = "mdi:car-electric"
 
     def __init__(
         self,

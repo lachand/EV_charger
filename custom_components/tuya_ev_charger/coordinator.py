@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -17,9 +18,9 @@ from .const import (
     DEFAULT_CLOUD_REGION,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    FAULT_DIAGNOSIS_COOLDOWN_SECONDS,
     LOCAL_KEY_REFRESH_COOLDOWN_SECONDS,
     REDISCOVERY_COOLDOWN_SECONDS,
-    FAULT_DIAGNOSIS_COOLDOWN_SECONDS,
     REDISCOVERY_SCAN_SECONDS,
     ConnectionFault,
 )
@@ -146,7 +147,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
 
         try:
             fault = await self.client.async_classify_fault()
-        except Exception as err:  # noqa: BLE001 - diagnosis must never mask the failure
+        except Exception as err:
             LOGGER.debug("Fault diagnosis failed: %s", err)
             return self._last_fault
 
@@ -173,13 +174,13 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
             return
         try:
             await tracker.async_process_counter(metrics.session_energy_kwh)
-        except Exception as err:  # noqa: BLE001 - accounting must never break polling
+        except Exception as err:
             LOGGER.debug("Vehicle energy tracking failed: %s", err)
 
     async def _async_fetch_metrics(self) -> EVMetrics | None:
         try:
             return await self.client.async_get_metrics()
-        except Exception as err:  # noqa: BLE001 - surfaced as UpdateFailed upstream
+        except Exception as err:
             LOGGER.debug("Charger poll failed: %s", err)
             return None
 
@@ -221,7 +222,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
                     # The host changed; pull fresh data straight away rather than
                     # waiting out the poll interval.
                     await self.async_request_refresh()
-            except Exception as err:  # noqa: BLE001 - background task must not escape
+            except Exception as err:
                 LOGGER.debug("Background relocation failed: %s", err)
 
         self._relocating = self.entry.async_create_background_task(

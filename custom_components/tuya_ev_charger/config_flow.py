@@ -5,14 +5,15 @@ from collections.abc import Mapping
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers import device_registry as dr, selector
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import selector
 from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 
+from .cloud import TuyaCloudError, async_fetch_devices
 from .const import (
     CHARGER_PROFILES,
     CLOUD_REGIONS,
@@ -57,7 +58,6 @@ from .const import (
     DEFAULT_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
     DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
     DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
-    DEFAULT_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
     DEFAULT_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
     DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
@@ -70,17 +70,16 @@ from .const import (
     DEFAULT_VEHICLES,
     DOMAIN,
     MAX_SCAN_INTERVAL_SECONDS,
-    MAX_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
     MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+    MAX_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
     MAX_SURPLUS_THRESHOLD_W,
     MIN_SCAN_INTERVAL_SECONDS,
-    MIN_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
     MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+    MIN_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
     MIN_SURPLUS_THRESHOLD_W,
     SUPPORTED_PROTOCOL_VERSIONS,
     ConnectionFault,
 )
-from .cloud import TuyaCloudError, async_fetch_devices
 from .discovery import async_scan_devices_by_id
 from .tuya_ev_charger import TuyaEVChargerClient
 

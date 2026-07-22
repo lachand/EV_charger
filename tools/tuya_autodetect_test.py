@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import socket
 import sys
 from pathlib import Path
@@ -38,7 +37,7 @@ from typing import Any
 def _ensure_tinytuya_importable() -> None:
     """Import tinytuya, falling back to the integration's own .venv if needed."""
     try:
-        import tinytuya  # noqa: F401
+        import tinytuya
         return
     except ModuleNotFoundError:
         pass
@@ -81,7 +80,7 @@ def _tcp_check(host: str, port: int = 6668, timeout: float = 3.0) -> str:
         return "OPEN (accepts connections)"
     except ConnectionRefusedError:
         return "REFUSED — port busy (single local connection already held) or closed"
-    except socket.timeout:
+    except TimeoutError:
         return "TIMEOUT — filtered by a firewall or host down"
     except OSError as err:
         return f"{type(err).__name__}: {err}"
@@ -136,7 +135,7 @@ def _probe_voltage(dev_id: str, host: str, local_key: str, version: str) -> tupl
         device = tinytuya.Device(dev_id=dev_id, address=host, local_key=local_key, version=version)
         device.set_socketTimeout(5)
         payload = device.status()
-    except Exception as err:  # noqa: BLE001
+    except Exception as err:
         return False, f"error: {type(err).__name__}: {err}"
 
     if not isinstance(payload, dict) or "Error" in payload or not isinstance(payload.get("dps"), dict):
@@ -274,7 +273,7 @@ def main() -> int:
     wantids = [args.device_id] if args.device_id else None
     try:
         devices = _scan(args.scantime, wantids, forcescan)
-    except Exception as err:  # noqa: BLE001
+    except Exception as err:
         print(f"!! scan raised: {type(err).__name__}: {err}")
         return 1
 

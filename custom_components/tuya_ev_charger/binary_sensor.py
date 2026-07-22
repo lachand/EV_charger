@@ -31,7 +31,6 @@ class TuyaEVChargerSurplusRegulationActiveBinarySensor(
     BinarySensorEntity,
 ):
     _attr_translation_key = "surplus_regulation_active"
-    _attr_icon = "mdi:solar-power-variant"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_entity_registry_enabled_default = False
 

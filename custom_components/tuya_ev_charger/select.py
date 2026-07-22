@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import ClassVar
+
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -45,9 +47,8 @@ class TuyaEVChargerPlugInActionSelect(TuyaEVChargerEntity, SelectEntity):
     """What the charger does when a cable is plugged in (DP 154)."""
 
     _attr_translation_key = "plug_in_action"
-    _attr_icon = "mdi:ev-plug-type2"
     _attr_entity_category = EntityCategory.CONFIG
-    _attr_options = list(PLUG_IN_ACTION_OPTIONS)
+    _attr_options: ClassVar[list[str]] = list(PLUG_IN_ACTION_OPTIONS)
 
     def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
         super().__init__(entry=entry, runtime_data=runtime_data)
@@ -77,7 +78,6 @@ class TuyaEVChargerVehicleSelect(TuyaEVChargerEntity, SelectEntity):
     """Picks which vehicle the charger's energy should be attributed to."""
 
     _attr_translation_key = "active_vehicle"
-    _attr_icon = "mdi:car-electric"
     _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
@@ -111,9 +111,8 @@ class TuyaEVChargerVehicleSelect(TuyaEVChargerEntity, SelectEntity):
 
 class TuyaEVChargerSurplusProfileSelect(TuyaEVChargerEntity, SelectEntity):
     _attr_translation_key = "surplus_profile"
-    _attr_icon = "mdi:tune-variant"
     _attr_entity_category = EntityCategory.CONFIG
-    _attr_options = list(SURPLUS_PROFILES)
+    _attr_options: ClassVar[list[str]] = list(SURPLUS_PROFILES)
 
     def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
         super().__init__(
