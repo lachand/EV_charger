@@ -98,3 +98,77 @@ def test_translation_files_are_valid_and_aligned():
     # any locale without its own file falls back to it.
     assert strings["entity"]["sensor"]["voltage_l1"]["name"] == "Voltage L1"
     assert set(english["entity"]["sensor"]) == set(french["entity"]["sensor"])
+
+
+def test_fault_diagnosis_is_throttled():
+    """Diagnosing costs a TCP connect and often a full read.
+
+    2.2.0 ran it on every failed poll, so a charger that stayed broken was
+    probed every 30 s forever. Only one diagnosis may happen per cooldown.
+    """
+    import asyncio
+    import types
+
+    from tuya_ev_charger.coordinator import TuyaEVChargerDataUpdateCoordinator
+    from tuya_ev_charger.const import ConnectionFault
+
+    coordinator = TuyaEVChargerDataUpdateCoordinator.__new__(
+        TuyaEVChargerDataUpdateCoordinator
+    )
+    coordinator._last_fault = None
+    coordinator._last_fault_at = 0.0
+    calls: list[int] = []
+
+    class _Client:
+        async def async_classify_fault(self):
+            calls.append(1)
+            return ConnectionFault.REFUSED
+
+    clock = {"now": 1000.0}
+    coordinator.client = _Client()
+    coordinator.hass = types.SimpleNamespace(
+        loop=types.SimpleNamespace(time=lambda: clock["now"])
+    )
+
+    from tuya_ev_charger.const import FAULT_DIAGNOSIS_COOLDOWN_SECONDS
+
+    start = clock["now"]
+
+    # A 30 s poll interval, stopping short of the cooldown boundary.
+    polls_inside = (FAULT_DIAGNOSIS_COOLDOWN_SECONDS // 30) - 1
+
+    async def _run():
+        first = await coordinator._async_classify_fault_throttled()
+        for _ in range(polls_inside):
+            clock["now"] += 30
+            await coordinator._async_classify_fault_throttled()
+        assert clock["now"] < start + FAULT_DIAGNOSIS_COOLDOWN_SECONDS
+        return first
+
+    verdict = asyncio.run(_run())
+    assert verdict == ConnectionFault.REFUSED
+    assert len(calls) == 1, f"diagnosed {len(calls)} times inside the cooldown"
+
+    # Once the cooldown has elapsed it may diagnose again.
+    clock["now"] = start + FAULT_DIAGNOSIS_COOLDOWN_SECONDS
+    asyncio.run(coordinator._async_classify_fault_throttled())
+    assert len(calls) == 2
+
+
+def test_success_clears_the_cached_fault():
+    """A stale verdict must not survive the charger coming back."""
+    import types
+
+    from tuya_ev_charger.coordinator import TuyaEVChargerDataUpdateCoordinator
+    from tuya_ev_charger.const import ConnectionFault
+
+    coordinator = TuyaEVChargerDataUpdateCoordinator.__new__(
+        TuyaEVChargerDataUpdateCoordinator
+    )
+    coordinator._last_fault = ConnectionFault.REFUSED
+    coordinator._last_fault_at = 1000.0
+    coordinator.hass = types.SimpleNamespace()
+    coordinator.entry = types.SimpleNamespace(entry_id="test")
+
+    coordinator._async_note_success()
+    assert coordinator._last_fault is None

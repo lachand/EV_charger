@@ -18,6 +18,7 @@ from .const import (
     DOMAIN,
     LOCAL_KEY_REFRESH_COOLDOWN_SECONDS,
     REDISCOVERY_COOLDOWN_SECONDS,
+    FAULT_DIAGNOSIS_COOLDOWN_SECONDS,
     REDISCOVERY_SCAN_SECONDS,
     ConnectionFault,
 )
@@ -59,10 +60,16 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         self.vehicle_tracker: Any = None
         self._last_rediscovery_at: float = 0.0
         self._last_key_refresh_at: float = 0.0
+        # Diagnosing a failure costs a TCP connect and possibly a full read, so
+        # the verdict is cached: a charger that stays broken must not be probed
+        # on every single poll.
+        self._last_fault: ConnectionFault | None = None
+        self._last_fault_at: float = 0.0
 
     async def _async_update_data(self) -> EVMetrics:
         metrics = await self._async_fetch_metrics()
         if metrics is not None:
+            self._async_note_success()
             await self._async_track_vehicle_energy(metrics)
             return metrics
 
@@ -71,6 +78,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         if await self._async_try_rediscover_host():
             metrics = await self._async_fetch_metrics()
             if metrics is not None:
+                self._async_note_success()
                 await self._async_track_vehicle_energy(metrics)
                 return metrics
 
@@ -79,6 +87,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         if await self._async_try_refresh_local_key():
             metrics = await self._async_fetch_metrics()
             if metrics is not None:
+                self._async_note_success()
                 await self._async_track_vehicle_energy(metrics)
                 return metrics
 
@@ -88,9 +97,8 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         """Explain *why* the poll failed, and raise a repair issue when useful."""
         host = self.client.host
         entry_id = self.entry.entry_id
-        try:
-            fault = await self.client.async_classify_fault()
-        except Exception:  # noqa: BLE001 - diagnosis must never mask the failure
+        fault = await self._async_classify_fault_throttled()
+        if fault is None:
             return f"Charger unreachable at {host} (no telemetry received)."
 
         if fault == ConnectionFault.REFUSED:
@@ -112,6 +120,38 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
                 "the local_key was most likely changed by a re-pairing."
             )
         return f"Charger unreachable at {host} (nothing answers at that address)."
+
+    async def _async_classify_fault_throttled(self) -> ConnectionFault | None:
+        """Diagnose the failure, at most once per cooldown.
+
+        Classifying opens a TCP connection and, when the port answers, performs a
+        full status read. A charger that stays broken would otherwise pay that
+        cost on every poll, forever. Returns None when the diagnosis itself
+        failed and no cached verdict is available.
+        """
+        now = self.hass.loop.time()
+        if (
+            self._last_fault is not None
+            and now - self._last_fault_at < FAULT_DIAGNOSIS_COOLDOWN_SECONDS
+        ):
+            return self._last_fault
+
+        try:
+            fault = await self.client.async_classify_fault()
+        except Exception as err:  # noqa: BLE001 - diagnosis must never mask the failure
+            LOGGER.debug("Fault diagnosis failed: %s", err)
+            return self._last_fault
+
+        self._last_fault = fault
+        self._last_fault_at = now
+        return fault
+
+    def _async_note_success(self) -> None:
+        """The charger answered: drop any stale diagnosis and repair issue."""
+        if self._last_fault is not None:
+            self._last_fault = None
+            self._last_fault_at = 0.0
+            async_clear(self.hass, self.entry.entry_id, ISSUE_CONNECTION_REFUSED)
 
     async def _async_track_vehicle_energy(self, metrics: EVMetrics) -> None:
         """Route charged energy into the active vehicle's total.

@@ -193,6 +193,10 @@ DEFAULT_SCAN_INTERVAL = timedelta(seconds=DEFAULT_SCAN_INTERVAL_SECONDS)
 # made re-discovery miss the charger and fall through to probing neighbours.
 REDISCOVERY_SCAN_SECONDS = 12
 REDISCOVERY_COOLDOWN_SECONDS = 120
+# Diagnosing why a poll failed costs a TCP connect and, when the port answers, a
+# full status read. Without this cooldown a charger that stays broken pays that
+# on every poll, forever.
+FAULT_DIAGNOSIS_COOLDOWN_SECONDS = 300
 
 # Optional Tuya Cloud assistance. Used only to fetch device credentials: at
 # setup time (config flow) and to re-download the local_key when the charger is
