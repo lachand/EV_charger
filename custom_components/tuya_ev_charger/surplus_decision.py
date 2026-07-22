@@ -161,6 +161,23 @@ def ramp_towards(
     return ladder[max(here - steps, there)]
 
 
+def headroom_for_car_w(
+    *,
+    grid_power_w: float,
+    ev_power_w: float,
+    house_limit_w: float,
+) -> float:
+    """Power the car may draw without pushing the house past its limit.
+
+    The car's own draw is already part of the grid reading, so it is removed
+    first to get what the rest of the house is using; the remainder of the
+    subscription is what is left for charging. Can be negative when the house
+    alone already exceeds the limit.
+    """
+    house_without_car_w = grid_power_w - ev_power_w
+    return house_limit_w - house_without_car_w
+
+
 def cap_to_available_power(
     available_currents: tuple[int, ...],
     headroom_w: float,

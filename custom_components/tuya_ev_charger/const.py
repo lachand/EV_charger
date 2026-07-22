@@ -88,6 +88,7 @@ CONF_CLOUD_API_SECRET = "cloud_api_secret"
 CONF_CLOUD_REGION = "cloud_region"
 CONF_CONTINUOUS_CURRENT = "continuous_current"
 CONF_VEHICLES = "vehicles"
+CONF_MAX_HOUSE_POWER_W = "max_house_power_w"
 CONF_DEVICE_ID = "device_id"
 CONF_LOCAL_KEY = "local_key"
 CONF_MAC = "mac"
@@ -159,6 +160,12 @@ DEFAULT_SCAN_INTERVAL_SECONDS = 30
 DEFAULT_CONTINUOUS_CURRENT = True
 # Comma-separated vehicle names for per-car energy tracking. Empty disables it.
 DEFAULT_VEHICLES = ""
+# Dynamic load balancing: the most the whole house may draw from the grid, in
+# watts, matching the grid sensor's unit so no line voltage has to be assumed.
+# A 6 kVA French subscription is 6000. Zero disables the feature.
+DEFAULT_MAX_HOUSE_POWER_W = 0
+MIN_MAX_HOUSE_POWER_W = 0
+MAX_MAX_HOUSE_POWER_W = 36000
 MIN_SCAN_INTERVAL_SECONDS = 5
 MAX_SCAN_INTERVAL_SECONDS = 300
 DEFAULT_SCAN_INTERVAL = timedelta(seconds=DEFAULT_SCAN_INTERVAL_SECONDS)

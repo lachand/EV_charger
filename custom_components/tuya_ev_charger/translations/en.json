@@ -102,7 +102,8 @@
           "surplus_start_threshold_w": "Surplus start threshold (W)",
           "surplus_stop_threshold_w": "Surplus stop threshold (W)",
           "surplus_forecast_sensor_entity_id": "1h solar forecast sensor entity (W) (optional)",
-          "vehicles": "Vehicles for per-car energy tracking (comma separated)"
+          "vehicles": "Vehicles for per-car energy tracking (comma separated)",
+          "max_house_power_w": "Maximum house power for load balancing (W, 0 = off)"
         }
       }
     }

@@ -11,12 +11,15 @@ to know where we are and what to do next, without re-auditing the repository.
 
 ## Resume here
 
-- **Current version:** 2.5.1
-- **Phase in progress:** Phases 1–4 done → **start Phase 5** (B3, dynamic load balancing)
-- **Next concrete action:** cap the charging current so the house main breaker cannot trip. The
-  grid power sensor is already read for surplus mode and `cap_to_available_power()` already exists
-  in `surplus_decision.py`; what is missing is the option (main breaker rating), wiring it into the
-  controller, and tests. Suite is at **91 tests**, coverage **42 %**.
+- **Current version:** 2.6.0
+- **Phase in progress:** Phases 1–5 done → **start Phase 6** (B1 tariffs, then B2 departure)
+- **Next concrete action:** B1 — let the user pick a price sensor and charge on the cheapest hours.
+  Build it in `surplus_decision.py` as pure functions (given prices and a target, which hours to
+  charge), the way load balancing was done, then wire it into the controller. B2 (departure time)
+  builds on the same planner. Suite is at **96 tests**.
+
+  Note: `CONF_SURPLUS_DEPARTURE_*` constants were *removed* in 2.4.0 as dead code — B2 starts from a
+  clean slate rather than reviving them.
 - **Blocked on hardware:** the charger refuses local TCP connections (its single local slot is held
   by something else). Anything needing a live read is stuck until a real power-cycle frees it. This
   blocks *verification* only, not implementation.
@@ -39,8 +42,8 @@ does not justify that.
 | 2 | Lot 2 + Lot 4 — HA conventions, tooling | 2.4.0 | ✅ done |
 | 3 | Lot 5.1 + Lot 3.1 — extract and test the surplus decision layer | 2.5.0 | ✅ done |
 | 4 | Lot 3.2/3.3 + Lot 5.2/5.3 — remaining tests and refactoring | 2.5.1 | ✅ done |
-| 5 | B3 — dynamic load balancing | 2.6.0 | 🔄 next |
-| 6 | B1 then B2 — tariffs, departure planning | 2.7.0 | ⬜ to do |
+| 5 | B3 — dynamic load balancing | 2.6.0 | ✅ done |
+| 6 | B1 then B2 — tariffs, departure planning | 2.7.0 | 🔄 next |
 | 7 | B4, B5, B7, B8, B9, B10 | 2.8+ | ⬜ to do |
 | 8 | Lot 6 — documentation | ongoing | ⬜ to do |
 
@@ -129,7 +132,7 @@ annotations without an import, hidden by `from __future__ import annotations`. R
 |---|---|---|---|
 | B1 | ⬜ | **Tariff-aware charging** (phase 6) | Charge when electricity is cheapest: off-peak, Tempo, or hourly prices. Combined with the existing surplus mode this delivers the real promise: **solar first, off-peak next, full price last**. The infrastructure (current regulation, thresholds, state machine) already exists. |
 | B2 | ⬜ | **Departure-time charging** (phase 6) | **Already half-started**: `const.py` declares `CONF_SURPLUS_DEPARTURE_MODE_ENABLED`, `_TIME` and `_TARGET_ENERGY_KWH` with defaults, but `solar_surplus.py` contains no trace of them and nothing is exposed in the UI. Finish it: "X kWh by 07:00", deferring as late as possible while still meeting the target. |
-| B3 | ⬜ | **Dynamic load balancing** (phase 5) | Cut charging current when the house draws too much, to avoid tripping the main breaker — the classic 6 kVA case with oven + hob + car. Grid power is **already** read for surplus mode: invert the logic (cap instead of follow) and reuse the existing ramp. Best value/effort ratio in part B. |
+| B3 | ✅ 2.6.0 | **Dynamic load balancing** (phase 5) | Cut charging current when the house draws too much, to avoid tripping the main breaker — the classic 6 kVA case with oven + hob + car. Grid power is **already** read for surplus mode: invert the logic (cap instead of follow) and reuse the existing ramp. Best value/effort ratio in part B. |
 | B4 | ⬜ | **Cost tracking** (phase 7) | Cost per session and per vehicle from a price sensor. Extends 2.2.0's per-vehicle tracking: we know the kWh per car, not the euros. |
 | B5 | ⬜ | **Automatic vehicle identification** (phase 7) | The "Active vehicle" select is manual because the charger cannot know which car is plugged in. Linking a car integration (Tesla, MyRenault, Kia/Hyundai…) gives the real SoC and the identity — removing the manual step *and* enabling "charge to 80 %" rather than in kWh. |
 | B6 | ❌ | ~~Push updates~~ | **Dropped.** Holding the socket open would lock out every other client including the Smart Life app. |

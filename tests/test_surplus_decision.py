@@ -198,3 +198,59 @@ def test_power_budget_caps_the_current():
     # No headroom means stop, and a negative budget must not wrap around.
     assert cap_to_available_power(LADDER, 0.0) == 0
     assert cap_to_available_power(LADDER, -1000.0) == 0
+
+
+# --- load balancing -------------------------------------------------------
+
+
+def test_headroom_removes_the_car_from_the_house_reading():
+    """The car's draw is already inside the grid measurement.
+
+    A 6 kVA house importing 5 kW of which the car takes 3 kW is really using
+    2 kW without it, so 4 kW remain available.
+    """
+    from tuya_ev_charger.surplus_decision import headroom_for_car_w
+
+    headroom = headroom_for_car_w(
+        grid_power_w=5000.0, ev_power_w=3000.0, house_limit_w=6000.0
+    )
+    assert headroom == pytest.approx(4000.0)
+
+
+def test_headroom_is_negative_when_the_house_alone_is_over():
+    """Oven plus hob can exceed the subscription with no car at all."""
+    from tuya_ev_charger.surplus_decision import headroom_for_car_w
+
+    headroom = headroom_for_car_w(
+        grid_power_w=7000.0, ev_power_w=0.0, house_limit_w=6000.0
+    )
+    assert headroom == pytest.approx(-1000.0)
+
+
+def test_exporting_leaves_the_full_subscription_available():
+    from tuya_ev_charger.surplus_decision import headroom_for_car_w
+
+    headroom = headroom_for_car_w(
+        grid_power_w=-2000.0, ev_power_w=0.0, house_limit_w=6000.0
+    )
+    assert headroom == pytest.approx(8000.0)
+
+
+def test_load_balancing_caps_the_current():
+    from tuya_ev_charger.surplus_decision import cap_to_available_power, headroom_for_car_w
+
+    # 6 kVA house, oven drawing 3.5 kW, car currently pulling 3.7 kW at 16 A.
+    headroom = headroom_for_car_w(
+        grid_power_w=7200.0, ev_power_w=3700.0, house_limit_w=6000.0
+    )
+    assert cap_to_available_power(LADDER, headroom) == 10  # 2.5 kW left -> 10 A
+
+
+def test_no_headroom_means_stop_not_minimum():
+    """Below the lowest offered current the answer is zero, and the caller stops."""
+    from tuya_ev_charger.surplus_decision import cap_to_available_power, headroom_for_car_w
+
+    headroom = headroom_for_car_w(
+        grid_power_w=6500.0, ev_power_w=0.0, house_limit_w=6000.0
+    )
+    assert cap_to_available_power(LADDER, headroom) == 0

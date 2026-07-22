@@ -15,6 +15,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     CHARGER_PROFILE_DEPOW_V2,
+    CONF_MAX_HOUSE_POWER_W,
     CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
     CONF_SURPLUS_ADJUST_UP_COOLDOWN_S,
     CONF_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
@@ -33,6 +34,7 @@ from .const import (
     CONF_SURPLUS_SENSOR_INVERTED,
     CONF_SURPLUS_START_THRESHOLD_W,
     CONF_SURPLUS_STOP_THRESHOLD_W,
+    DEFAULT_MAX_HOUSE_POWER_W,
     DEFAULT_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
     DEFAULT_SURPLUS_ADJUST_UP_COOLDOWN_S,
     DEFAULT_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
@@ -55,10 +57,12 @@ from .const import (
     DP_DO_CHARGE,
     DP_METRICS,
     DP_WORK_STATE_DEBUG,
+    MAX_MAX_HOUSE_POWER_W,
     MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MAX_SURPLUS_DELAY_S,
     MAX_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
     MAX_SURPLUS_THRESHOLD_W,
+    MIN_MAX_HOUSE_POWER_W,
     MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MIN_SURPLUS_DELAY_S,
     MIN_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
@@ -70,7 +74,9 @@ from .surplus_decision import (
     ForecastState,
     SurplusInputs,
     apply_forecast,
+    cap_to_available_power,
     current_supported_by,
+    headroom_for_car_w,
     ramp_towards,
     raw_surplus_w,
 )
@@ -96,6 +102,7 @@ FIXED_FORECAST_DROP_GUARD_W = 500
 class SolarSurplusSettings:
     mode_enabled: bool
     grid_sensor_entity_id: str
+    max_house_power_w: int
     grid_sensor_inverted: bool
     curtailment_sensor_entity_id: str
     curtailment_sensor_inverted: bool
@@ -371,10 +378,34 @@ class SolarSurplusController:
             self._notify_state_listeners()
             return
 
+        # Load balancing is a safety limit, not a surplus feature: it has to
+        # apply even with surplus mode off, and nothing may raise the current
+        # above it afterwards.
+        load_cap = self._load_limit_current(data, available_currents)
+        if load_cap is not None:
+            if load_cap < min_current:
+                if is_charging:
+                    await self._client.async_set_charge_enabled(False)
+                    self._register_stop(now)
+                    await self._coordinator.async_request_refresh()
+                self._set_decision("load_limit_no_headroom")
+                self._regulation_active = False
+                self._clear_surplus_debug_state()
+                self._notify_state_listeners()
+                return
+
+            available_currents = tuple(c for c in available_currents if c <= load_cap)
+            min_current = min(available_currents)
+            if data.current_target is not None and data.current_target > load_cap:
+                if await self._client.async_set_charge_current(load_cap):
+                    await self._coordinator.async_request_refresh()
+                self._set_decision("load_limit_reduced")
+
         if not self._settings.mode_enabled:
-            self._set_decision("mode_disabled")
             self._regulation_active = False
             self._clear_surplus_debug_state()
+            if self._last_decision_reason != "load_limit_reduced":
+                self._set_decision("mode_disabled")
             self._notify_state_listeners()
             return
 
@@ -737,6 +768,31 @@ class SolarSurplusController:
             self._forecast_last_sample_ts = result.state.last_sample_ts
         return result.effective_surplus_w
 
+    def _load_limit_current(
+        self,
+        data: EVMetrics,
+        available_currents: tuple[int, ...],
+    ) -> int | None:
+        """Highest current that keeps the house under its subscribed limit.
+
+        Returns None when load balancing is off or the grid reading is missing:
+        capping blind would be worse than not capping, since a stale or absent
+        measurement would either stop a healthy charge or fail to protect.
+        """
+        limit_w = self._settings.max_house_power_w
+        if limit_w <= 0:
+            return None
+        grid_power_w = self._read_grid_power_w()
+        if grid_power_w is None:
+            return None
+
+        headroom_w = headroom_for_car_w(
+            grid_power_w=grid_power_w,
+            ev_power_w=_ev_power_w(data),
+            house_limit_w=float(limit_w),
+        )
+        return cap_to_available_power(available_currents, headroom_w)
+
     def _read_grid_power_w(self) -> float | None:
         value = self._read_sensor_power_w(self._settings.grid_sensor_entity_id)
         if value is None:
@@ -960,6 +1016,10 @@ def _settings_from_entry(entry: ConfigEntry) -> SolarSurplusSettings:
             options,
             CONF_SURPLUS_MODE_ENABLED,
             DEFAULT_SURPLUS_MODE_ENABLED,
+        ),
+        max_house_power_w=_option_int(
+            options, CONF_MAX_HOUSE_POWER_W, DEFAULT_MAX_HOUSE_POWER_W,
+            MIN_MAX_HOUSE_POWER_W, MAX_MAX_HOUSE_POWER_W,
         ),
         grid_sensor_entity_id=_option_str(
             options,

@@ -71,7 +71,8 @@
           "surplus_start_threshold_w": "Seuil de demarrage surplus (W)",
           "surplus_stop_threshold_w": "Seuil d'arret surplus (W)",
           "surplus_forecast_sensor_entity_id": "Entite capteur prevision solaire 1h (W) (optionnel)",
-          "vehicles": "Vehicules pour le suivi d'energie par voiture (separes par des virgules)"
+          "vehicles": "Vehicules pour le suivi d'energie par voiture (separes par des virgules)",
+          "max_house_power_w": "Puissance max de la maison pour le delestage (W, 0 = desactive)"
         }
       }
     }
