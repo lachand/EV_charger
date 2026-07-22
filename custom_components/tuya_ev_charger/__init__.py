@@ -13,9 +13,11 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryNotReady, ServiceValidationError
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import format_mac
 
 from .const import (
+    ADVANCED_ENTITY_KEYS,
     CHARGER_PROFILES,
     CONF_CHARGER_PROFILE,
     CONF_CHARGER_PROFILE_JSON,
@@ -28,6 +30,7 @@ from .const import (
     DEFAULT_CHARGER_PROFILE_JSON,
     DEFAULT_SCAN_INTERVAL_SECONDS,
     DOMAIN,
+    ENTITY_OPTION_AUTO_DISABLED,
     MAX_SCAN_INTERVAL_SECONDS,
     MIN_SCAN_INTERVAL_SECONDS,
     PLATFORMS,
@@ -37,6 +40,8 @@ from .const import (
     SERVICE_SET_SURPLUS_PROFILE,
 )
 from .coordinator import TuyaEVChargerDataUpdateCoordinator
+from .entity_cleanup import async_disable_entities, unavailable_capability_keys
+from .repairs import ISSUE_TIDY_ENTITIES, async_clear, async_offer_entity_cleanup
 from .solar_surplus import SolarSurplusController
 from .vehicles import VehicleEnergyTracker
 from .surplus_profiles import (
@@ -180,9 +185,47 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    await _async_tidy_entities(hass, entry, coordinator)
     await _async_register_services(hass)
     LOGGER.debug("Tuya EV charger integration initialized: %s", entry.title)
     return True
+
+
+async def _async_tidy_entities(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    coordinator: TuyaEVChargerDataUpdateCoordinator,
+) -> None:
+    """Keep an existing install's entity list close to a fresh one.
+
+    `entity_registry_enabled_default` only applies at first registration, so it
+    does nothing for entities already in the registry. Capabilities this charger
+    physically lacks are disabled outright — they could never hold a value.
+    Advanced-but-working entities are only *offered*, because Home Assistant
+    cannot tell one the user deliberately kept from one merely enabled by
+    default.
+    """
+    await async_disable_entities(
+        hass,
+        entry.entry_id,
+        unavailable_capability_keys(coordinator.data),
+        reason="this charger does not expose",
+    )
+
+    registry = er.async_get(hass)
+    pending = sum(
+        1
+        for candidate in er.async_entries_for_config_entry(registry, entry.entry_id)
+        if candidate.disabled_by is None
+        and any(
+            candidate.unique_id.endswith(f"_{key}") for key in ADVANCED_ENTITY_KEYS
+        )
+        and not (candidate.options.get(DOMAIN) or {}).get(ENTITY_OPTION_AUTO_DISABLED)
+    )
+    if pending:
+        async_offer_entity_cleanup(hass, entry.entry_id, pending)
+    else:
+        async_clear(hass, entry.entry_id, ISSUE_TIDY_ENTITIES)
 
 
 async def _async_reconcile_network_info(

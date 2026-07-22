@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -38,6 +38,7 @@ from .const import (
     CARD_ROLE_TEMPERATURE,
     CARD_ROLE_VOLTAGE,
     CARD_ROLE_WORK_STATE,
+    ADVANCED_ENTITY_KEYS,
     CONF_VEHICLES,
     DEFAULT_VEHICLES,
 )
@@ -340,6 +341,25 @@ SURPLUS_CONTROLLER_SENSOR_DESCRIPTIONS: tuple[TuyaEVChargerSurplusControllerSens
         suggested_display_precision=0,
         value_fn=lambda snapshot: snapshot.target_current_a,
     ),
+)
+
+
+def _apply_default_visibility(
+    descriptions: tuple[TuyaEVChargerSensorDescription, ...]
+    | tuple[TuyaEVChargerSurplusControllerSensorDescription, ...],
+):
+    """Create advanced sensors disabled, from the single policy in const.py."""
+    return tuple(
+        replace(description, entity_registry_enabled_default=False)
+        if description.key in ADVANCED_ENTITY_KEYS
+        else description
+        for description in descriptions
+    )
+
+
+SENSOR_DESCRIPTIONS = _apply_default_visibility(SENSOR_DESCRIPTIONS)
+SURPLUS_CONTROLLER_SENSOR_DESCRIPTIONS = _apply_default_visibility(
+    SURPLUS_CONTROLLER_SENSOR_DESCRIPTIONS
 )
 
 

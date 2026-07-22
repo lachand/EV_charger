@@ -280,6 +280,42 @@ PLATFORMS: tuple[Platform, ...] = (
 
 ALLOWED_CURRENTS: tuple[int, ...] = (6, 8, 10, 13, 16, 20, 25, 32)
 
+# Entities that work fine but are advanced or duplicate something friendlier, so
+# a fresh install does not open on 47 entities. Created disabled; existing
+# installs keep theirs and are offered a cleanup they must accept.
+#   - work_state / work_state_debug: raw code and firmware string, both now
+#     superseded by the translated `status` sensor
+#   - adjust_current_options: the app's shortcut list, misleading now that 1A
+#     steps are the default
+#   - evcc_status: only meaningful when driving the charger from evcc
+#   - surplus_*: valuable while tuning surplus mode, noise otherwise
+ADVANCED_ENTITY_KEYS: frozenset[str] = frozenset(
+    {
+        "work_state",
+        "work_state_debug",
+        "adjust_current_options",
+        "product_variant",
+        "downcounter",
+        "selftest",
+        "evcc_status",
+        "session_duration",
+        "last_session_energy",
+        "last_session_duration",
+        "surplus_raw_w",
+        "surplus_effective_w",
+        "surplus_target_current_a",
+        "surplus_battery_discharge_over_limit_w",
+        "surplus_last_decision_reason",
+        "surplus_regulation_active",
+    }
+)
+
+# Marker written into the entity registry options so the integration never
+# re-disables something the user has since re-enabled. Home Assistant records
+# who *disabled* an entity but has no "enabled by user" flag, so we track our
+# own action instead of guessing.
+ENTITY_OPTION_AUTO_DISABLED = "auto_disabled"
+
 # Numeric operating states seen on DP 101: 200 = ready to charge, 204 = paused,
 # 300 = charging. Writing 200 after a session is what clears a stale power
 # reading on firmwares that keep echoing the last value.

@@ -160,6 +160,24 @@ def _install_stubs() -> None:
         IssueSeverity=types.SimpleNamespace(WARNING="warning", ERROR="error"),
     )
     _module("homeassistant.helpers.storage", Store=_Generic)
+
+    class RegistryEntryDisabler(StrEnum):
+        USER = "user"
+        INTEGRATION = "integration"
+        CONFIG_ENTRY = "config_entry"
+
+    _module(
+        "homeassistant.helpers.entity_registry",
+        async_get=lambda hass: None,
+        async_entries_for_config_entry=lambda registry, entry_id: [],
+        RegistryEntry=object,
+        RegistryEntryDisabler=RegistryEntryDisabler,
+    )
+    _module(
+        "homeassistant.components.repairs",
+        RepairsFlow=type("RepairsFlow", (), {}),
+        ConfirmRepairFlow=type("ConfirmRepairFlow", (), {}),
+    )
     _module(
         "homeassistant.helpers.selector",
         EntitySelector=type("EntitySelector", (), {"__init__": lambda self, *a, **k: None}),

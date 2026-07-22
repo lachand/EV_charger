@@ -249,6 +249,17 @@
     "connection_refused": {
       "title": "La borne refuse la connexion",
       "description": "La borne a {host} est joignable mais refuse son port de controle. Ces bornes n'acceptent qu'une seule connexion locale a la fois : verifiez que l'appli Smart Life ou une autre integration Tuya ne la monopolise pas."
+    },
+    "tidy_entities": {
+      "title": "Masquer les entites avancees",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Masquer les entites avancees",
+            "description": "Cette borne a enregistre {count} entites avancees ou de diagnostic qu'une installation neuve masquerait desormais (codes d'etat bruts, auto-test, internes du surplus). Les desactiver allege la page de l'appareil ; vous pourrez en reactiver a tout moment sans qu'on y revienne."
+          }
+        }
+      }
     }
   }
 }

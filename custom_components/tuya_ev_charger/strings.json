@@ -280,6 +280,17 @@
     "connection_refused": {
       "title": "Charger refused the connection",
       "description": "The charger at {host} is reachable but refuses its control port. These chargers accept a single local connection at a time — check that the Smart Life app or another Tuya integration is not holding it."
+    },
+    "tidy_entities": {
+      "title": "Hide advanced entities",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Hide advanced entities",
+            "description": "This charger registered {count} advanced or diagnostic entities that a fresh install would now hide (raw state codes, self-test, surplus internals). Disabling them tidies the device page; you can re-enable any of them afterwards and they will not be touched again."
+          }
+        }
+      }
     }
   }
 }
