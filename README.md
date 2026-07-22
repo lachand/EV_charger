@@ -263,7 +263,18 @@ charging, instead of holding the last value.
 
 ## Lovelace
 
-A simplified example card: `lovelace/charge_intelligente.yaml`.
+A dedicated card is available: **[Tuya EV Charger Card](https://github.com/lachand/tuya-ev-charger-card)**.
+Install it through HACS as a *Lovelace* custom repository — it is a separate
+frontend plugin, not part of this integration.
+
+A simplified YAML example is also provided: `lovelace/charge_intelligente.yaml`.
+
+The card lives in this repository as a git submodule for development. If you
+cloned before checking it out:
+
+```bash
+git submodule update --init
+```
 
 ---
 

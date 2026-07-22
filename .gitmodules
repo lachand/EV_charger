@@ -1,0 +1,3 @@
+[submodule "tuya-ev-charger-card"]
+	path = tuya-ev-charger-card
+	url = https://github.com/lachand/tuya-ev-charger-card.git
