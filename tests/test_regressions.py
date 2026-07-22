@@ -265,3 +265,33 @@ def test_icons_live_in_icons_json():
         source = path.read_text()
         assert 'icon="mdi:' not in source, f"{path.name} still hardcodes an icon"
         assert "_attr_icon" not in source, f"{path.name} still hardcodes an icon"
+
+
+def test_translation_keys_are_valid_for_hassfest():
+    """hassfest rejects keys outside [a-z0-9-_], and only in CI.
+
+    The `evcc_status` sensor shipped with `A`/`B`/`C` state translations -- the
+    IEC 61851 letters evcc consumes -- which made hassfest fail on every push
+    for months. The values must stay uppercase for evcc, so the labels were
+    dropped rather than the states renamed. This keeps the class of mistake from
+    coming back through any other key.
+    """
+    import json
+    import pathlib
+    import re
+
+    valid = re.compile(r"^[a-z0-9][a-z0-9_-]*[a-z0-9]$|^[a-z0-9]$")
+    root = pathlib.Path(__file__).resolve().parents[1] / "custom_components/tuya_ev_charger"
+
+    def _walk(node, trail):
+        if not isinstance(node, dict):
+            return
+        for key, value in node.items():
+            # Placeholders like {entity_name} are values, not keys; only keys
+            # are constrained.
+            assert valid.match(key), f"{trail}/{key}"
+            _walk(value, f"{trail}/{key}")
+
+    for name in ("strings.json", "translations/en.json", "translations/fr.json"):
+        payload = json.loads((root / name).read_text(encoding="utf-8"))
+        _walk(payload, name)

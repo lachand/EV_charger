@@ -190,12 +190,7 @@
         }
       },
       "evcc_status": {
-        "name": "Statut evcc",
-        "state": {
-          "A": "A - libre",
-          "B": "B - branche",
-          "C": "C - en charge"
-        }
+        "name": "Statut evcc"
       }
     },
     "number": {

@@ -471,3 +471,9 @@ Repository side: description, valid topics, brand assets submitted to the Home
 Assistant brands repo. Integration side: valid `hacs.json` keys, `issue_tracker`
 in `manifest.json`, and manifest keys sorted (`domain`, `name`, then
 alphabetical).
+
+---
+
+## Licence
+
+[MIT](LICENSE).

@@ -221,12 +221,7 @@
         }
       },
       "evcc_status": {
-        "name": "evcc status",
-        "state": {
-          "A": "A - ready",
-          "B": "B - connected",
-          "C": "C - charging"
-        }
+        "name": "evcc status"
       }
     },
     "number": {
