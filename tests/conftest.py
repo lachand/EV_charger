@@ -127,6 +127,7 @@ def _install_stubs() -> None:
         "homeassistant.exceptions",
         HomeAssistantError=type("HomeAssistantError", (Exception,), {}),
         ConfigEntryNotReady=type("ConfigEntryNotReady", (Exception,), {}),
+        ConfigEntryAuthFailed=type("ConfigEntryAuthFailed", (Exception,), {}),
         ServiceValidationError=type("ServiceValidationError", (Exception,), {}),
     )
     _module("homeassistant.data_entry_flow", FlowResult=dict)

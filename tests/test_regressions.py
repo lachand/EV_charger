@@ -172,3 +172,45 @@ def test_success_clears_the_cached_fault():
 
     coordinator._async_note_success()
     assert coordinator._last_fault is None
+
+
+def test_routine_poll_does_not_block_on_the_scan():
+    """Listening for a broadcast takes seconds; the update loop must not wait.
+
+    On a routine poll the relocation is scheduled in the background. The first
+    refresh is the exception: setup rebuilds the client from the stored host on
+    every retry, so an in-memory fix from a background task would be lost.
+    """
+    import asyncio
+    import types
+
+    from tuya_ev_charger.coordinator import TuyaEVChargerDataUpdateCoordinator
+
+    def _make(data):
+        c = TuyaEVChargerDataUpdateCoordinator.__new__(
+            TuyaEVChargerDataUpdateCoordinator
+        )
+        c._last_rediscovery_at = 0.0
+        c._relocating = None
+        c.data = data
+        c.hass = types.SimpleNamespace(
+            loop=types.SimpleNamespace(time=lambda: 100_000.0)
+        )
+        c.scheduled = False
+        c._schedule_relocation = lambda: setattr(c, "scheduled", True)
+        return c
+
+    # Routine poll: scheduled, and the caller is not made to wait.
+    routine = _make(object())
+    assert asyncio.run(routine._async_try_rediscover_host()) is False
+    assert routine.scheduled is True
+
+    # First refresh: resolved inline instead.
+    first = _make(None)
+    first._async_relocate = lambda: _returns(True)
+    assert asyncio.run(first._async_try_rediscover_host()) is True
+    assert first.scheduled is False
+
+
+async def _returns(value):
+    return value

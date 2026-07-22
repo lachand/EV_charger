@@ -409,6 +409,56 @@ class TuyaEVChargerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
+    async def async_step_reauth(
+        self,
+        entry_data: Mapping[str, Any],
+    ) -> FlowResult:
+        """Entered when the charger stops accepting our credentials.
+
+        Raised by the coordinator when the control port answers but nothing
+        decrypts, which means the local_key was rotated by a re-pairing.
+        """
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> FlowResult:
+        entry = self._get_reauth_entry()
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            candidate = {**entry.data, **user_input}
+            try:
+                await _async_validate_input(self.hass, candidate)
+            except ConnectionRefusedByChargerError:
+                errors["base"] = "connection_refused"
+            except InvalidCredentialsError:
+                errors["base"] = "invalid_credentials"
+            except CannotConnectError:
+                errors["base"] = "cannot_connect"
+            except Exception:
+                LOGGER.exception("Unexpected error while validating charger config.")
+                errors["base"] = "unknown"
+            else:
+                return self.async_update_reload_and_abort(entry, data=candidate)
+
+        # Only the key is asked for: the address and identity have not changed,
+        # and re-typing them would be a chance to get them wrong.
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_LOCAL_KEY,
+                        default=(user_input or {}).get(CONF_LOCAL_KEY, ""),
+                    ): str,
+                }
+            ),
+            description_placeholders={"host": str(entry.data.get(CONF_HOST, ""))},
+            errors=errors,
+        )
+
     async def async_step_reconfigure(
         self,
         user_input: dict[str, Any] | None = None,

@@ -5,6 +5,7 @@ from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .cloud import TuyaCloudError, async_fetch_local_key
@@ -65,6 +66,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         # on every single poll.
         self._last_fault: ConnectionFault | None = None
         self._last_fault_at: float = 0.0
+        self._relocating: Any = None
 
     async def _async_update_data(self) -> EVMetrics:
         metrics = await self._async_fetch_metrics()
@@ -91,7 +93,13 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
                 await self._async_track_vehicle_energy(metrics)
                 return metrics
 
-        raise UpdateFailed(await self._async_failure_message())
+        message = await self._async_failure_message()
+        if self._last_fault == ConnectionFault.UNDECRYPTABLE:
+            # The charger answers but nothing decrypts: the key was rotated by a
+            # re-pairing. ConfigEntryAuthFailed is what puts a "Reconfigure"
+            # banner in front of the user; UpdateFailed would just retry forever.
+            raise ConfigEntryAuthFailed(message)
+        raise UpdateFailed(message)
 
     async def _async_failure_message(self) -> str:
         """Explain *why* the poll failed, and raise a repair issue when useful."""
@@ -190,6 +198,38 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
             return False
         self._last_rediscovery_at = now
 
+        if self.data is not None:
+            # Routine poll: listening for a broadcast takes seconds, and blocking
+            # the update loop for that long stalls every entity. Relocate in the
+            # background and let the next poll use the result.
+            self._schedule_relocation()
+            return False
+
+        # First refresh: setup rebuilds the client from the stored host on every
+        # retry, so an in-memory fix from a background task would be thrown away.
+        # This one has to resolve inline.
+        return await self._async_relocate()
+
+    def _schedule_relocation(self) -> None:
+        """Run one relocation in the background, never two at once."""
+        if self._relocating is not None and not self._relocating.done():
+            return
+
+        async def _run() -> None:
+            try:
+                if await self._async_relocate():
+                    # The host changed; pull fresh data straight away rather than
+                    # waiting out the poll interval.
+                    await self.async_request_refresh()
+            except Exception as err:  # noqa: BLE001 - background task must not escape
+                LOGGER.debug("Background relocation failed: %s", err)
+
+        self._relocating = self.entry.async_create_background_task(
+            self.hass, _run(), name=f"{DOMAIN}_relocate"
+        )
+
+    async def _async_relocate(self) -> bool:
+        """Scan for our charger and adopt its advertised address."""
         device_id = str(self.entry.data.get(CONF_DEVICE_ID, "")).strip()
         current_host = self.client.host
 

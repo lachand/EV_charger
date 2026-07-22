@@ -53,6 +53,13 @@
           "protocol_version": "Protocol version (default: 3.5)",
           "charger_profile": "Charger profile / DP mapping"
         }
+      },
+      "reauth_confirm": {
+        "title": "Re-enter the local key",
+        "description": "The charger at {host} is answering but its replies can no longer be decrypted, which happens when it is re-paired. Enter the new local key.",
+        "data": {
+          "local_key": "Local key"
+        }
       }
     },
     "error": {
@@ -66,7 +73,8 @@
     },
     "abort": {
       "already_configured": "This charger is already configured.",
-      "not_tuya_ev_charger": "The device that changed IP is not a configured Tuya charger."
+      "not_tuya_ev_charger": "The device that changed IP is not a configured Tuya charger.",
+      "reauth_successful": "Re-authentication successful."
     }
   },
   "options": {

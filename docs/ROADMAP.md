@@ -11,9 +11,11 @@ to know where we are and what to do next, without re-auditing the repository.
 
 ## Resume here
 
-- **Current version:** 2.3.0
-- **Phase in progress:** Phase 0 — tracking file
-- **Next concrete action:** start Phase 1 (Lot 1) with **A1.1**, the broken Lovelace card submodule
+- **Current version:** 2.3.1
+- **Phase in progress:** Phase 1 done → **start Phase 2** (Lot 2 + Lot 4)
+- **Next concrete action:** A2.1 — declare the minimum Home Assistant version in `hacs.json`
+  (`2024.11.0`), then A4.1 (add `ruff` + `pyproject.toml` + a CI lint job) before anything else adds
+  code. Suite is at **51 tests**.
 - **Blocked on hardware:** the charger refuses local TCP connections (its single local slot is held
   by something else). Anything needing a live read is stuck until a real power-cycle frees it. This
   blocks *verification* only, not implementation.
@@ -31,9 +33,9 @@ does not justify that.
 
 | Phase | Contents | Target version | State |
 |---|---|---|---|
-| 0 | This file | — | 🔄 in progress |
-| 1 | Lot 1 — verified bugs | 2.3.1 | ⬜ to do |
-| 2 | Lot 2 + Lot 4 — HA conventions, tooling | 2.4.0 | ⬜ to do |
+| 0 | This file | — | ✅ done |
+| 1 | Lot 1 — verified bugs | 2.3.1 | ✅ done |
+| 2 | Lot 2 + Lot 4 — HA conventions, tooling | 2.4.0 | 🔄 next |
 | 3 | Lot 5.1 + Lot 3.1 — extract and test the surplus decision layer | 2.5.0 | ⬜ to do |
 | 4 | Lot 3.2/3.3 + Lot 5.2/5.3 — remaining tests and refactoring | 2.5.x | ⬜ to do |
 | 5 | B3 — dynamic load balancing | 2.6.0 | ⬜ to do |
@@ -51,14 +53,22 @@ for B1/B2/B3, which all plug into it.
 
 Every item below was confirmed in the repository, not assumed.
 
-### Lot 1 — Bugs 🔴 (phase 1)
+### Lot 1 — Bugs 🔴 (phase 1) — ✅ shipped in 2.3.1
+
+Notes from the implementation:
+- **A1.1** the card has its own repo (`lachand/tuya-ev-charger-card`) with its own `hacs.json`, so
+  the gitlink was restored rather than dropped — and the URL is HTTPS, not the SSH remote the working
+  copy uses, since anyone cloning has neither push access nor a GitHub key.
+- **A1.4** the scan is now backgrounded on routine polls only. The **first refresh keeps it inline**:
+  setup rebuilds the client from the stored host on every retry, so an in-memory fix from a
+  background task would be discarded.
 
 | # | State | Finding | Action |
 |---|---|---|---|
-| A1.1 | ⬜ | `git ls-files -s` shows `160000 … tuya-ev-charger-card` (a gitlink) but **`.gitmodules` does not exist**. A `git clone` therefore yields an **empty** directory and `git submodule update --init` fails with no URL. The card the README advertises cannot be obtained from the repo. | Restore `.gitmodules`, or unlink the gitlink and vendor the card / split it into its own HACS repo |
-| A1.2 | ⬜ | `coordinator._async_failure_message()` calls `async_classify_fault()` on **every** failed cycle: a TCP connect, then a **full `status()`** if the port answers. On a charger with an open port but a wrong key that is a complete read every 30 s, forever. The repair issue is also re-created each pass. *(regression introduced in 2.2.0)* | Cache the verdict behind a cooldown, mirroring `REDISCOVERY_COOLDOWN_SECONDS` |
-| A1.3 | ⬜ | `ConnectionFault.UNDECRYPTABLE` (key rotated by re-pairing) is **detected** but `ConfigEntryAuthFailed` is never raised, so Home Assistant never shows the re-authentication banner. | Add `async_step_reauth` / `async_step_reauth_confirm`, reusing `_build_credentials_schema()` and `_async_validate_input()` |
-| A1.4 | ⬜ | The re-discovery scan (up to 12 s) runs **inside** `_async_update_data`, delaying the coordinator and startup by that much | Move it out of the update cycle |
+| A1.1 | ✅ 2.3.1 | `git ls-files -s` shows `160000 … tuya-ev-charger-card` (a gitlink) but **`.gitmodules` does not exist**. A `git clone` therefore yields an **empty** directory and `git submodule update --init` fails with no URL. The card the README advertises cannot be obtained from the repo. | Restore `.gitmodules`, or unlink the gitlink and vendor the card / split it into its own HACS repo |
+| A1.2 | ✅ 2.3.1 | `coordinator._async_failure_message()` calls `async_classify_fault()` on **every** failed cycle: a TCP connect, then a **full `status()`** if the port answers. On a charger with an open port but a wrong key that is a complete read every 30 s, forever. The repair issue is also re-created each pass. *(regression introduced in 2.2.0)* | Cache the verdict behind a cooldown, mirroring `REDISCOVERY_COOLDOWN_SECONDS` |
+| A1.3 | ✅ 2.3.1 | `ConnectionFault.UNDECRYPTABLE` (key rotated by re-pairing) is **detected** but `ConfigEntryAuthFailed` is never raised, so Home Assistant never shows the re-authentication banner. | Add `async_step_reauth` / `async_step_reauth_confirm`, reusing `_build_credentials_schema()` and `_async_validate_input()` |
+| A1.4 | ✅ 2.3.1 | The re-discovery scan (up to 12 s) runs **inside** `_async_update_data`, delaying the coordinator and startup by that much | Move it out of the update cycle |
 
 ### Lot 2 — Home Assistant conventions 🟠 (phase 2)
 

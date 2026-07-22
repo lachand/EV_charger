@@ -22,6 +22,13 @@
           "protocol_version": "Version du protocole",
           "charger_profile": "Profil chargeur"
         }
+      },
+      "reauth_confirm": {
+        "title": "Ressaisir la local key",
+        "description": "La borne a {host} repond mais ses reponses ne peuvent plus etre dechiffrees, ce qui arrive apres un re-appairage. Saisissez la nouvelle local key.",
+        "data": {
+          "local_key": "Local key"
+        }
       }
     },
     "error": {
@@ -35,7 +42,8 @@
     },
     "abort": {
       "already_configured": "Cette borne est deja configuree.",
-      "not_tuya_ev_charger": "L'appareil dont l'IP a change n'est pas une borne Tuya configuree."
+      "not_tuya_ev_charger": "L'appareil dont l'IP a change n'est pas une borne Tuya configuree.",
+      "reauth_successful": "Re-authentification reussie."
     }
   },
   "options": {
