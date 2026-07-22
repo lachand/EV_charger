@@ -78,6 +78,7 @@ from .const import (
     MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MIN_SURPLUS_THRESHOLD_W,
     SUPPORTED_PROTOCOL_VERSIONS,
+    ConnectionFault,
 )
 from .cloud import TuyaCloudError, async_fetch_devices
 from .discovery import async_scan_devices_by_id
@@ -87,7 +88,19 @@ LOGGER = logging.getLogger(__name__)
 
 
 class CannotConnectError(Exception):
-    """Raised when the charger cannot be reached."""
+    """Raised when nothing answers at the charger's address."""
+
+
+class ConnectionRefusedByChargerError(Exception):
+    """Raised when the charger is present but rejects the control port.
+
+    A Tuya charger accepts a single local connection, so this almost always
+    means another client is holding it — not that the credentials are wrong.
+    """
+
+
+class InvalidCredentialsError(Exception):
+    """Raised when the charger answers but its replies will not decrypt."""
 
 
 # Optional entity pickers in the options form. They must not carry a voluptuous
@@ -149,6 +162,13 @@ async def _async_validate_input(
     await client.async_connect()
     metrics = await client.async_get_metrics()
     if metrics is None:
+        # "Cannot connect" blames the credentials, which is wrong for two of the
+        # three failure modes, so say which one it actually is.
+        fault = await client.async_classify_fault()
+        if fault == ConnectionFault.REFUSED:
+            raise ConnectionRefusedByChargerError
+        if fault == ConnectionFault.UNDECRYPTABLE:
+            raise InvalidCredentialsError
         raise CannotConnectError
     # No IP in the title: it is a DHCP address the integration relocates on its
     # own, so baking it in would make the title lie after the first move.
@@ -370,6 +390,10 @@ class TuyaEVChargerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._abort_if_unique_id_configured()
             try:
                 info = await _async_validate_input(self.hass, user_input)
+            except ConnectionRefusedByChargerError:
+                errors["base"] = "connection_refused"
+            except InvalidCredentialsError:
+                errors["base"] = "invalid_credentials"
             except CannotConnectError:
                 errors["base"] = "cannot_connect"
             except Exception:
@@ -401,6 +425,10 @@ class TuyaEVChargerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             try:
                 await _async_validate_input(self.hass, user_input)
+            except ConnectionRefusedByChargerError:
+                errors["base"] = "connection_refused"
+            except InvalidCredentialsError:
+                errors["base"] = "invalid_credentials"
             except CannotConnectError:
                 errors["base"] = "cannot_connect"
             except Exception:

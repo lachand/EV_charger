@@ -60,7 +60,9 @@
       "cloud_auth_failed": "Could not reach the Tuya Cloud. Check the Access ID, Access Secret and region.",
       "cloud_no_devices": "No devices in this Tuya IoT project. Did you link your Smart Life account to it?",
       "no_devices_found": "No Tuya devices found on the network. Enter credentials manually.",
-      "unknown": "Unexpected error."
+      "unknown": "Unexpected error.",
+      "connection_refused": "The charger refused the connection. These chargers accept a single local connection at a time - close the Smart Life app and disable any other Tuya integration pointing at it, then retry.",
+      "invalid_credentials": "The charger answered but its replies could not be decrypted. Check the local key and the protocol version; re-pairing the charger changes the key."
     },
     "abort": {
       "already_configured": "This charger is already configured.",

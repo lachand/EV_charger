@@ -29,7 +29,9 @@
       "cloud_auth_failed": "Connexion au cloud Tuya impossible. Verifiez l'Access ID, l'Access Secret et la region.",
       "cloud_no_devices": "Aucun appareil dans ce projet Tuya IoT. Avez-vous bien lie votre compte Smart Life au projet ?",
       "no_devices_found": "Aucun appareil Tuya trouve sur le reseau. Saisissez les identifiants manuellement.",
-      "unknown": "Erreur inattendue."
+      "unknown": "Erreur inattendue.",
+      "connection_refused": "La borne a refuse la connexion. Ces bornes n'acceptent qu'une seule connexion locale a la fois : fermez l'appli Smart Life et desactivez toute autre integration Tuya qui la vise, puis reessayez.",
+      "invalid_credentials": "La borne a repondu mais ses reponses n'ont pas pu etre dechiffrees. Verifiez la local key et la version du protocole ; un re-appairage change la cle."
     },
     "abort": {
       "already_configured": "Cette borne est deja configuree.",
