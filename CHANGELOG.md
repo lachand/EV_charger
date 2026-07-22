@@ -3,8 +3,9 @@
 Notable changes per release. Full notes, with the reasoning behind each choice,
 are on the [releases page](https://github.com/lachand/EV_charger/releases).
 
-Everything from 2.0.0 onward is currently published as a **pre-release**, so
-HACS installs 1.0.4 unless beta versions are enabled.
+The 2.x line was published as pre-releases while it stabilised, which meant HACS
+installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
+published normally** and HACS offers them without enabling beta versions.
 
 ## 2.12.0
 
