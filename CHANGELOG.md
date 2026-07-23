@@ -7,7 +7,7 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
-## 2.13.0
+## 2.13.1
 
 - **Inverter output limit** (#22, reported by @SergioMonC): `max_inverter_power_w`
   with a total-load sensor. Protects a hybrid inverter whose battery hides a
@@ -19,15 +19,15 @@ published normally** and HACS offers them without enabling beta versions.
   draw was under-reported up to 3x and *every* current cap (load balancing
   included) over-stated its headroom — the protection could allow the overload
   it exists to prevent. Now uses total power across phases.
+- **Bug fix:** `force_charge_for` bypassed both protection limits. The
+  force-charge branch returned before the caps were computed, so forcing a
+  charge could push the installation past its breaker or its inverter rating.
+  The service overrides *surplus regulation*, not the physical limits of the
+  installation. Caps are applied first, and force charge runs on the
+  already-capped current ladder.
 
-## 2.13.1
-
-- **`force_charge_for` bypassed both protection limits.** The force-charge
-  branch returned before load balancing and the inverter cap were computed, so
-  forcing a charge could push the installation past its breaker or its inverter
-  rating. The service is documented as overriding *surplus regulation*, not the
-  physical limits of the installation. Caps are now applied first, and force
-  charge runs on the already-capped current ladder.
+  (2.13.0 shipped the first two items with this bug still present; it was
+  withdrawn, so 2.13.1 is the first release of this feature.)
 
 ## 2.12.1
 
