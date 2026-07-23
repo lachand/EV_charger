@@ -7,6 +7,16 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.12.1
+
+- **Brand icon.** The integration now ships a proper 256×256 (and 512×512 hDPI)
+  icon in `brand/`, served locally since HA 2026.3. The file that was there was
+  the manufacturer's non-square wordmark — invalid as an icon, and never
+  displayed. A conformance test now guards size, squareness, transparency and
+  trim, since a bad icon fails silently in the UI rather than in CI.
+- Corrected the README: brand assets had **not** in fact been submitted to the
+  home-assistant/brands repo, which is why no icon ever appeared.
+
 ## 2.12.0
 
 - **Installation current limit** (#21, reported by @SergioMonC): `max_charge_current_a`

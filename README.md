@@ -534,10 +534,16 @@ charging** so it can be supported natively.
 
 ## HACS compatibility
 
-Repository side: description, valid topics, brand assets submitted to the Home
-Assistant brands repo. Integration side: valid `hacs.json` keys, `issue_tracker`
-in `manifest.json`, and manifest keys sorted (`domain`, `name`, then
-alphabetical).
+Repository side: description and valid topics. Integration side: valid
+`hacs.json` keys, `issue_tracker` in `manifest.json`, and manifest keys sorted
+(`domain`, `name`, then alphabetical).
+
+The icon and logo live in [`custom_components/tuya_ev_charger/brand/`](custom_components/tuya_ev_charger/brand).
+Since Home Assistant **2026.3**, an integration serves its own brand images from
+there, taking priority over the central CDN, so no submission to the
+[home-assistant/brands](https://github.com/home-assistant/brands) repo is
+needed. On Home Assistant older than 2026.3 the icon falls back to the CDN, where
+this integration is not registered, so no icon is shown.
 
 ---
 
