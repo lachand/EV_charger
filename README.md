@@ -182,6 +182,38 @@ Typical case: a 6 kVA subscription with the oven, the hob and the car all on.
 
 ---
 
+## Inverter output limit
+
+For hybrid inverters with the house wired to the inverter's backup (Load)
+output, so that everything the house consumes passes through the inverter.
+
+Set **Maximum inverter output** to a little under the inverter's rating (e.g.
+`5500` for a 6 kW inverter) and point **Total household load sensor** at a sensor
+reporting the *whole* house consumption. The car is capped so that total load
+stays under the inverter rating, stopping the session if even the minimum
+current will not fit.
+
+**The difference from load balancing is the measurement point, and it is the
+whole point.** Load balancing reads the grid meter. That does not work here: when
+the house suddenly draws more — a hob, an oven — a hybrid inverter covers it from
+the battery, so the **grid meter stays near zero while the inverter is being
+overloaded**. Only a total-load reading sees it. So this limit reads total load,
+not the grid.
+
+Two things worth being clear about:
+
+- **It reduces the risk, it cannot guarantee no trip.** A hob is a ~2 kW step in
+  under a second. The integration reacts as soon as your load sensor updates —
+  which is fast for a local Modbus sensor, slow for a cloud one — but a cap can
+  only ever be as quick as its input. Leave a margin (the `5500`-for-`6000`
+  above), and keep **Maximum charging current** set as a static backstop.
+- Like load balancing, it does nothing without a working sensor: a cap from a
+  missing or stale total-load reading is worse than none.
+
+Both protection limits can be set at once; the tighter of the two applies.
+
+---
+
 ## Off-peak hours and departure time
 
 Two optional settings, both empty by default and both inert until filled in:
@@ -321,6 +353,7 @@ charging, instead of holding the last value.
 | `charger_profile` / `charger_profile_json` | DP mapping; custom JSON overrides, validated on save |
 | `continuous_current` | 1 A steps (default **on**) |
 | `max_charge_current_a` / `min_charge_current_a` | Your circuit's rating; `0` uses the charger's |
+| `max_inverter_power_w` / `total_load_sensor_entity_id` | Cap total load under a hybrid inverter's rating; `0` disables |
 | `vehicles` | Comma-separated car names; enables per-vehicle tracking |
 | `max_house_power_w` | Subscribed power for load balancing; `0` disables it |
 | `off_peak_windows` | `22:00-06:00, 12:30-14:30`; empty charges at any hour |

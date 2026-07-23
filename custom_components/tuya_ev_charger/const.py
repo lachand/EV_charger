@@ -100,6 +100,10 @@ CONF_PEAK_PRICE = "peak_price"
 # wired to a smaller breaker. 0 means "no override", i.e. trust the charger.
 CONF_MAX_CHARGE_CURRENT_A = "max_charge_current_a"
 CONF_MIN_CHARGE_CURRENT_A = "min_charge_current_a"
+# Total inverter output cap, for hybrid inverters whose battery hides a sudden
+# household draw from the grid meter. Read against total load, not the grid.
+CONF_MAX_INVERTER_POWER_W = "max_inverter_power_w"
+CONF_TOTAL_LOAD_SENSOR_ENTITY_ID = "total_load_sensor_entity_id"
 CONF_DEVICE_ID = "device_id"
 CONF_LOCAL_KEY = "local_key"
 CONF_MAC = "mac"
@@ -194,6 +198,8 @@ DEFAULT_OFF_PEAK_PRICE = 0.0
 DEFAULT_PEAK_PRICE = 0.0
 DEFAULT_MAX_CHARGE_CURRENT_A = 0
 DEFAULT_MIN_CHARGE_CURRENT_A = 0
+DEFAULT_MAX_INVERTER_POWER_W = 0
+DEFAULT_TOTAL_LOAD_SENSOR_ENTITY_ID = ""
 # The bounds of the form field, not of the applied limit: 0 disables it, and the
 # ceiling is the highest current any supported charger offers.
 MIN_CHARGE_CURRENT_LIMIT_A = 0

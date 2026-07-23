@@ -26,6 +26,7 @@ from .const import (
     CONF_DEPARTURE_ENERGY_KWH,
     CONF_DEPARTURE_TIME,
     CONF_MAX_HOUSE_POWER_W,
+    CONF_MAX_INVERTER_POWER_W,
     CONF_OFF_PEAK_WINDOWS,
     CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
     CONF_SURPLUS_ADJUST_UP_COOLDOWN_S,
@@ -45,9 +46,11 @@ from .const import (
     CONF_SURPLUS_SENSOR_INVERTED,
     CONF_SURPLUS_START_THRESHOLD_W,
     CONF_SURPLUS_STOP_THRESHOLD_W,
+    CONF_TOTAL_LOAD_SENSOR_ENTITY_ID,
     DEFAULT_DEPARTURE_ENERGY_KWH,
     DEFAULT_DEPARTURE_TIME,
     DEFAULT_MAX_HOUSE_POWER_W,
+    DEFAULT_MAX_INVERTER_POWER_W,
     DEFAULT_OFF_PEAK_WINDOWS,
     DEFAULT_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
     DEFAULT_SURPLUS_ADJUST_UP_COOLDOWN_S,
@@ -66,6 +69,7 @@ from .const import (
     DEFAULT_SURPLUS_SENSOR_INVERTED,
     DEFAULT_SURPLUS_START_THRESHOLD_W,
     DEFAULT_SURPLUS_STOP_THRESHOLD_W,
+    DEFAULT_TOTAL_LOAD_SENSOR_ENTITY_ID,
     DP_CHARGER_INFO,
     DP_CURRENT_TARGET,
     DP_DO_CHARGE,
@@ -116,7 +120,9 @@ FIXED_FORECAST_DROP_GUARD_W = 500
 
 # Decisions taken outside surplus regulation, which must survive the
 # "surplus mode is off" branch rather than be flattened to "mode_disabled".
-_ACTIVE_WITHOUT_SURPLUS_REASONS = frozenset({"load_limit_reduced", "tariff_deadline"})
+_ACTIVE_WITHOUT_SURPLUS_REASONS = frozenset(
+    {"load_limit_reduced", "inverter_limit_reduced", "tariff_deadline"}
+)
 
 
 @dataclass(slots=True, frozen=True)
@@ -124,6 +130,8 @@ class SolarSurplusSettings:
     mode_enabled: bool
     grid_sensor_entity_id: str
     max_house_power_w: int
+    max_inverter_power_w: int
+    total_load_sensor_entity_id: str
     off_peak_windows: str
     departure_time: str
     departure_energy_kwh: int
@@ -323,6 +331,7 @@ class SolarSurplusController:
         sensor_entities: list[str] = []
         for entity_id in (
             self._settings.grid_sensor_entity_id,
+            self._settings.total_load_sensor_entity_id,
             self._settings.curtailment_sensor_entity_id,
             self._settings.battery_soc_sensor_entity_id,
             self._settings.battery_net_discharge_sensor_entity_id,
@@ -424,28 +433,31 @@ class SolarSurplusController:
                 await self._coordinator.async_request_refresh()
                 self._set_decision("tariff_deadline")
 
-        # Load balancing is a safety limit, not a surplus feature: it has to
+        # Protection limits are safety features, not surplus features: they
         # apply even with surplus mode off, and nothing may raise the current
-        # above it afterwards.
-        load_cap = self._load_limit_current(data, available_currents)
-        if load_cap is not None:
-            if load_cap < min_current:
+        # above them afterwards. Two independent caps, whichever is tighter:
+        #   - load balancing, from the grid meter (protects the main breaker);
+        #   - the inverter cap, from total load (protects a hybrid inverter whose
+        #     battery hides the extra draw from the grid meter entirely).
+        protection_cap, cap_source = self._protection_cap(data, available_currents)
+        if protection_cap is not None:
+            if protection_cap < min_current:
                 if is_charging:
                     await self._client.async_set_charge_enabled(False)
                     self._register_stop(now)
                     await self._coordinator.async_request_refresh()
-                self._set_decision("load_limit_no_headroom")
+                self._set_decision(f"{cap_source}_no_headroom")
                 self._regulation_active = False
                 self._clear_surplus_debug_state()
                 self._notify_state_listeners()
                 return
 
-            available_currents = tuple(c for c in available_currents if c <= load_cap)
+            available_currents = tuple(c for c in available_currents if c <= protection_cap)
             min_current = min(available_currents)
-            if data.current_target is not None and data.current_target > load_cap:
-                if await self._client.async_set_charge_current(load_cap):
+            if data.current_target is not None and data.current_target > protection_cap:
+                if await self._client.async_set_charge_current(protection_cap):
                     await self._coordinator.async_request_refresh()
-                self._set_decision("load_limit_reduced")
+                self._set_decision(f"{cap_source}_reduced")
 
         if not self._settings.mode_enabled:
             self._regulation_active = False
@@ -861,6 +873,32 @@ class SolarSurplusController:
             return 0.0
         return max(available_currents) * DEFAULT_LINE_VOLTAGE_V / 1000.0
 
+    def _protection_cap(
+        self,
+        data: EVMetrics,
+        available_currents: tuple[int, ...],
+    ) -> tuple[int | None, str | None]:
+        """The tighter of the load-balancing and inverter caps.
+
+        Returns the binding cap and which limit produced it (``load_limit`` or
+        ``inverter_limit``), for the decision reason. ``(None, None)`` when
+        neither is configured or neither has a usable reading — a cap computed
+        from a missing measurement would either stop a healthy charge or fail to
+        protect, both worse than not capping.
+        """
+        candidates = (
+            ("load_limit", self._load_limit_current(data, available_currents)),
+            ("inverter_limit", self._inverter_limit_current(data, available_currents)),
+        )
+        binding_source: str | None = None
+        binding_cap: int | None = None
+        for source, cap in candidates:
+            if cap is None:
+                continue
+            if binding_cap is None or cap < binding_cap:
+                binding_cap, binding_source = cap, source
+        return binding_cap, binding_source
+
     def _load_limit_current(
         self,
         data: EVMetrics,
@@ -881,6 +919,44 @@ class SolarSurplusController:
 
         headroom_w = headroom_for_car_w(
             grid_power_w=grid_power_w,
+            ev_power_w=_ev_power_w(data),
+            house_limit_w=float(limit_w),
+        )
+        return cap_to_available_power(available_currents, headroom_w)
+
+    def _inverter_limit_current(
+        self,
+        data: EVMetrics,
+        available_currents: tuple[int, ...],
+    ) -> int | None:
+        """Highest current that keeps total inverter output under its rating.
+
+        The measurement point is what distinguishes this from load balancing.
+        Load balancing reads the grid meter; on a hybrid inverter with the house
+        on its backup output, the battery covers a sudden household draw so the
+        grid meter stays near zero while the inverter is being overloaded past
+        its rating. This must therefore read *total* load — household plus car —
+        not the grid.
+
+        `headroom_for_car_w` is reused unchanged: passing total load where it
+        expects grid power gives ``limit - (total_load - ev_power)``, i.e. the
+        rating minus what the house draws without the car, which is exactly the
+        budget left for charging.
+
+        Returns None, like load balancing, when disabled or the reading is
+        missing: a cap off a stale total-load figure is worse than none.
+        """
+        limit_w = self._settings.max_inverter_power_w
+        if limit_w <= 0:
+            return None
+        total_load_w = self._read_sensor_power_w(
+            self._settings.total_load_sensor_entity_id
+        )
+        if total_load_w is None:
+            return None
+
+        headroom_w = headroom_for_car_w(
+            grid_power_w=total_load_w,
             ev_power_w=_ev_power_w(data),
             house_limit_w=float(limit_w),
         )
@@ -1120,6 +1196,13 @@ def _settings_from_entry(entry: ConfigEntry) -> SolarSurplusSettings:
             options, CONF_MAX_HOUSE_POWER_W, DEFAULT_MAX_HOUSE_POWER_W,
             MIN_MAX_HOUSE_POWER_W, MAX_MAX_HOUSE_POWER_W,
         ),
+        max_inverter_power_w=_option_int(
+            options, CONF_MAX_INVERTER_POWER_W, DEFAULT_MAX_INVERTER_POWER_W,
+            MIN_MAX_HOUSE_POWER_W, MAX_MAX_HOUSE_POWER_W,
+        ),
+        total_load_sensor_entity_id=_option_str(
+            options, CONF_TOTAL_LOAD_SENSOR_ENTITY_ID, DEFAULT_TOTAL_LOAD_SENSOR_ENTITY_ID,
+        ),
         grid_sensor_entity_id=_option_str(
             options,
             CONF_SURPLUS_SENSOR_ENTITY_ID,
@@ -1219,7 +1302,14 @@ def _is_charging(data: EVMetrics) -> bool:
 
 
 def _ev_power_w(data: EVMetrics) -> float:
-    return max(0.0, data.power_l1 * 1000.0)
+    """The car's total draw in watts, across all wired phases.
+
+    `total_power` sums the phases (in kW); on a three-phase charger, reading L1
+    alone would under-report by up to 3x, which in turn over-states the headroom
+    every current cap is computed against — the protection would then allow the
+    very overload it exists to prevent.
+    """
+    return max(0.0, (data.total_power or 0.0) * 1000.0)
 
 
 def _current_supported_by_surplus(

@@ -32,6 +32,7 @@ from .const import (
     CONF_MAC,
     CONF_MAX_CHARGE_CURRENT_A,
     CONF_MAX_HOUSE_POWER_W,
+    CONF_MAX_INVERTER_POWER_W,
     CONF_MIN_CHARGE_CURRENT_A,
     CONF_OFF_PEAK_PRICE,
     CONF_OFF_PEAK_WINDOWS,
@@ -54,6 +55,7 @@ from .const import (
     CONF_SURPLUS_SENSOR_INVERTED,
     CONF_SURPLUS_START_THRESHOLD_W,
     CONF_SURPLUS_STOP_THRESHOLD_W,
+    CONF_TOTAL_LOAD_SENSOR_ENTITY_ID,
     CONF_VEHICLES,
     DEFAULT_CHARGER_PROFILE,
     DEFAULT_CHARGER_PROFILE_JSON,
@@ -63,6 +65,7 @@ from .const import (
     DEFAULT_DEPARTURE_TIME,
     DEFAULT_MAX_CHARGE_CURRENT_A,
     DEFAULT_MAX_HOUSE_POWER_W,
+    DEFAULT_MAX_INVERTER_POWER_W,
     DEFAULT_MIN_CHARGE_CURRENT_A,
     DEFAULT_NAME,
     DEFAULT_OFF_PEAK_PRICE,
@@ -85,6 +88,7 @@ from .const import (
     DEFAULT_SURPLUS_SENSOR_INVERTED,
     DEFAULT_SURPLUS_START_THRESHOLD_W,
     DEFAULT_SURPLUS_STOP_THRESHOLD_W,
+    DEFAULT_TOTAL_LOAD_SENSOR_ENTITY_ID,
     DEFAULT_VEHICLES,
     DOMAIN,
     MAX_CHARGE_CURRENT_LIMIT_A,
@@ -135,6 +139,7 @@ class InvalidCredentialsError(Exception):
 # selector to tolerate it breaks the schema serialisation the frontend needs.
 OPTIONAL_ENTITY_OPTIONS: tuple[str, ...] = (
     CONF_SURPLUS_SENSOR_ENTITY_ID,
+    CONF_TOTAL_LOAD_SENSOR_ENTITY_ID,
     CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
     CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
     CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
@@ -172,6 +177,9 @@ _OPTIONS_FORM: tuple[_Opt, ...] = (
     _Opt(CONF_VEHICLES, "text", DEFAULT_VEHICLES),
     _Opt(CONF_MAX_HOUSE_POWER_W, "int", DEFAULT_MAX_HOUSE_POWER_W,
          MIN_MAX_HOUSE_POWER_W, MAX_MAX_HOUSE_POWER_W),
+    _Opt(CONF_MAX_INVERTER_POWER_W, "int", DEFAULT_MAX_INVERTER_POWER_W,
+         MIN_MAX_HOUSE_POWER_W, MAX_MAX_HOUSE_POWER_W),
+    _Opt(CONF_TOTAL_LOAD_SENSOR_ENTITY_ID, "entity", DEFAULT_TOTAL_LOAD_SENSOR_ENTITY_ID),
     _Opt(CONF_OFF_PEAK_WINDOWS, "text", DEFAULT_OFF_PEAK_WINDOWS),
     _Opt(CONF_DEPARTURE_TIME, "text", DEFAULT_DEPARTURE_TIME),
     _Opt(CONF_DEPARTURE_ENERGY_KWH, "int", DEFAULT_DEPARTURE_ENERGY_KWH,
@@ -708,6 +716,7 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                 if key not in user_input:
                     cleaned_input[key] = ""
             _normalize_optional_entity_value(cleaned_input, CONF_SURPLUS_SENSOR_ENTITY_ID)
+            _normalize_optional_entity_value(cleaned_input, CONF_TOTAL_LOAD_SENSOR_ENTITY_ID)
             _normalize_optional_entity_value(
                 cleaned_input,
                 CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,

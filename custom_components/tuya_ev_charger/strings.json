@@ -106,6 +106,8 @@
           "surplus_forecast_sensor_entity_id": "1h solar forecast sensor entity (W) (optional)",
           "vehicles": "Vehicles for per-car energy tracking (comma separated)",
           "max_house_power_w": "Maximum house power for load balancing (W, 0 = off)",
+          "max_inverter_power_w": "Maximum inverter output (W, 0 = off) - protects a hybrid inverter; needs the total-load sensor below",
+          "total_load_sensor_entity_id": "Total household load sensor (for the inverter limit) - total consumption, not the grid meter",
           "off_peak_windows": "Off-peak windows (e.g. 22:00-06:00, 12:30-14:30; empty = charge any time)",
           "departure_time": "Departure time (HH:MM, empty = no deadline)",
           "departure_energy_kwh": "Energy needed by departure (kWh, 0 = off)",

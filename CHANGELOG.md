@@ -7,6 +7,19 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.13.0
+
+- **Inverter output limit** (#22, reported by @SergioMonC): `max_inverter_power_w`
+  with a total-load sensor. Protects a hybrid inverter whose battery hides a
+  sudden household draw from the grid meter — load balancing, which reads the
+  grid, is blind to it. Reads *total load* instead; the tighter of the two
+  protection caps applies. Documented honestly as risk-reducing, not
+  trip-proof: a cap is only as fast as its sensor.
+- **Bug fix:** `_ev_power_w` read L1 only, so on a three-phase charger the car's
+  draw was under-reported up to 3x and *every* current cap (load balancing
+  included) over-stated its headroom — the protection could allow the overload
+  it exists to prevent. Now uses total power across phases.
+
 ## 2.12.1
 
 - **Brand icon.** The integration now ships a proper 256×256 (and 512×512 hDPI)
