@@ -404,12 +404,49 @@ class SolarSurplusController:
             return
         min_current = min(available_currents)
 
+        # Protection limits are safety features, not surplus features: they
+        # apply even with surplus mode off, and nothing may raise the current
+        # above them afterwards. Two independent caps, whichever is tighter:
+        #   - load balancing, from the grid meter (protects the main breaker);
+        #   - the inverter cap, from total load (protects a hybrid inverter whose
+        #     battery hides the extra draw from the grid meter entirely).
+        #
+        # Computed before force charge on purpose: forcing a charge overrides
+        # scheduling, not the physical limits of the installation.
+        protection_cap, cap_source = self._protection_cap(data, available_currents)
+        if protection_cap is not None:
+            if protection_cap < min_current:
+                if is_charging:
+                    await self._client.async_set_charge_enabled(False)
+                    self._register_stop(now)
+                    await self._coordinator.async_request_refresh()
+                self._set_decision(f"{cap_source}_no_headroom")
+                self._regulation_active = False
+                self._clear_surplus_debug_state()
+                self._notify_state_listeners()
+                return
+
+            available_currents = tuple(c for c in available_currents if c <= protection_cap)
+            min_current = min(available_currents)
+
         if self._is_force_charge_active(now):
+            # Runs on the already-capped ladder, so a forced charge cannot push
+            # the installation past its limits.
             self._clear_surplus_debug_state()
             await self._async_apply_force_charge(now, data, available_currents, min_current)
             self._regulation_active = True
             self._notify_state_listeners()
             return
+
+        if protection_cap is not None and (
+            data.current_target is not None and data.current_target > protection_cap
+        ):
+            # Straight to the cap: no ramp step, no cooldown. An overload is not
+            # a passing cloud, and walking down 1 A at a time would trip the
+            # breaker long before arriving.
+            if await self._client.async_set_charge_current(protection_cap):
+                await self._coordinator.async_request_refresh()
+            self._set_decision(f"{cap_source}_reduced")
 
         # Tariff arbitration comes before load balancing only because refusing
         # to charge at all makes capping moot. Surplus is exempt: free solar is
@@ -432,32 +469,6 @@ class SolarSurplusController:
                 self._start_session(now)
                 await self._coordinator.async_request_refresh()
                 self._set_decision("tariff_deadline")
-
-        # Protection limits are safety features, not surplus features: they
-        # apply even with surplus mode off, and nothing may raise the current
-        # above them afterwards. Two independent caps, whichever is tighter:
-        #   - load balancing, from the grid meter (protects the main breaker);
-        #   - the inverter cap, from total load (protects a hybrid inverter whose
-        #     battery hides the extra draw from the grid meter entirely).
-        protection_cap, cap_source = self._protection_cap(data, available_currents)
-        if protection_cap is not None:
-            if protection_cap < min_current:
-                if is_charging:
-                    await self._client.async_set_charge_enabled(False)
-                    self._register_stop(now)
-                    await self._coordinator.async_request_refresh()
-                self._set_decision(f"{cap_source}_no_headroom")
-                self._regulation_active = False
-                self._clear_surplus_debug_state()
-                self._notify_state_listeners()
-                return
-
-            available_currents = tuple(c for c in available_currents if c <= protection_cap)
-            min_current = min(available_currents)
-            if data.current_target is not None and data.current_target > protection_cap:
-                if await self._client.async_set_charge_current(protection_cap):
-                    await self._coordinator.async_request_refresh()
-                self._set_decision(f"{cap_source}_reduced")
 
         if not self._settings.mode_enabled:
             self._regulation_active = False

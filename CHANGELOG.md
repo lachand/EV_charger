@@ -20,6 +20,15 @@ published normally** and HACS offers them without enabling beta versions.
   included) over-stated its headroom — the protection could allow the overload
   it exists to prevent. Now uses total power across phases.
 
+## 2.13.1
+
+- **`force_charge_for` bypassed both protection limits.** The force-charge
+  branch returned before load balancing and the inverter cap were computed, so
+  forcing a charge could push the installation past its breaker or its inverter
+  rating. The service is documented as overriding *surplus regulation*, not the
+  physical limits of the installation. Caps are now applied first, and force
+  charge runs on the already-capped current ladder.
+
 ## 2.12.1
 
 - **Brand icon.** The integration now ships a proper 256×256 (and 512×512 hDPI)

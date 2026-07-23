@@ -150,3 +150,39 @@ def test_ev_power_handles_missing_total():
     from tuya_ev_charger.solar_surplus import _ev_power_w
 
     assert _ev_power_w(types.SimpleNamespace(total_power=None, power_l1=0.0)) == 0.0
+
+
+def test_force_charge_cannot_bypass_the_protection_caps():
+    """A forced charge overrides scheduling, not the physical installation.
+
+    The force-charge branch used to return before the caps were computed, so
+    calling `force_charge_for` skipped both load balancing and the inverter
+    limit entirely -- on the reporter's setup, exactly the situation that takes
+    the house down. It now runs on the already-capped ladder.
+    """
+    import inspect
+
+    from tuya_ev_charger.solar_surplus import SolarSurplusController
+
+    source = inspect.getsource(SolarSurplusController._async_evaluate_once)
+    cap_at = source.index("self._protection_cap(")
+    force_at = source.index("self._is_force_charge_active(")
+    assert cap_at < force_at, (
+        "force charge is evaluated before the protection caps, so it would "
+        "bypass load balancing and the inverter limit"
+    )
+
+
+def test_a_forced_charge_is_offered_only_capped_currents():
+    """The ladder handed to force charge is the capped one, so its target --
+    which it snaps into that ladder -- cannot exceed the cap."""
+    ctrl, _ = _controller(INVERTER_OPTS, {"sensor.total_load": 7000})
+    metrics = _Metrics(total_power_kw=5.0)
+
+    cap, _source = ctrl._protection_cap(metrics, LADDER)
+    capped = tuple(c for c in LADDER if c <= cap)
+
+    # Force charge falls back to min_current when its requested current is not
+    # in the offered ladder, so 32 A cannot survive a 15 A cap.
+    assert 32 not in capped
+    assert max(capped) == 15

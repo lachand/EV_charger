@@ -210,7 +210,9 @@ Two things worth being clear about:
 - Like load balancing, it does nothing without a working sensor: a cap from a
   missing or stale total-load reading is worse than none.
 
-Both protection limits can be set at once; the tighter of the two applies.
+Both protection limits can be set at once; the tighter of the two applies — and
+they also bound `force_charge_for`, since forcing a charge overrides scheduling,
+not the physical limits of the installation.
 
 ---
 
