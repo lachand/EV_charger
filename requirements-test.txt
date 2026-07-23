@@ -1,4 +1,4 @@
-pytest>=8.0
+pytest>=9.1.1
 voluptuous>=0.14
 voluptuous-serialize>=2.6
 tinytuya>=1.20.0
