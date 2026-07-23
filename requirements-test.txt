@@ -1,8 +1,8 @@
 pytest>=9.1.1
-voluptuous>=0.14
-voluptuous-serialize>=2.6
+voluptuous>=0.16.0
+voluptuous-serialize>=2.7.0
 tinytuya>=1.20.0
-ruff>=0.6
+ruff>=0.15.22
 pytest-cov>=5.0
 # For the brand-icon conformance test; the integration itself has no image deps.
 Pillow>=10.0

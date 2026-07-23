@@ -7,6 +7,24 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.13.2
+
+- **tinytuya raised to >= 1.20.0, for a security fix that affects every user.**
+  1.20.0 makes the AES-GCM message nonce and the **v3.4/v3.5 session-key client
+  nonce** use `os.urandom` instead of a time-derived value, eliminating nonce/IV
+  reuse under a session key; GCM frames failing their authentication tag are now
+  rejected rather than passed on as raw ciphertext. Every charger this
+  integration talks to runs 3.3/3.4/3.5.
+- Dependabot's PR bumped only `requirements-test.txt`: its pip ecosystem does
+  not understand Home Assistant's `manifest.json`, so the **runtime** requirement
+  — the only one users install — was left at 1.16.0 and the fix would have
+  reached nobody. A test now fails if the two floors drift apart again.
+- CI actions moved to `checkout@v7` and `setup-python@v7`, clearing the
+  "Node.js 20 is deprecated" warning on every run.
+- Test floors raised to the versions actually exercised (pytest 9.1.1,
+  voluptuous 0.16, voluptuous-serialize 2.7, ruff 0.15.22). No functional change:
+  `>=` already resolved to these.
+
 ## 2.13.1
 
 - **Inverter output limit** (#22, reported by @SergioMonC): `max_inverter_power_w`

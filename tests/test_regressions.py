@@ -391,3 +391,30 @@ def test_prices_are_not_rounded_to_integers():
     assert _option_float({"peak_price": "0,27"}, "peak_price", 0.0) == 0.0
     assert _option_float({"peak_price": -1}, "peak_price", 0.0) == 0.0
     assert _option_float({}, "peak_price", 0.0) == 0.0
+
+
+def test_the_tinytuya_floor_matches_between_manifest_and_tests():
+    """Dependabot cannot see `manifest.json`, so the two drift silently.
+
+    Its pip ecosystem watches requirements files and does not understand Home
+    Assistant's manifest format. A dependency PR therefore bumps the test floor
+    and leaves the *runtime* requirement — the only one users install — behind.
+    That happened with the tinytuya 1.20 bump, which carried a session-key nonce
+    fix for protocol 3.4/3.5 that would have reached nobody.
+    """
+    manifest = json.loads((COMPONENT / "manifest.json").read_text())
+    runtime = next(
+        req for req in manifest["requirements"] if req.startswith("tinytuya")
+    )
+
+    requirements = (REPO_ROOT / "requirements-test.txt").read_text()
+    tested = next(
+        line.strip()
+        for line in requirements.splitlines()
+        if line.strip().startswith("tinytuya")
+    )
+
+    assert runtime == tested, (
+        f"manifest requires {runtime!r} but the suite tests against {tested!r}; "
+        "bump manifest.json by hand — Dependabot cannot"
+    )
