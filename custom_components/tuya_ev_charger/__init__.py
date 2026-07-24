@@ -26,6 +26,7 @@ from .const import (
     CONF_PROTOCOL_VERSION,
     CONF_SCAN_INTERVAL,
     CONF_VEHICLES,
+    CONFIG_ENTRY_VERSION,
     DEFAULT_CHARGER_PROFILE,
     DEFAULT_CHARGER_PROFILE_JSON,
     DEFAULT_SCAN_INTERVAL_SECONDS,
@@ -156,6 +157,35 @@ def _charger_profile_json(entry: ConfigEntry) -> str:
         entry.data.get(CONF_CHARGER_PROFILE_JSON, DEFAULT_CHARGER_PROFILE_JSON),
     )
     return str(configured_value or "").strip()
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Bring an older config entry up to the current schema.
+
+    Nothing needs migrating yet -- every release so far has added *options*,
+    which carry their own defaults, and has never changed the shape of
+    `entry.data`. The hook exists anyway so that the first change which does need
+    one has somewhere to go: without it, Home Assistant refuses to load an entry
+    whose version it does not recognise, and the user sees a broken integration
+    with no route back.
+
+    Returning False on a *newer* version is deliberate. That happens when someone
+    downgrades the integration, and silently loading an entry written by a later
+    release risks misreading fields it does not know about.
+    """
+    if entry.version > CONFIG_ENTRY_VERSION:
+        LOGGER.error(
+            "Config entry for %s was written by a newer version of the integration "
+            "(entry v%s > supported v%s); downgrade is not supported.",
+            entry.title,
+            entry.version,
+            CONFIG_ENTRY_VERSION,
+        )
+        return False
+
+    # Future migrations chain from here, oldest first:
+    #     if entry.version == 1: ... hass.config_entries.async_update_entry(...)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

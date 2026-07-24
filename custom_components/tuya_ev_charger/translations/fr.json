@@ -51,37 +51,79 @@
       "init": {
         "title": "Options de la borne Tuya",
         "description": "Mode surplus simplifie.",
-        "data": {
-          "scan_interval": "Intervalle de rafraichissement (secondes)",
-          "charger_profile": "Profil chargeur / mapping DP",
-          "charger_profile_json": "Mapping DP custom (JSON, optionnel)",
-          "continuous_current": "Regulation continue de l'intensite (1A)",
-          "max_charge_current_a": "Courant de charge maximal (A, 0 = limite de la borne) - le calibre de ton circuit, pas celui de la borne",
-          "min_charge_current_a": "Courant de charge minimal (A, 0 = limite de la borne)",
-          "surplus_mode_enabled": "Activer le mode surplus solaire",
-          "surplus_sensor_entity_id": "Entite capteur puissance reseau (W) (sensor.xxx)",
-          "surplus_sensor_inverted": "Inverser le signe capteur reseau",
-          "surplus_curtailment_sensor_entity_id": "Entite puissance bridee potentielle (W) (optionnel)",
-          "surplus_curtailment_sensor_inverted": "Inverser le signe capteur puissance bridee",
-          "surplus_battery_soc_sensor_entity_id": "Entite % batterie (optionnel)",
-          "surplus_battery_soc_high_threshold_pct": "Seuil haut batterie (%)",
-          "surplus_battery_soc_low_threshold_pct": "Seuil bas batterie (%)",
-          "surplus_battery_net_discharge_sensor_entity_id": "Entite puissance decharge batterie nette (W) (optionnel)",
-          "surplus_battery_net_discharge_sensor_inverted": "Inverser le signe capteur decharge batterie nette",
-          "surplus_allow_battery_discharge_for_ev": "Autoriser la decharge batterie pour la voiture",
-          "surplus_max_battery_discharge_for_ev_w": "Puissance max decharge batterie autorisee (W)",
-          "surplus_start_threshold_w": "Seuil de demarrage surplus (W)",
-          "surplus_stop_threshold_w": "Seuil d'arret surplus (W)",
-          "surplus_forecast_sensor_entity_id": "Entite capteur prevision solaire 1h (W) (optionnel)",
-          "vehicles": "Vehicules pour le suivi d'energie par voiture (separes par des virgules)",
-          "max_house_power_w": "Puissance max de la maison pour le delestage (W, 0 = desactive)",
-          "max_inverter_power_w": "Sortie max de l'onduleur (W, 0 = desactive) - protege un onduleur hybride ; requiert le capteur de charge totale ci-dessous",
-          "total_load_sensor_entity_id": "Capteur de charge totale de la maison (pour la limite onduleur) - consommation totale, pas le compteur reseau",
-          "off_peak_windows": "Heures creuses (ex. 22:00-06:00, 12:30-14:30 ; vide = charge a toute heure)",
-          "departure_time": "Heure de depart (HH:MM, vide = aucune echeance)",
-          "departure_energy_kwh": "Energie necessaire au depart (kWh, 0 = desactive)",
-          "off_peak_price": "Prix du kWh en heures creuses (0 = pas de suivi des couts)",
-          "peak_price": "Prix du kWh en heures pleines (0 = pas de suivi des couts)"
+        "sections": {
+          "device": {
+            "name": "Borne et interrogation",
+            "description": "Frequence de lecture de la borne et mapping des points de donnees.",
+            "data": {
+              "scan_interval": "Intervalle de rafraichissement (secondes)",
+              "charger_profile": "Profil chargeur / mapping DP",
+              "charger_profile_json": "Mapping DP custom (JSON, optionnel)"
+            }
+          },
+          "current": {
+            "name": "Courant de charge",
+            "description": "La plage de courant offerte et les limites de votre installation.",
+            "data": {
+              "continuous_current": "Regulation continue de l'intensite (1A)",
+              "max_charge_current_a": "Courant de charge maximal (A, 0 = limite de la borne) - le calibre de ton circuit, pas celui de la borne",
+              "min_charge_current_a": "Courant de charge minimal (A, 0 = limite de la borne)"
+            }
+          },
+          "protection": {
+            "name": "Limites de protection",
+            "description": "Garder la maison, ou un onduleur hybride, sous son calibre.",
+            "data": {
+              "max_house_power_w": "Puissance max de la maison pour le delestage (W, 0 = desactive)",
+              "max_inverter_power_w": "Sortie max de l'onduleur (W, 0 = desactive) - protege un onduleur hybride ; requiert le capteur de charge totale ci-dessous",
+              "total_load_sensor_entity_id": "Capteur de charge totale de la maison (pour la limite onduleur) - consommation totale, pas le compteur reseau"
+            }
+          },
+          "vehicles": {
+            "name": "Vehicules",
+            "description": "Noms des voitures partageant la borne, pour le suivi par vehicule.",
+            "data": {
+              "vehicles": "Vehicules pour le suivi d'energie par voiture (separes par des virgules)"
+            }
+          },
+          "tariff": {
+            "name": "Heures creuses, depart et prix",
+            "description": "Quand charger et a quel cout. Tout est optionnel et inerte tant que vide.",
+            "data": {
+              "off_peak_windows": "Heures creuses (ex. 22:00-06:00, 12:30-14:30 ; vide = charge a toute heure)",
+              "departure_time": "Heure de depart (HH:MM, vide = aucune echeance)",
+              "departure_energy_kwh": "Energie necessaire au depart (kWh, 0 = desactive)",
+              "off_peak_price": "Prix du kWh en heures creuses (0 = pas de suivi des couts)",
+              "peak_price": "Prix du kWh en heures pleines (0 = pas de suivi des couts)"
+            }
+          },
+          "surplus": {
+            "name": "Surplus solaire",
+            "description": "Charger uniquement sur la production solaire excedentaire.",
+            "data": {
+              "surplus_mode_enabled": "Activer le mode surplus solaire",
+              "surplus_sensor_entity_id": "Entite capteur puissance reseau (W) (sensor.xxx)",
+              "surplus_sensor_inverted": "Inverser le signe capteur reseau",
+              "surplus_curtailment_sensor_entity_id": "Entite puissance bridee potentielle (W) (optionnel)",
+              "surplus_curtailment_sensor_inverted": "Inverser le signe capteur puissance bridee",
+              "surplus_start_threshold_w": "Seuil de demarrage surplus (W)",
+              "surplus_stop_threshold_w": "Seuil d'arret surplus (W)",
+              "surplus_forecast_sensor_entity_id": "Entite capteur prevision solaire 1h (W) (optionnel)"
+            }
+          },
+          "battery": {
+            "name": "Batterie de la maison",
+            "description": "Si, et dans quelle mesure, la batterie peut alimenter la voiture.",
+            "data": {
+              "surplus_battery_soc_sensor_entity_id": "Entite % batterie (optionnel)",
+              "surplus_battery_soc_high_threshold_pct": "Seuil haut batterie (%)",
+              "surplus_battery_soc_low_threshold_pct": "Seuil bas batterie (%)",
+              "surplus_battery_net_discharge_sensor_entity_id": "Entite puissance decharge batterie nette (W) (optionnel)",
+              "surplus_battery_net_discharge_sensor_inverted": "Inverser le signe capteur decharge batterie nette",
+              "surplus_allow_battery_discharge_for_ev": "Autoriser la decharge batterie pour la voiture",
+              "surplus_max_battery_discharge_for_ev_w": "Puissance max decharge batterie autorisee (W)"
+            }
+          }
         }
       }
     },

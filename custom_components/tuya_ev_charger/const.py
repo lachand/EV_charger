@@ -26,6 +26,11 @@ class ConnectionFault(StrEnum):
 
 DOMAIN = "tuya_ev_charger"
 
+# Schema version of `entry.data`. Bump it *and* add a migration step in
+# `async_migrate_entry` whenever the shape of the stored data changes -- options
+# do not count, they carry their own defaults.
+CONFIG_ENTRY_VERSION = 1
+
 ATTR_CHARGER_TOKEN = "tuya_ev_charger_token"
 ATTR_CHARGER_ENTRY_ID = "tuya_ev_charger_entry_id"
 ATTR_CHARGER_DEVICE_ID = "tuya_ev_charger_device_id"

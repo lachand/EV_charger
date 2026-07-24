@@ -138,7 +138,22 @@ def _install_stubs() -> None:
         ConfigEntryAuthFailed=type("ConfigEntryAuthFailed", (Exception,), {}),
         ServiceValidationError=type("ServiceValidationError", (Exception,), {}),
     )
-    _module("homeassistant.data_entry_flow", FlowResult=dict)
+
+    class _Section:
+        """Mirrors homeassistant.data_entry_flow.section.
+
+        Wraps a sub-schema and nests the submitted values under its key, which is
+        the behaviour the options flow has to flatten again.
+        """
+
+        def __init__(self, schema, options=None):
+            self.schema = schema
+            self.options = options or {}
+
+        def __call__(self, value):
+            return self.schema(value)
+
+    _module("homeassistant.data_entry_flow", FlowResult=dict, section=_Section)
 
     # --- helpers -----------------------------------------------------------
     _module("homeassistant.helpers")

@@ -7,6 +7,23 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.16.1
+
+- **The options form is grouped into seven collapsible sections** instead of 30
+  fields in one flat list: charger and polling, charging current, protection
+  limits, vehicles, off-peak/departure/prices, solar surplus, house battery. The
+  three most installs never touch start collapsed; the protection limits stay
+  open, because a limit nobody notices is a limit nobody sets.
+  Purely cosmetic: sections nest the submitted values, and those are flattened
+  again before storage, so the stored options keep their flat shape and existing
+  installations need no migration.
+- **`async_migrate_entry` exists.** Nothing needs migrating yet, but without the
+  hook Home Assistant refuses to load an entry whose version it does not
+  recognise and the user gets a broken integration with no way back. It also
+  refuses an entry written by a *newer* release rather than risk misreading it
+  after a downgrade.
+- Suite: 331 → **339 tests**.
+
 ## 2.16.0
 
 - **Repair notices for settings that fail silently.** A protection limit with no

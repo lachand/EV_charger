@@ -11,8 +11,8 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 
 ## Resume here
 
-- **Current version:** 2.16.0
-- **Phase in progress:** Phases 1–2 ✅ done, phase 3 partly: **B5 ✅**. Left in phase 3: **A4** (collapsible option sections) and **A5** (`async_migrate_entry`), both small and independent.
+- **Current version:** 2.16.1
+- **Phase in progress:** Phases 1–3 ✅ done. **Start phase 4** (B1 predictive pre-emption, B6 adaptive polling, B7 Smart Life coexistence) — the highest-value batch, now on a base with a pure decision layer, a characterisation net and 339 tests.
 - **Next concrete action:** **B3, decision traceability.** `charge_gates.py` now
   enumerates every reason as `DecisionReason`, so translating them (en/fr) and
   attaching a structured trace to `sensor.surplus_last_decision_reason` is
@@ -34,8 +34,8 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 |---|---|---|---|
 | **1** | A1 decision layer + A2 partial + formatting | 2.14.0 | ✅ done |
 | 2 | B3 traceability + B2 simulation + A6 leftovers | 2.15.0 | 🔄 next |
-| 3 | B5 proactive repairs (2.16.0) + A4 form sections + A5 entry migration | 2.16.x | 🔄 B5 done |
-| 4 | **B1 predictive pre-emption** + B6 adaptive polling + B7 Smart Life coexistence | 2.17.0 | ⬜ |
+| 3 | B5 proactive repairs (2.16.0) + A4 form sections + A5 entry migration (2.16.1) | 2.16.x | ✅ done |
+| 4 | **B1 predictive pre-emption** + B6 adaptive polling + B7 Smart Life coexistence | 2.17.0 | 🔄 next |
 | 5 | B4 learned charge curve + B12 session anomalies + B13 per-vehicle statistics | 2.18.0 | ⬜ |
 | 6 | B8 carbon intensity + B9 daily forecast + B10 Tempo/RTE + A3 `quality_scale.yaml` | 2.19.0+ | ⬜ |
 | 7 | B11 phase imbalance + B14 session receipt + B15 vehicle subentries | on demand | ⬜ |
@@ -49,8 +49,8 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 | **A1** | ✅ 2.14.0 | The 2.5.0 refactor extracted the arithmetic but the orchestration kept growing: 1 197 → 1 425 lines, with `_async_evaluate_once` at 300 lines and 27 exit points. It had already cost the `force_charge_for` bug (2.13.1), guarded only by asserting on the method's *source text*. Now `charge_gates.py`: the order is a list, the timers are a passed-in `TimerState`, and one verdict per cycle. **300 → 31 lines; 25 duplicated exit blocks → 4.** |
 | **A2** | 🔄 partly 2.14.0 | Ten modules had no tests (~1 350 lines). Done: `surplus_profiles.py` (it rewrites the user's stored options — the riskiest of the set) and `number.py` (the current-write path). **Left:** `switch.py` 181, `select.py` 139, `entity.py` 121, `repairs.py` 110, `time.py` 98, `binary_sensor.py` 85, `button.py` 78, `discovery.py` 66. |
 | **A3** | ⬜ | `manifest.json` declares `quality_scale: silver` but `quality_scale.yaml` is absent — the file Home Assistant checks the claim against. Writing it honestly (marking `todo`/`exempt`) reveals the gaps mechanically and maps a route to gold. |
-| **A4** | ⬜ | 30 options in one flat screen. HA has supported collapsible `section`s since 2024.6; the data-driven `_OPTIONS_FORM` only needs a `section` field on `_Opt`. |
-| **A5** | ⬜ | `VERSION = 1` with no `async_migrate_entry`. Any change to `entry.data` would break existing installs with no net. |
+| **A4** | ✅ 2.16.1 | 30 options in one flat screen. HA has supported collapsible `section`s since 2024.6; the data-driven `_OPTIONS_FORM` only needs a `section` field on `_Opt`. |
+| **A5** | ✅ 2.16.1 | `VERSION = 1` with no `async_migrate_entry`. Any change to `entry.data` would break existing installs with no net. |
 | **A6** | ⬜ | `SERVICE_DRY_RUN_SURPLUS` declared in `const.py`, registered nowhere — it survived the 2.4.0 purge. Also `DP_DO_RESET`, `DP_EARCH_FREE_CFG`, `DP_HEARTBEAT`, declared and unused. Implement rather than delete the first (see B2). |
 | **A7** | ✅ 2.14.0 | The previous roadmap described finished work. This file replaces it. |
 | — | ✅ 2.14.0 | Formatting was never enforced: 35 of 49 files had drifted, including stray 8/16/20-space indents in the surplus controller. `ruff format --check .` is now part of CI. |

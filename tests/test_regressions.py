@@ -79,8 +79,16 @@ def test_options_form_declares_no_defaults_on_entity_pickers():
     flow = TuyaEVChargerOptionsFlow(types.SimpleNamespace(data={}, options={}, entry_id="test"))
     schema = flow._build_options_schema({}, computed={})
 
-    entity_markers = [marker for marker in schema.schema if str(marker) in OPTIONAL_ENTITY_OPTIONS]
-    assert len(entity_markers) == len(OPTIONAL_ENTITY_OPTIONS)
+    # The pickers live inside collapsible sections now, so walk one level down.
+    entity_markers = []
+    for marker, value in schema.schema.items():
+        inner = getattr(value, "schema", None)
+        candidates = inner.schema.items() if inner is not None else [(marker, value)]
+        entity_markers += [key for key, _ in candidates if str(key) in OPTIONAL_ENTITY_OPTIONS]
+
+    assert len(entity_markers) == len(OPTIONAL_ENTITY_OPTIONS), (
+        "every optional entity picker must still be reachable in the schema"
+    )
 
     for marker in entity_markers:
         assert marker.default is vol.UNDEFINED, (
@@ -447,3 +455,126 @@ def test_every_config_problem_has_a_translated_repair_notice():
         for key in problems:
             assert issues[key].get("title"), f"{name}: {key} has no title"
             assert issues[key].get("description"), f"{name}: {key} has no description"
+
+
+def test_sections_do_not_change_the_stored_option_shape():
+    """Collapsible sections nest the submitted values; storage must stay flat.
+
+    Every reader -- the surplus settings, diagnostics, existing installations --
+    expects flat keys. Letting the display grouping leak into storage would need
+    a migration for a purely cosmetic change.
+    """
+    from tuya_ev_charger.config_flow import _flatten_sections
+
+    nested = {
+        "device": {"scan_interval": 30},
+        "protection": {"max_house_power_w": 9200, "total_load_sensor_entity_id": ""},
+        "surplus": {"surplus_mode_enabled": True},
+    }
+    assert _flatten_sections(nested) == {
+        "scan_interval": 30,
+        "max_house_power_w": 9200,
+        "total_load_sensor_entity_id": "",
+        "surplus_mode_enabled": True,
+    }
+
+
+def test_flattening_tolerates_an_unsectioned_payload():
+    """Older Home Assistant frontends, or a service call, may submit flat."""
+    from tuya_ev_charger.config_flow import _flatten_sections
+
+    assert _flatten_sections({"scan_interval": 30}) == {"scan_interval": 30}
+
+
+def test_every_option_belongs_to_a_declared_section():
+    """A typo in `section=` would silently drop the field from the form."""
+    from tuya_ev_charger.config_flow import _OPTIONS_FORM, _SECTION_ORDER
+
+    for opt in _OPTIONS_FORM:
+        assert opt.section in _SECTION_ORDER, f"{opt.key} is in no rendered section"
+
+
+def test_the_sectioned_schema_still_serialises():
+    """The 2.0.1 outage was a schema that validated but could not be serialised.
+
+    Home Assistant converts the options schema to JSON to draw the form, so
+    wrapping it in sections must not reintroduce that failure.
+    """
+    import types
+
+    voluptuous_serialize = pytest.importorskip("voluptuous_serialize")
+
+    from tuya_ev_charger.config_flow import TuyaEVChargerOptionsFlow
+
+    flow = TuyaEVChargerOptionsFlow(types.SimpleNamespace(data={}, options={}, entry_id="test"))
+    schema = flow._build_options_schema({}, computed={})
+
+    def serializer(value):
+        inner = getattr(value, "schema", None)
+        if inner is not None and hasattr(value, "options"):
+            return {"type": "expandable", "schema": [], "expanded": True}
+        if hasattr(value, "serialize"):
+            return value.serialize()
+        if hasattr(value, "config"):  # selectors from the stub
+            return {"selector": {}}
+        return voluptuous_serialize.UNSUPPORTED
+
+    assert voluptuous_serialize.convert(schema, custom_serializer=serializer)
+
+
+def test_every_option_field_has_a_label_in_its_section():
+    """Sections move the labels under `sections.<name>.data`.
+
+    A field whose label stayed at the old flat path renders as a raw key like
+    `max_inverter_power_w` in the form, which is how the grouping could quietly
+    degrade the UI it was meant to improve.
+    """
+    from tuya_ev_charger.config_flow import _OPTIONS_FORM
+
+    expected: dict[str, set[str]] = {}
+    for opt in _OPTIONS_FORM:
+        expected.setdefault(opt.section, set()).add(opt.key)
+
+    for name in ("strings.json", "translations/en.json", "translations/fr.json"):
+        payload = json.loads((COMPONENT / name).read_text(encoding="utf-8"))
+        sections = payload["options"]["step"]["init"]["sections"]
+
+        assert set(sections) == set(expected), f"{name}: section list disagrees with the form"
+        for section_name, keys in expected.items():
+            block = sections[section_name]
+            assert block.get("name"), f"{name}: section {section_name} has no title"
+            missing = sorted(keys - set(block.get("data", {})))
+            assert not missing, f"{name}: {section_name} is missing labels for {missing}"
+
+
+def test_the_flow_and_the_migration_agree_on_the_entry_version():
+    """A flow writing v2 entries while the migration only knows v1 would make
+    every freshly created entry unloadable."""
+    from tuya_ev_charger.config_flow import TuyaEVChargerConfigFlow
+    from tuya_ev_charger.const import CONFIG_ENTRY_VERSION
+
+    assert TuyaEVChargerConfigFlow.VERSION == CONFIG_ENTRY_VERSION
+
+
+def test_a_newer_entry_is_refused_rather_than_misread():
+    """After a downgrade, an entry written by a later release may hold fields
+    this version would misinterpret. Refusing shows a clear error; loading it
+    anyway would fail somewhere less obvious."""
+    import asyncio
+    import types
+
+    import tuya_ev_charger as integration
+
+    entry = types.SimpleNamespace(version=99, title="test")
+    assert asyncio.run(integration.async_migrate_entry(None, entry)) is False
+
+
+def test_a_current_entry_migrates_cleanly():
+    import asyncio
+    import types
+
+    import tuya_ev_charger as integration
+    from tuya_ev_charger.const import CONFIG_ENTRY_VERSION
+
+    entry = types.SimpleNamespace(version=CONFIG_ENTRY_VERSION, title="test")
+    assert asyncio.run(integration.async_migrate_entry(None, entry)) is True

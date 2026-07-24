@@ -9,7 +9,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.data_entry_flow import FlowResult
+from homeassistant.data_entry_flow import FlowResult, section
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import selector
 from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
@@ -57,6 +57,7 @@ from .const import (
     CONF_SURPLUS_STOP_THRESHOLD_W,
     CONF_TOTAL_LOAD_SENSOR_ENTITY_ID,
     CONF_VEHICLES,
+    CONFIG_ENTRY_VERSION,
     DEFAULT_CHARGER_PROFILE,
     DEFAULT_CHARGER_PROFILE_JSON,
     DEFAULT_CLOUD_REGION,
@@ -147,6 +148,32 @@ OPTIONAL_ENTITY_OPTIONS: tuple[str, ...] = (
 )
 
 
+# The options form is 32 fields; ungrouped, it is a wall. Sections are cosmetic
+# only -- values are flattened back before storage, so nothing downstream changes
+# and no migration is needed.
+SECTION_DEVICE = "device"
+SECTION_CURRENT = "current"
+SECTION_VEHICLES = "vehicles"
+SECTION_PROTECTION = "protection"
+SECTION_TARIFF = "tariff"
+SECTION_SURPLUS = "surplus"
+SECTION_BATTERY = "battery"
+
+# Collapsed by default are the ones most installs never touch. The protections
+# stay open: a limit nobody notices is a limit nobody sets.
+_COLLAPSED_SECTIONS = frozenset({SECTION_TARIFF, SECTION_SURPLUS, SECTION_BATTERY})
+
+_SECTION_ORDER: tuple[str, ...] = (
+    SECTION_DEVICE,
+    SECTION_CURRENT,
+    SECTION_PROTECTION,
+    SECTION_VEHICLES,
+    SECTION_TARIFF,
+    SECTION_SURPLUS,
+    SECTION_BATTERY,
+)
+
+
 @dataclass(frozen=True, slots=True)
 class _Opt:
     """One row of the options form.
@@ -161,6 +188,9 @@ class _Opt:
     minimum: int = 0
     maximum: int = 0
     choices: tuple[str, ...] = ()
+    # Which collapsible group the field belongs to on screen. Purely
+    # presentational: the stored options stay flat, see `_flatten_sections`.
+    section: str = SECTION_DEVICE
 
 
 _OPTIONS_FORM: tuple[_Opt, ...] = (
@@ -173,13 +203,14 @@ _OPTIONS_FORM: tuple[_Opt, ...] = (
     ),
     _Opt(CONF_CHARGER_PROFILE, "choice", DEFAULT_CHARGER_PROFILE, choices=CHARGER_PROFILES),
     _Opt(CONF_CHARGER_PROFILE_JSON, "multiline", DEFAULT_CHARGER_PROFILE_JSON),
-    _Opt(CONF_CONTINUOUS_CURRENT, "bool", DEFAULT_CONTINUOUS_CURRENT),
+    _Opt(CONF_CONTINUOUS_CURRENT, "bool", DEFAULT_CONTINUOUS_CURRENT, section=SECTION_CURRENT),
     _Opt(
         CONF_MAX_CHARGE_CURRENT_A,
         "int",
         DEFAULT_MAX_CHARGE_CURRENT_A,
         MIN_CHARGE_CURRENT_LIMIT_A,
         MAX_CHARGE_CURRENT_LIMIT_A,
+        section=SECTION_CURRENT,
     ),
     _Opt(
         CONF_MIN_CHARGE_CURRENT_A,
@@ -187,14 +218,16 @@ _OPTIONS_FORM: tuple[_Opt, ...] = (
         DEFAULT_MIN_CHARGE_CURRENT_A,
         MIN_CHARGE_CURRENT_LIMIT_A,
         MAX_CHARGE_CURRENT_LIMIT_A,
+        section=SECTION_CURRENT,
     ),
-    _Opt(CONF_VEHICLES, "text", DEFAULT_VEHICLES),
+    _Opt(CONF_VEHICLES, "text", DEFAULT_VEHICLES, section=SECTION_VEHICLES),
     _Opt(
         CONF_MAX_HOUSE_POWER_W,
         "int",
         DEFAULT_MAX_HOUSE_POWER_W,
         MIN_MAX_HOUSE_POWER_W,
         MAX_MAX_HOUSE_POWER_W,
+        section=SECTION_PROTECTION,
     ),
     _Opt(
         CONF_MAX_INVERTER_POWER_W,
@@ -202,36 +235,56 @@ _OPTIONS_FORM: tuple[_Opt, ...] = (
         DEFAULT_MAX_INVERTER_POWER_W,
         MIN_MAX_HOUSE_POWER_W,
         MAX_MAX_HOUSE_POWER_W,
+        section=SECTION_PROTECTION,
     ),
-    _Opt(CONF_TOTAL_LOAD_SENSOR_ENTITY_ID, "entity", DEFAULT_TOTAL_LOAD_SENSOR_ENTITY_ID),
-    _Opt(CONF_OFF_PEAK_WINDOWS, "text", DEFAULT_OFF_PEAK_WINDOWS),
-    _Opt(CONF_DEPARTURE_TIME, "text", DEFAULT_DEPARTURE_TIME),
+    _Opt(
+        CONF_TOTAL_LOAD_SENSOR_ENTITY_ID,
+        "entity",
+        DEFAULT_TOTAL_LOAD_SENSOR_ENTITY_ID,
+        section=SECTION_PROTECTION,
+    ),
+    _Opt(CONF_OFF_PEAK_WINDOWS, "text", DEFAULT_OFF_PEAK_WINDOWS, section=SECTION_TARIFF),
+    _Opt(CONF_DEPARTURE_TIME, "text", DEFAULT_DEPARTURE_TIME, section=SECTION_TARIFF),
     _Opt(
         CONF_DEPARTURE_ENERGY_KWH,
         "int",
         DEFAULT_DEPARTURE_ENERGY_KWH,
         MIN_DEPARTURE_ENERGY_KWH,
         MAX_DEPARTURE_ENERGY_KWH,
+        section=SECTION_TARIFF,
     ),
-    _Opt(CONF_OFF_PEAK_PRICE, "price", DEFAULT_OFF_PEAK_PRICE),
-    _Opt(CONF_PEAK_PRICE, "price", DEFAULT_PEAK_PRICE),
-    _Opt(CONF_SURPLUS_MODE_ENABLED, "bool", DEFAULT_SURPLUS_MODE_ENABLED),
-    _Opt(CONF_SURPLUS_SENSOR_ENTITY_ID, "entity", DEFAULT_SURPLUS_SENSOR_ENTITY_ID),
-    _Opt(CONF_SURPLUS_SENSOR_INVERTED, "bool", DEFAULT_SURPLUS_SENSOR_INVERTED),
+    _Opt(CONF_OFF_PEAK_PRICE, "price", DEFAULT_OFF_PEAK_PRICE, section=SECTION_TARIFF),
+    _Opt(CONF_PEAK_PRICE, "price", DEFAULT_PEAK_PRICE, section=SECTION_TARIFF),
+    _Opt(CONF_SURPLUS_MODE_ENABLED, "bool", DEFAULT_SURPLUS_MODE_ENABLED, section=SECTION_SURPLUS),
+    _Opt(
+        CONF_SURPLUS_SENSOR_ENTITY_ID,
+        "entity",
+        DEFAULT_SURPLUS_SENSOR_ENTITY_ID,
+        section=SECTION_SURPLUS,
+    ),
+    _Opt(
+        CONF_SURPLUS_SENSOR_INVERTED,
+        "bool",
+        DEFAULT_SURPLUS_SENSOR_INVERTED,
+        section=SECTION_SURPLUS,
+    ),
     _Opt(
         CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
         "entity",
         DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
+        section=SECTION_SURPLUS,
     ),
     _Opt(
         CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
         "bool",
         DEFAULT_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
+        section=SECTION_SURPLUS,
     ),
     _Opt(
         CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
         "entity",
         DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
+        section=SECTION_BATTERY,
     ),
     _Opt(
         CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
@@ -239,6 +292,7 @@ _OPTIONS_FORM: tuple[_Opt, ...] = (
         DEFAULT_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
         MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
         MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+        section=SECTION_BATTERY,
     ),
     _Opt(
         CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
@@ -246,21 +300,25 @@ _OPTIONS_FORM: tuple[_Opt, ...] = (
         DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
         MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
         MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+        section=SECTION_BATTERY,
     ),
     _Opt(
         CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
         "entity",
         DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
+        section=SECTION_BATTERY,
     ),
     _Opt(
         CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
         "bool",
         DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
+        section=SECTION_BATTERY,
     ),
     _Opt(
         CONF_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
         "bool",
         DEFAULT_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
+        section=SECTION_BATTERY,
     ),
     _Opt(
         CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
@@ -268,6 +326,7 @@ _OPTIONS_FORM: tuple[_Opt, ...] = (
         DEFAULT_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
         MIN_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
         MAX_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
+        section=SECTION_BATTERY,
     ),
     _Opt(
         CONF_SURPLUS_START_THRESHOLD_W,
@@ -275,6 +334,7 @@ _OPTIONS_FORM: tuple[_Opt, ...] = (
         DEFAULT_SURPLUS_START_THRESHOLD_W,
         MIN_SURPLUS_THRESHOLD_W,
         MAX_SURPLUS_THRESHOLD_W,
+        section=SECTION_SURPLUS,
     ),
     _Opt(
         CONF_SURPLUS_STOP_THRESHOLD_W,
@@ -282,9 +342,13 @@ _OPTIONS_FORM: tuple[_Opt, ...] = (
         DEFAULT_SURPLUS_STOP_THRESHOLD_W,
         MIN_SURPLUS_THRESHOLD_W,
         MAX_SURPLUS_THRESHOLD_W,
+        section=SECTION_SURPLUS,
     ),
     _Opt(
-        CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID, "entity", DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID
+        CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
+        "entity",
+        DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
+        section=SECTION_SURPLUS,
     ),
 )
 
@@ -350,7 +414,7 @@ async def _async_validate_input(
 
 
 class TuyaEVChargerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    VERSION = 1
+    VERSION = CONFIG_ENTRY_VERSION
 
     def __init__(self) -> None:
         self._discovered: dict[str, dict] = {}
@@ -704,13 +768,36 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
         options: Mapping[str, Any],
         computed: Mapping[str, Any],
     ) -> vol.Schema:
-        """Turn the options table into a voluptuous schema.
+        """Turn the options table into a schema of collapsible sections.
+
+        Grouping is presentation only: `section` nests the submitted values, and
+        `_flatten_sections` undoes that before anything is stored, so the options
+        keep the flat shape every reader expects and no migration is needed.
+        """
+        schema: dict[Any, Any] = {}
+        for name in _SECTION_ORDER:
+            rows = tuple(opt for opt in _OPTIONS_FORM if opt.section == name)
+            if not rows:
+                continue
+            schema[vol.Required(name)] = section(
+                self._build_section_schema(rows, options, computed),
+                {"collapsed": name in _COLLAPSED_SECTIONS},
+            )
+        return vol.Schema(schema)
+
+    def _build_section_schema(
+        self,
+        options_form: tuple[_Opt, ...],
+        options: Mapping[str, Any],
+        computed: Mapping[str, Any],
+    ) -> vol.Schema:
+        """One section's fields.
 
         ``computed`` carries the values that cannot come straight from storage,
         such as thresholds clamped against each other.
         """
         fields: dict[Any, Any] = {}
-        for opt in _OPTIONS_FORM:
+        for opt in options_form:
             if opt.kind == "entity":
                 # No voluptuous default here: an inserted None fails the entity
                 # selector, and wrapping the selector to tolerate it breaks the
@@ -767,7 +854,7 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
     ) -> FlowResult:
         if user_input is not None:
             cleaned_input = dict(self._config_entry.options)
-            cleaned_input.update(user_input)
+            cleaned_input.update(_flatten_sections(user_input))
             # Optional entity pickers are omitted from user_input when left
             # empty, so an absent key means "cleared" and must not fall back to
             # the previously stored value.
@@ -902,6 +989,22 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                 "dp_profile_fields": ", ".join(known_dp_profile_fields()),
             },
         )
+
+
+def _flatten_sections(user_input: Mapping[str, Any]) -> dict[str, Any]:
+    """Undo the nesting that collapsible sections introduce.
+
+    Sections are a display grouping, so the stored options must not inherit their
+    shape: every reader -- settings, diagnostics, existing installations -- expects
+    flat keys, and nesting them would need a migration for no benefit.
+    """
+    flat: dict[str, Any] = {}
+    for key, value in user_input.items():
+        if isinstance(value, dict):
+            flat.update(value)
+        else:
+            flat[key] = value
+    return flat
 
 
 def _legacy_high_threshold_default(options: Mapping[str, Any]) -> int:
