@@ -334,13 +334,20 @@ DP_ADJUST_CURRENT = "107"
 DP_DOWNCOUNTER = "108"
 DP_WORK_STATE_DEBUG = "109"
 DP_DO_CHARGE = "140"
-DP_DO_RESET = "141"
+# Known but not wired to anything. Kept because this DP map is reverse
+# engineered and the numbers are hard-won -- see issue #5, where they were
+# cross-checked against tuya_local. Deleting them would lose that, but nothing
+# reads them, so do not assume the feature exists.
+DP_DO_RESET = "141"  # unused
 DP_CURRENT_TARGET = "150"
 DP_MAX_CURRENT_CFG = "152"
 DP_SOCKET_CFG = "154"
 DP_NFC_CFG = "155"
-DP_EARCH_FREE_CFG = "156"
+DP_EARCH_FREE_CFG = "156"  # unused
 DP_PRODUCT_VARIANT = "157"
 DP_REBOOT = "142"
-DP_HEARTBEAT = "188"
+# tuya_local documents 188 as a "Refresh" button, not a charge-active flag, and
+# it measured false here while the charger was actively WORKING -- which is why
+# the original device report in #5 mapped it wrongly.
+DP_HEARTBEAT = "188"  # unused
 DP_NUM = "189"

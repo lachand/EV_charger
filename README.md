@@ -124,7 +124,14 @@ solar production.
 
 To check it is working, watch `sensor.surplus_raw_w` (what the integration reads
 from your sensor, after any inversion) and `sensor.surplus_last_decision_reason`,
-which states in plain text why it started, stopped, or did nothing.
+which says in plain, translated language why it started, stopped, or did nothing
+— *"Waiting for off-peak hours"*, *"Reduced to stay under the inverter output
+limit"*, *"About to start — waiting to confirm the surplus holds"*.
+
+That sensor's **attributes** carry the reasoning: which decision gate decided,
+which ones declined before it, and the figures they weighed. If you want the same
+answer on demand without waiting for a poll, call
+[`dry_run_surplus`](#dry_run_surplus).
 
 Everything else — battery thresholds, forecast, curtailment — is optional.
 
@@ -422,6 +429,25 @@ data:
   vehicle: Zoe # must match a name in the `vehicles` option
   energy_kwh: 412.5
 ```
+
+### `dry_run_surplus`
+
+Asks what surplus regulation *would* do right now, and writes nothing to the
+charger. The answer names the gate that decided, the gates that declined before
+it, and every figure weighed — surplus, thresholds, protection caps, the current
+ladder.
+
+```yaml
+action: tuya_ev_charger.dry_run_surplus
+```
+
+The report arrives as a persistent notification and on the event bus as
+`tuya_ev_charger_dry_run_surplus`. **Attach it when reporting that surplus mode
+will not start** — it turns "it doesn't work" into a reproducible scenario.
+
+It is genuinely side-effect free: the regulation's timers are copied before the
+question is asked, so calling it cannot consume a start delay or nudge the solar
+forecast average.
 
 ### `profile_assistant`
 

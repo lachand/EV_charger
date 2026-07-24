@@ -11,8 +11,8 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 
 ## Resume here
 
-- **Current version:** 2.14.0
-- **Phase in progress:** Phase 1 ✅ done. **Start phase 2** (B3 + B2 + A6).
+- **Current version:** 2.15.0
+- **Phase in progress:** Phases 1–2 ✅ done. **Start phase 3** (B5 + A4 + A5).
 - **Next concrete action:** **B3, decision traceability.** `charge_gates.py` now
   enumerates every reason as `DecisionReason`, so translating them (en/fr) and
   attaching a structured trace to `sensor.surplus_last_decision_reason` is

@@ -24,7 +24,7 @@ Two invariants are structural rather than hoped for:
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 
 
@@ -126,6 +126,15 @@ class TimerState:
     last_increase_action_ts: float = 0.0
     last_decrease_action_ts: float = 0.0
 
+    def copy(self) -> TimerState:
+        """A detached copy, for asking what *would* happen.
+
+        The gates advance these timers as a side effect of being consulted, so a
+        dry run has to be given a copy or merely asking the question would change
+        the answer to the next real evaluation.
+        """
+        return replace(self)
+
 
 @dataclass(slots=True, frozen=True)
 class GateContext:
@@ -187,6 +196,10 @@ class Verdict:
     clear_debug: bool = False
     # Stop the charger only if it is the one that started it.
     only_stop_own_session: bool = False
+    # Gates consulted before this verdict, in order, followed by the one that
+    # produced it. Populated by `evaluate`; a gate never sets it itself.
+    consulted: tuple[str, ...] = ()
+    decided_by: str = ""
 
 
 Gate = Callable[[GateContext, TimerState], Verdict | None]
@@ -524,11 +537,28 @@ GATES: tuple[Gate, ...] = (
 
 
 def evaluate(context: GateContext, timers: TimerState) -> Verdict:
-    """Run the gates in order and return the one verdict for this cycle."""
+    """Run the gates in order and return the one verdict for this cycle.
+
+    The verdict records which gates were consulted and which one decided. That
+    turns "why is it not charging?" into something answerable from the entity's
+    attributes instead of from a reading of this file.
+    """
+    consulted: list[str] = []
     for gate in GATES:
+        name = _gate_label(gate)
         verdict = gate(context, timers)
         if verdict is not None:
-            return verdict
+            return replace(verdict, consulted=tuple(consulted), decided_by=name)
+        consulted.append(name)
     # _gate_start always decides, so this is unreachable; kept explicit rather
     # than relying on that.
-    return Verdict(action=GateAction.IDLE, reason=DecisionReason.NO_TARGET_CURRENT)
+    return Verdict(
+        action=GateAction.IDLE,
+        reason=DecisionReason.NO_TARGET_CURRENT,
+        consulted=tuple(consulted),
+    )
+
+
+def _gate_label(gate: Gate) -> str:
+    """`_gate_force_charge` -> `force_charge`, for readable attributes."""
+    return gate.__name__.removeprefix("_gate_")

@@ -26,6 +26,7 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TuyaEVChargerRuntimeData
+from .charge_gates import DecisionReason
 from .const import (
     ADVANCED_ENTITY_KEYS,
     CARD_ROLE_ALARM,
@@ -289,6 +290,12 @@ SURPLUS_CONTROLLER_SENSOR_DESCRIPTIONS: tuple[
         key="surplus_last_decision_reason",
         translation_key="surplus_last_decision_reason",
         entity_category=EntityCategory.DIAGNOSTIC,
+        # An enum sensor, so the reason reads as a translated sentence instead of
+        # `load_limit_no_headroom`. The options list is the DecisionReason enum,
+        # which is exhaustive -- Home Assistant rejects a state outside it, so a
+        # new reason without a translation fails loudly rather than silently.
+        device_class=SensorDeviceClass.ENUM,
+        options=[reason.value for reason in DecisionReason],
         value_fn=lambda snapshot: snapshot.last_decision_reason,
     ),
     TuyaEVChargerSurplusControllerSensorDescription(
@@ -577,6 +584,20 @@ class TuyaEVChargerSurplusControllerSensor(TuyaEVChargerEntity, SensorEntity):
         if controller is None:
             return None
         return self.entity_description.value_fn(controller.snapshot)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """The reasoning behind the value, on the decision-reason sensor only.
+
+        The other surplus sensors are plain numbers; attaching a trace to each
+        would repeat the same payload several times per update.
+        """
+        if self.entity_description.key != "surplus_last_decision_reason":
+            return None
+        controller = self._runtime_data.solar_surplus_controller
+        if controller is None:
+            return None
+        return controller.snapshot.decision_trace or None
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()

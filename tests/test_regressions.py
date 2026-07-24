@@ -398,3 +398,35 @@ def test_the_tinytuya_floor_matches_between_manifest_and_tests():
         f"manifest requires {runtime!r} but the suite tests against {tested!r}; "
         "bump manifest.json by hand — Dependabot cannot"
     )
+
+
+def test_every_decision_reason_has_a_translated_state():
+    """The reason sensor is an enum, so Home Assistant *rejects* a state outside
+    its options list -- the entity would go unavailable rather than show an
+    untranslated string. A new reason therefore has to arrive with its
+    translations, and that is only enforceable here.
+    """
+    from tuya_ev_charger.charge_gates import DecisionReason
+
+    reasons = {reason.value for reason in DecisionReason}
+
+    for name in ("strings.json", "translations/en.json", "translations/fr.json"):
+        payload = json.loads((COMPONENT / name).read_text(encoding="utf-8"))
+        states = payload["entity"]["sensor"]["surplus_last_decision_reason"]["state"]
+        missing = sorted(reasons - set(states))
+        extra = sorted(set(states) - reasons)
+        assert not missing, f"{name} is missing translations for {missing}"
+        assert not extra, f"{name} translates reasons that no longer exist: {extra}"
+
+
+def test_the_reason_sensor_declares_every_reason_as_an_option():
+    """The options list is what Home Assistant validates the state against."""
+    from tuya_ev_charger.charge_gates import DecisionReason
+    from tuya_ev_charger.sensor import SURPLUS_CONTROLLER_SENSOR_DESCRIPTIONS
+
+    description = next(
+        item
+        for item in SURPLUS_CONTROLLER_SENSOR_DESCRIPTIONS
+        if item.key == "surplus_last_decision_reason"
+    )
+    assert set(description.options) == {reason.value for reason in DecisionReason}

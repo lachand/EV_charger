@@ -7,6 +7,28 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.15.0
+
+- **The decision reason is readable.** `sensor.surplus_last_decision_reason` is
+  now an enum sensor with all 42 reasons translated (en/fr): *"Waiting for
+  off-peak hours"* instead of `tariff_waiting_for_off_peak`. Because Home
+  Assistant validates an enum state against its options list, a new reason
+  without a translation now fails loudly — a test enforces it.
+- **The reason sensor's attributes explain the decision**: which gate decided,
+  which gates declined before it, and the figures weighed (surplus, thresholds,
+  protection cap and its source, the current ladder). "Why is it not charging?"
+  is answerable from the UI instead of from a reading of the source.
+- **New `dry_run_surplus` service** — the constant had been declared since 2.4.0
+  and registered nowhere. It reports what regulation *would* do without writing
+  to the charger, as a notification and a bus event. Verified side-effect free:
+  the timers are copied and the forecast average is left alone, so asking the
+  question cannot change the answer to the next real evaluation.
+- Three unused DP constants (`DP_DO_RESET`, `DP_EARCH_FREE_CFG`, `DP_HEARTBEAT`)
+  are marked as such rather than deleted: unlike the constants removed in 2.4.0
+  they do not claim a feature exists, they document a reverse-engineered protocol
+  cross-checked in #5, and that is worth keeping.
+- Suite: 304 → **312 tests**.
+
 ## 2.14.0
 
 - **The surplus decision layer is extracted.** `_async_evaluate_once` had reached

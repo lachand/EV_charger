@@ -422,3 +422,82 @@ def test_force_charge_is_clamped_to_the_cap_not_dropped_to_the_minimum(monkeypat
     assert written, "force charge should set a current"
     assert max(written) <= 15, f"force charge exceeded the 15 A cap: {written}"
     assert written[-1] == 15, f"force charge should use the whole cap, wrote {written}"
+
+
+# --- dry run and traceability ---------------------------------------------
+
+
+def test_dry_run_reports_what_would_happen_without_writing(monkeypatch):
+    h = Harness(monkeypatch, sensors={"sensor.grid": -3000})
+    report = h.controller.async_dry_run()
+
+    assert report["would_do"] == "idle"
+    assert report["reason"] == "start_delay_pending"
+    assert report["inputs"]["surplus_w"] == 3000
+    assert h.writes == [], "a dry run must never touch the charger"
+
+
+def test_dry_run_does_not_advance_the_real_timers(monkeypatch):
+    """Asking the question must not change the answer.
+
+    The gates arm the start timer as a side effect of being consulted, so the dry
+    run is given a copy. Without that, calling the service would make the next
+    real evaluation think the delay had already begun.
+    """
+    h = Harness(monkeypatch, sensors={"sensor.grid": -3000})
+
+    h.controller.async_dry_run()
+    assert h.controller._timers.start_candidate_since is None
+
+    # Nor does it consume the delay: the real evaluation still has to serve it.
+    assert h.tick() == "start_delay_pending"
+
+
+def test_dry_run_does_not_disturb_the_forecast_state(monkeypatch):
+    h = Harness(
+        monkeypatch,
+        sensors={"sensor.grid": -3000, "sensor.forecast": 4000},
+        options={"surplus_forecast_sensor_entity_id": "sensor.forecast"},
+    )
+    h.tick()
+    ema_before = h.controller._forecast_ema_surplus_w
+
+    h.controller.async_dry_run()
+    assert h.controller._forecast_ema_surplus_w == ema_before
+
+
+def test_dry_run_without_data_says_so(monkeypatch):
+    h = Harness(monkeypatch)
+    h.coordinator.data = None
+    assert "error" in h.controller.async_dry_run()
+
+
+def test_the_decision_trace_names_the_gate_that_decided(monkeypatch):
+    h = Harness(monkeypatch, sensors={"sensor.grid": -3000})
+    h.tick()
+
+    trace = h.controller.snapshot.decision_trace
+    assert trace["decided_by"] == "start"
+    # The gates that declined show how far evaluation got before deciding.
+    assert "no_currents" in trace["gates_declined"]
+    assert "mode_disabled" in trace["gates_declined"]
+    assert trace["surplus_w"] == 3000
+    assert trace["start_threshold_w"] == 1400
+
+
+def test_the_trace_names_the_protection_limit_that_bound(monkeypatch):
+    h = _charging_harness(
+        monkeypatch,
+        sensors={"sensor.grid": -5000, "sensor.total_load": 7000},
+        options={
+            "max_inverter_power_w": 5500,
+            "total_load_sensor_entity_id": "sensor.total_load",
+        },
+    )
+    h.coordinator.data = _metrics(charging=True, current_target=32, total_power_kw=5.0)
+    h.tick()
+
+    trace = h.controller.snapshot.decision_trace
+    assert trace["decided_by"] == "protection_reduce"
+    assert trace["protection_cap_a"] == 15
+    assert trace["protection_source"] == "inverter_limit"

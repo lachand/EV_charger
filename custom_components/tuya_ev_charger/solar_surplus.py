@@ -165,6 +165,10 @@ class SolarSurplusSnapshot:
     effective_surplus_w: float | None
     battery_discharge_over_limit_w: float | None
     target_current_a: int | None
+    # Why the last decision came out that way: which gates were consulted, which
+    # one decided, and the figures it weighed. Answers "why is it not charging?"
+    # from the entity's attributes rather than from a reading of the source.
+    decision_trace: dict[str, Any]
 
 
 class SolarSurplusController:
@@ -208,6 +212,7 @@ class SolarSurplusController:
         self._forecast_ema_surplus_w: float | None = None
         self._forecast_last_sample_ts: float | None = None
         self._battery_soc_hysteresis_enabled: bool | None = None
+        self._last_decision_trace: dict[str, Any] = {}
 
     @property
     def snapshot(self) -> SolarSurplusSnapshot:
@@ -222,6 +227,7 @@ class SolarSurplusController:
             effective_surplus_w=self._last_available_surplus_w,
             battery_discharge_over_limit_w=self._last_battery_discharge_over_limit_w,
             target_current_a=self._last_target_current_a,
+            decision_trace=dict(self._last_decision_trace),
         )
 
     def async_add_update_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
@@ -407,9 +413,11 @@ class SolarSurplusController:
 
         context = self._build_gate_context(now, data, is_charging)
         verdict = evaluate(context, self._timers)
-        await self._async_apply(verdict, data=data, now=now)
+        await self._async_apply(verdict, data=data, now=now, context=context)
 
-    def _build_gate_context(self, now: float, data: EVMetrics, is_charging: bool) -> GateContext:
+    def _build_gate_context(
+        self, now: float, data: EVMetrics, is_charging: bool, *, update_state: bool = True
+    ) -> GateContext:
         """Resolve every input the gates may look at.
 
         The protection caps narrow the current ladder *here*, so the un-narrowed
@@ -436,9 +444,10 @@ class SolarSurplusController:
                 grid_power_w=grid_power_w,
                 battery_ready=battery_ready,
                 now=now,
-                update_state=True,
+                update_state=update_state,
             )
-            self._last_available_surplus_w = available_surplus_w
+            if update_state:
+                self._last_available_surplus_w = available_surplus_w
             max_supported_current = _current_supported_by_surplus(
                 available_currents, available_surplus_w, FIXED_LINE_VOLTAGE_V
             )
@@ -448,7 +457,8 @@ class SolarSurplusController:
                 if available_currents and max_supported_current >= min_current
                 else None
             )
-            self._last_target_current_a = target_current
+            if update_state:
+                self._last_target_current_a = target_current
 
         tariff_allowed: bool | None = None
         tariff_reason: DecisionReason | None = None
@@ -492,7 +502,88 @@ class SolarSurplusController:
             session_limit_reason=self._session_limit_reason(now),
         )
 
-    async def _async_apply(self, verdict: Verdict, *, data: EVMetrics | None, now: float) -> None:
+    def async_dry_run(self) -> dict[str, Any]:
+        """What regulation would do right now, without writing to the charger.
+
+        The decision layer is pure, so it can simply be run against the live
+        inputs and its verdict reported. Nothing is sent to the charger and no
+        timer is disturbed: the real `TimerState` is copied first, so asking the
+        question cannot change the answer to the next real evaluation.
+        """
+        data = self._coordinator.data
+        if data is None:
+            return {"error": "no data from the charger yet"}
+
+        now = monotonic()
+        context = self._build_gate_context(now, data, _is_charging(data), update_state=False)
+        verdict = evaluate(context, self._timers.copy())
+
+        return {
+            "would_do": str(verdict.action),
+            "reason": str(verdict.reason),
+            "target_current_a": verdict.target_current,
+            "decided_by": verdict.decided_by,
+            "gates_declined": list(verdict.consulted),
+            "inputs": {
+                "is_charging": context.is_charging,
+                "current_target_a": context.current_target,
+                "available_currents": list(context.available_currents),
+                "protection_cap_a": context.protection_cap,
+                "protection_source": context.cap_source,
+                "grid_power_w": context.grid_power_w,
+                "surplus_w": round(context.available_surplus_w),
+                "start_threshold_w": round(context.start_threshold_w),
+                "stop_threshold_w": round(context.stop_threshold_w),
+                "battery_ready": context.battery_ready,
+                "surplus_mode_enabled": context.surplus_mode_enabled,
+            },
+        }
+
+    def _record_decision_trace(
+        self,
+        verdict: Verdict,
+        reason: DecisionReason,
+        context: GateContext | None,
+    ) -> None:
+        """Keep the reasoning behind the last decision, for the entity to expose.
+
+        Only the figures that actually bear on a decision, so the attribute stays
+        readable: the gates that declined show how far evaluation got, and the
+        numbers show what the deciding gate weighed.
+        """
+        trace: dict[str, Any] = {
+            "decided_by": verdict.decided_by,
+            "gates_declined": list(verdict.consulted),
+            "action": str(verdict.action),
+        }
+        if reason is not verdict.reason:
+            # The write failed, so the reported reason is not the decided one.
+            trace["decided_reason"] = str(verdict.reason)
+        if verdict.target_current is not None:
+            trace["target_current_a"] = verdict.target_current
+        if context is not None:
+            trace.update(
+                {
+                    "available_currents": list(context.available_currents),
+                    "surplus_w": round(context.available_surplus_w),
+                    "start_threshold_w": round(context.start_threshold_w),
+                    "stop_threshold_w": round(context.stop_threshold_w),
+                    "battery_ready": context.battery_ready,
+                }
+            )
+            if context.protection_cap is not None:
+                trace["protection_cap_a"] = context.protection_cap
+                trace["protection_source"] = context.cap_source
+        self._last_decision_trace = trace
+
+    async def _async_apply(
+        self,
+        verdict: Verdict,
+        *,
+        data: EVMetrics | None,
+        now: float,
+        context: GateContext | None = None,
+    ) -> None:
         """Carry out one verdict. The only place that writes to the charger.
 
         Collapsing 25 near-identical exit blocks into this method is what makes a
@@ -510,6 +601,7 @@ class SolarSurplusController:
         elif verdict.action is GateAction.STOP_CHARGE:
             await self._async_stop_charge(verdict, data, now)
 
+        self._record_decision_trace(verdict, reason, context)
         self._set_decision(str(reason))
         self._regulation_active = verdict.regulation_active
         if verdict.clear_debug:

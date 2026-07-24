@@ -78,3 +78,10 @@ set_vehicle_energy:
           max: 100000
           step: 0.1
           mode: box
+
+dry_run_surplus:
+  fields:
+    entry_id:
+      selector:
+        config_entry:
+          integration: tuya_ev_charger

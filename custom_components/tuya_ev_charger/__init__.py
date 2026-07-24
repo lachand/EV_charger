@@ -34,6 +34,7 @@ from .const import (
     MAX_SCAN_INTERVAL_SECONDS,
     MIN_SCAN_INTERVAL_SECONDS,
     PLATFORMS,
+    SERVICE_DRY_RUN_SURPLUS,
     SERVICE_FORCE_CHARGE_FOR,
     SERVICE_PAUSE_SURPLUS,
     SERVICE_PROFILE_ASSISTANT,
@@ -95,6 +96,12 @@ SERVICE_SET_SURPLUS_PROFILE_SCHEMA = vol.Schema(
     {
         vol.Optional(SERVICE_DATA_ENTRY_ID): str,
         vol.Required(SERVICE_DATA_PROFILE): vol.All(str, vol.Length(min=1)),
+    }
+)
+
+SERVICE_DRY_RUN_SURPLUS_SCHEMA = vol.Schema(
+    {
+        vol.Optional(SERVICE_DATA_ENTRY_ID): str,
     }
 )
 
@@ -407,6 +414,30 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         SERVICE_SET_SURPLUS_PROFILE,
         _handle_set_surplus_profile,
         schema=SERVICE_SET_SURPLUS_PROFILE_SCHEMA,
+    )
+
+    async def _handle_dry_run_surplus(call: ServiceCall) -> None:
+        entry = _resolve_entry_from_call(hass, call)
+        controller = _resolve_controller(entry)
+        report = controller.async_dry_run()
+        payload = {"entry_id": entry.entry_id, "entry_title": entry.title, **report}
+        hass.bus.async_fire(f"{DOMAIN}_dry_run_surplus", payload)
+        persistent_notification.async_create(
+            hass=hass,
+            title=f"Tuya EV Charger surplus dry run ({entry.title})",
+            message=(
+                "What surplus regulation would do right now, with nothing written "
+                "to the charger:\n\n```json\n"
+                f"{json.dumps(payload, indent=2, ensure_ascii=True)}\n```"
+            ),
+            notification_id=f"{DOMAIN}_{entry.entry_id}_dry_run_surplus",
+        )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_DRY_RUN_SURPLUS,
+        _handle_dry_run_surplus,
+        schema=SERVICE_DRY_RUN_SURPLUS_SCHEMA,
     )
     hass.services.async_register(
         DOMAIN,
