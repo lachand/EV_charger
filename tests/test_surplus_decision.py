@@ -36,9 +36,7 @@ def test_the_car_s_own_draw_is_added_back():
     """
     from tuya_ev_charger.surplus_decision import raw_surplus_w
 
-    surplus = raw_surplus_w(
-        _inputs(grid_power_w=0.0, ev_power_w=3000.0), battery_ready=True
-    )
+    surplus = raw_surplus_w(_inputs(grid_power_w=0.0, ev_power_w=3000.0), battery_ready=True)
     assert surplus == 3000.0
 
 
@@ -74,13 +72,13 @@ LADDER = (6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)
     ("surplus_w", "expected"),
     [
         (0.0, 0),
-        (-500.0, 0),      # a deficit never charges
-        (1000.0, 0),      # below the 6 A minimum
-        (1380.0, 6),      # exactly 6 A at 230 V
+        (-500.0, 0),  # a deficit never charges
+        (1000.0, 0),  # below the 6 A minimum
+        (1380.0, 6),  # exactly 6 A at 230 V
         (2300.0, 10),
-        (2400.0, 10),     # rounds down: never import to top up
+        (2400.0, 10),  # rounds down: never import to top up
         (3680.0, 16),
-        (10_000.0, 16),   # capped by what the charger offers
+        (10_000.0, 16),  # capped by what the charger offers
     ],
 )
 def test_current_supported_by_surplus(surplus_w, expected):
@@ -139,8 +137,13 @@ def test_without_a_forecast_the_measurement_passes_through():
     from tuya_ev_charger.surplus_decision import ForecastState, apply_forecast
 
     result = apply_forecast(
-        raw_w=1500.0, forecast_w=None, now=100.0, state=ForecastState(),
-        weight_pct=35, smoothing_s=180, drop_guard_w=500.0,
+        raw_w=1500.0,
+        forecast_w=None,
+        now=100.0,
+        state=ForecastState(),
+        weight_pct=35,
+        smoothing_s=180,
+        drop_guard_w=500.0,
     )
     assert result.effective_surplus_w == 1500.0
     assert result.state.ema_w == 1500.0
@@ -150,8 +153,13 @@ def test_forecast_is_blended_by_weight():
     from tuya_ev_charger.surplus_decision import ForecastState, apply_forecast
 
     result = apply_forecast(
-        raw_w=1000.0, forecast_w=2000.0, now=100.0, state=ForecastState(),
-        weight_pct=50, smoothing_s=180, drop_guard_w=0.0,
+        raw_w=1000.0,
+        forecast_w=2000.0,
+        now=100.0,
+        state=ForecastState(),
+        weight_pct=50,
+        smoothing_s=180,
+        drop_guard_w=0.0,
     )
     assert result.effective_surplus_w == pytest.approx(1500.0)
 
@@ -162,11 +170,13 @@ def test_a_passing_cloud_does_not_collapse_the_surplus():
 
     settled = ForecastState(ema_w=3000.0, last_sample_ts=100.0)
     result = apply_forecast(
-        raw_w=200.0,        # cloud
+        raw_w=200.0,  # cloud
         forecast_w=200.0,
-        now=130.0,          # only 30 s later, so the average barely moves
+        now=130.0,  # only 30 s later, so the average barely moves
         state=settled,
-        weight_pct=35, smoothing_s=180, drop_guard_w=500.0,
+        weight_pct=35,
+        smoothing_s=180,
+        drop_guard_w=500.0,
     )
     # Held near the smoothed value rather than following the dip down to 200 W.
     assert result.effective_surplus_w > 2000.0
@@ -181,8 +191,13 @@ def test_a_sustained_drop_is_eventually_followed():
     for _ in range(20):
         now += 60.0
         result = apply_forecast(
-            raw_w=200.0, forecast_w=200.0, now=now, state=state,
-            weight_pct=35, smoothing_s=180, drop_guard_w=500.0,
+            raw_w=200.0,
+            forecast_w=200.0,
+            now=now,
+            state=state,
+            weight_pct=35,
+            smoothing_s=180,
+            drop_guard_w=500.0,
         )
         state = result.state
     assert result.effective_surplus_w < 800.0
@@ -211,9 +226,7 @@ def test_headroom_removes_the_car_from_the_house_reading():
     """
     from tuya_ev_charger.surplus_decision import headroom_for_car_w
 
-    headroom = headroom_for_car_w(
-        grid_power_w=5000.0, ev_power_w=3000.0, house_limit_w=6000.0
-    )
+    headroom = headroom_for_car_w(grid_power_w=5000.0, ev_power_w=3000.0, house_limit_w=6000.0)
     assert headroom == pytest.approx(4000.0)
 
 
@@ -221,18 +234,14 @@ def test_headroom_is_negative_when_the_house_alone_is_over():
     """Oven plus hob can exceed the subscription with no car at all."""
     from tuya_ev_charger.surplus_decision import headroom_for_car_w
 
-    headroom = headroom_for_car_w(
-        grid_power_w=7000.0, ev_power_w=0.0, house_limit_w=6000.0
-    )
+    headroom = headroom_for_car_w(grid_power_w=7000.0, ev_power_w=0.0, house_limit_w=6000.0)
     assert headroom == pytest.approx(-1000.0)
 
 
 def test_exporting_leaves_the_full_subscription_available():
     from tuya_ev_charger.surplus_decision import headroom_for_car_w
 
-    headroom = headroom_for_car_w(
-        grid_power_w=-2000.0, ev_power_w=0.0, house_limit_w=6000.0
-    )
+    headroom = headroom_for_car_w(grid_power_w=-2000.0, ev_power_w=0.0, house_limit_w=6000.0)
     assert headroom == pytest.approx(8000.0)
 
 
@@ -240,9 +249,7 @@ def test_load_balancing_caps_the_current():
     from tuya_ev_charger.surplus_decision import cap_to_available_power, headroom_for_car_w
 
     # 6 kVA house, oven drawing 3.5 kW, car currently pulling 3.7 kW at 16 A.
-    headroom = headroom_for_car_w(
-        grid_power_w=7200.0, ev_power_w=3700.0, house_limit_w=6000.0
-    )
+    headroom = headroom_for_car_w(grid_power_w=7200.0, ev_power_w=3700.0, house_limit_w=6000.0)
     assert cap_to_available_power(LADDER, headroom) == 10  # 2.5 kW left -> 10 A
 
 
@@ -250,7 +257,5 @@ def test_no_headroom_means_stop_not_minimum():
     """Below the lowest offered current the answer is zero, and the caller stops."""
     from tuya_ev_charger.surplus_decision import cap_to_available_power, headroom_for_car_w
 
-    headroom = headroom_for_car_w(
-        grid_power_w=6500.0, ev_power_w=0.0, house_limit_w=6000.0
-    )
+    headroom = headroom_for_car_w(grid_power_w=6500.0, ev_power_w=0.0, house_limit_w=6000.0)
     assert cap_to_available_power(LADDER, headroom) == 0

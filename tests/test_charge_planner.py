@@ -28,9 +28,7 @@ def test_parses_several_windows():
     )
 
 
-@pytest.mark.parametrize(
-    "raw", ["", "   ", "nonsense", "22:00", "25:00-26:00", "22:00-22:00", ","]
-)
+@pytest.mark.parametrize("raw", ["", "   ", "nonsense", "22:00", "25:00-26:00", "22:00-22:00", ","])
 def test_malformed_windows_are_skipped_not_fatal(raw):
     """A typo in an option must narrow the schedule, never break startup."""
     from tuya_ev_charger.charge_planner import parse_windows
@@ -44,12 +42,12 @@ def test_malformed_windows_are_skipped_not_fatal(raw):
 @pytest.mark.parametrize(
     ("moment", "inside"),
     [
-        (time(23, 0), True),   # inside the wrap, before midnight
-        (time(2, 0), True),    # inside the wrap, after midnight
+        (time(23, 0), True),  # inside the wrap, before midnight
+        (time(2, 0), True),  # inside the wrap, after midnight
         (time(5, 59), True),
-        (time(6, 0), False),   # end is exclusive
+        (time(6, 0), False),  # end is exclusive
         (time(21, 59), False),
-        (time(22, 0), True),   # start is inclusive
+        (time(22, 0), True),  # start is inclusive
     ],
 )
 def test_window_wrapping_past_midnight(moment, inside):
@@ -132,8 +130,10 @@ def test_a_comfortable_deadline_still_waits_for_off_peak():
 
     plan = plan_charge(
         _request(
-            now=_at(20, 0), departure=time(7, 0),
-            energy_needed_kwh=14.8, charge_power_kw=7.4,
+            now=_at(20, 0),
+            departure=time(7, 0),
+            energy_needed_kwh=14.8,
+            charge_power_kw=7.4,
         )
     )
     assert plan.allowed is False
@@ -147,8 +147,10 @@ def test_a_tight_deadline_overrides_the_tariff():
 
     plan = plan_charge(
         _request(
-            now=_at(20, 0), departure=time(22, 0),
-            energy_needed_kwh=22.2, charge_power_kw=7.4,
+            now=_at(20, 0),
+            departure=time(22, 0),
+            energy_needed_kwh=22.2,
+            charge_power_kw=7.4,
         )
     )
     assert plan.allowed is True
@@ -163,8 +165,10 @@ def test_the_safety_margin_starts_the_charge_early():
     # this would wait; with one it starts.
     plan = plan_charge(
         _request(
-            now=_at(20, 0), departure=time(22, 0),
-            energy_needed_kwh=13.6, charge_power_kw=7.4,
+            now=_at(20, 0),
+            departure=time(22, 0),
+            energy_needed_kwh=13.6,
+            charge_power_kw=7.4,
         )
     )
     assert plan.allowed is True
@@ -174,7 +178,5 @@ def test_a_deadline_without_an_energy_target_is_ignored():
     """Without knowing how much is needed, the deadline says nothing."""
     from tuya_ev_charger.charge_planner import plan_charge
 
-    plan = plan_charge(
-        _request(now=_at(20, 0), departure=time(22, 0), energy_needed_kwh=0.0)
-    )
+    plan = plan_charge(_request(now=_at(20, 0), departure=time(22, 0), energy_needed_kwh=0.0))
     assert plan.allowed is False

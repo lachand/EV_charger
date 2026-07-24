@@ -77,14 +77,10 @@ class TidyEntitiesFlow(RepairsFlow):
     def __init__(self, entry_id: str) -> None:
         self._entry_id = entry_id
 
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         return await self.async_step_confirm()
 
-    async def async_step_confirm(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         if user_input is not None:
             from .entity_cleanup import async_disable_entities
 

@@ -67,7 +67,9 @@ class TuyaEVChargerScheduleStartTime(TuyaEVChargerEntity, TimeEntity):
         data = self.coordinator.data
         enabled = bool(data and data.schedule_enabled)
         end = (data.schedule_end if data else None) or "00:00"
-        if not await self._runtime_data.client.async_set_schedule(enabled, _format_time(value), end):
+        if not await self._runtime_data.client.async_set_schedule(
+            enabled, _format_time(value), end
+        ):
             raise HomeAssistantError("Unable to update schedule start time.")
         await self.coordinator.async_request_refresh()
 
@@ -93,6 +95,8 @@ class TuyaEVChargerScheduleEndTime(TuyaEVChargerEntity, TimeEntity):
         data = self.coordinator.data
         enabled = bool(data and data.schedule_enabled)
         start = (data.schedule_start if data else None) or "00:00"
-        if not await self._runtime_data.client.async_set_schedule(enabled, start, _format_time(value)):
+        if not await self._runtime_data.client.async_set_schedule(
+            enabled, start, _format_time(value)
+        ):
             raise HomeAssistantError("Unable to update schedule end time.")
         await self.coordinator.async_request_refresh()

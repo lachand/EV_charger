@@ -21,9 +21,7 @@ async def async_setup_entry(
 ) -> None:
     _ = hass
     runtime_data: TuyaEVChargerRuntimeData = entry.runtime_data
-    async_add_entities(
-        [TuyaEVChargerSurplusRegulationActiveBinarySensor(entry, runtime_data)]
-    )
+    async_add_entities([TuyaEVChargerSurplusRegulationActiveBinarySensor(entry, runtime_data)])
 
 
 class TuyaEVChargerSurplusRegulationActiveBinarySensor(

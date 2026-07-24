@@ -61,6 +61,4 @@ async def async_scan_devices_by_id(
     broadcast does not fall inside the first few seconds — instead of returning
     whatever unrelated device happened to announce itself first.
     """
-    return await hass.async_add_executor_job(
-        _sync_scan_devices_by_id, scantime, wantids
-    )
+    return await hass.async_add_executor_job(_sync_scan_devices_by_id, scantime, wantids)

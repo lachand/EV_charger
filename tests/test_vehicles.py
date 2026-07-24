@@ -72,9 +72,9 @@ def test_a_session_reset_is_not_a_negative_delta(tracker):
     Treating that as a delta would subtract a whole session from the total.
     """
     asyncio.run(tracker.async_set_active_vehicle("Zoe"))
-    _feed(tracker, 2.0, 5.0)      # first session: +3
-    _feed(tracker, 0.0)           # new session begins
-    _feed(tracker, 4.0)           # second session: +4
+    _feed(tracker, 2.0, 5.0)  # first session: +3
+    _feed(tracker, 0.0)  # new session begins
+    _feed(tracker, 4.0)  # second session: +4
     assert tracker.total_for("Zoe") == pytest.approx(7.0)
 
 

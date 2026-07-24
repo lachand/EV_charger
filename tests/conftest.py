@@ -188,6 +188,7 @@ def _install_stubs() -> None:
         RepairsFlow=type("RepairsFlow", (), {}),
         ConfirmRepairFlow=type("ConfirmRepairFlow", (), {}),
     )
+
     class _Selector:
         """Selectors must be callable: voluptuous compiles them as validators."""
 
@@ -223,14 +224,12 @@ def _install_stubs() -> None:
     _module("homeassistant.helpers.service_info.dhcp", DhcpServiceInfo=object)
     _module(
         "homeassistant.helpers.event",
-        async_track_state_change_event=lambda *a, **k: (lambda: None),
+        async_track_state_change_event=lambda *a, **k: lambda: None,
     )
     _module("homeassistant.util")
     _module(
         "homeassistant.util.dt",
-        utcnow=lambda: __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc
-        ),
+        utcnow=lambda: __import__("datetime").datetime.now(__import__("datetime").timezone.utc),
         now=lambda: __import__("datetime").datetime.now(),
         as_local=lambda value: value,
         parse_time=lambda value: None,
@@ -256,8 +255,11 @@ def _install_stubs() -> None:
         async_attach_trigger=None,
     )
     _module("homeassistant.components.persistent_notification", async_create=lambda **k: None)
-    _module("homeassistant.components.binary_sensor",
-            BinarySensorEntity=object, BinarySensorEntityDescription=_EntityDescription)
+    _module(
+        "homeassistant.components.binary_sensor",
+        BinarySensorEntity=object,
+        BinarySensorEntityDescription=_EntityDescription,
+    )
     _module("homeassistant.components.button", ButtonEntity=object)
     _module("homeassistant.components.select", SelectEntity=object)
     _module("homeassistant.components.switch", SwitchEntity=object)
@@ -277,17 +279,24 @@ def _install_stubs() -> None:
         TOTAL = "total"
         TOTAL_INCREASING = "total_increasing"
 
-    _module("homeassistant.components.sensor",
-            SensorEntity=object, SensorEntityDescription=_EntityDescription,
-            SensorDeviceClass=SensorDeviceClass, SensorStateClass=SensorStateClass)
+    _module(
+        "homeassistant.components.sensor",
+        SensorEntity=object,
+        SensorEntityDescription=_EntityDescription,
+        SensorDeviceClass=SensorDeviceClass,
+        SensorStateClass=SensorStateClass,
+    )
 
     class NumberMode(StrEnum):
         BOX = "box"
         SLIDER = "slider"
 
-    _module("homeassistant.components.number",
-            NumberEntity=object, NumberEntityDescription=_EntityDescription,
-            NumberMode=NumberMode)
+    _module(
+        "homeassistant.components.number",
+        NumberEntity=object,
+        NumberEntityDescription=_EntityDescription,
+        NumberMode=NumberMode,
+    )
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -302,8 +311,7 @@ def charging_dps() -> dict:
     """A payload captured from a real charger mid-session (8.7 A at 227.0 V)."""
     return {
         "101": 300,
-        "102": '{"L1":[2270,87,19],"L2":[0,0,0],"L3":[0,0,0],'
-               '"t":510,"p":19,"d":94590,"e":52}',
+        "102": '{"L1":[2270,87,19],"L2":[0,0,0],"L3":[0,0,0],"t":510,"p":19,"d":94590,"e":52}',
         "105": '{"t":"2026-07-21 10:21:05","s":"10:21","e":"10:51","d":1801,"c":13}',
         "106": '{"r":"Type B, AC 30mA + DC 6mA","fv":"1.9.7"}',
         "107": "[6, 8, 10, 13, 16]",

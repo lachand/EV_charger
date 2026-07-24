@@ -80,9 +80,7 @@ def is_within_windows(moment: time, windows: tuple[tuple[time, time], ...]) -> b
 
 def minutes_until(now: datetime, target: time) -> int:
     """Minutes from ``now`` to the next occurrence of ``target``."""
-    candidate = now.replace(
-        hour=target.hour, minute=target.minute, second=0, microsecond=0
-    )
+    candidate = now.replace(hour=target.hour, minute=target.minute, second=0, microsecond=0)
     if candidate <= now:
         candidate += timedelta(days=1)
     return int((candidate - now).total_seconds() // 60)

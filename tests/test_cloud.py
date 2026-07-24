@@ -34,9 +34,7 @@ class _FakeCloud:
 def _patch_cloud(monkeypatch, **kwargs):
     from tuya_ev_charger import cloud
 
-    monkeypatch.setattr(
-        cloud.tinytuya, "Cloud", lambda **_kw: _FakeCloud(**kwargs), raising=False
-    )
+    monkeypatch.setattr(cloud.tinytuya, "Cloud", lambda **_kw: _FakeCloud(**kwargs), raising=False)
 
 
 def _fetch(**kwargs):
@@ -101,12 +99,8 @@ def test_local_key_lookup_matches_on_device_id(monkeypatch):
         async def async_add_executor_job(self, func, *args):
             return func(*args)
 
-    found = asyncio.run(
-        cloud.async_fetch_local_key(_Hass(), "eu", "key", "secret", "bf23")
-    )
+    found = asyncio.run(cloud.async_fetch_local_key(_Hass(), "eu", "key", "secret", "bf23"))
     assert found == "right"
 
-    missing = asyncio.run(
-        cloud.async_fetch_local_key(_Hass(), "eu", "key", "secret", "absent")
-    )
+    missing = asyncio.run(cloud.async_fetch_local_key(_Hass(), "eu", "key", "secret", "absent"))
     assert missing is None

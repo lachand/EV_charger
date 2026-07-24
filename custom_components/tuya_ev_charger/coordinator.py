@@ -137,7 +137,9 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
 
         if fault == ConnectionFault.REFUSED:
             async_raise(
-                self.hass, entry_id, ISSUE_CONNECTION_REFUSED,
+                self.hass,
+                entry_id,
+                ISSUE_CONNECTION_REFUSED,
                 translation_placeholders={"host": host},
             )
             return (
@@ -260,9 +262,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         options = self.entry.options
         windows = parse_windows(_option_text(options, CONF_OFF_PEAK_WINDOWS))
         ended_at = dt_util.now()
-        split = split_session(
-            ended_at=ended_at, duration_s=duration_s, off_peak_windows=windows
-        )
+        split = split_session(ended_at=ended_at, duration_s=duration_s, off_peak_windows=windows)
         tracker = self.vehicle_tracker
         return SessionRecord(
             ended_at=ended_at.isoformat(timespec="seconds"),
@@ -438,11 +438,11 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
             return False
         self._last_key_refresh_at = now
 
-        region = str(data.get(CONF_CLOUD_REGION, DEFAULT_CLOUD_REGION)).strip() or DEFAULT_CLOUD_REGION
+        region = (
+            str(data.get(CONF_CLOUD_REGION, DEFAULT_CLOUD_REGION)).strip() or DEFAULT_CLOUD_REGION
+        )
         try:
-            new_key = await async_fetch_local_key(
-                self.hass, region, api_key, api_secret, device_id
-            )
+            new_key = await async_fetch_local_key(self.hass, region, api_key, api_secret, device_id)
         except TuyaCloudError as err:
             LOGGER.warning("Could not refresh local_key from Tuya Cloud: %s", err)
             return False

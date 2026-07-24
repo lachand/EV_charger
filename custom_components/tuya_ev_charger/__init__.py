@@ -238,9 +238,7 @@ async def _async_tidy_entities(
         1
         for candidate in er.async_entries_for_config_entry(registry, entry.entry_id)
         if candidate.disabled_by is None
-        and any(
-            candidate.unique_id.endswith(f"_{key}") for key in ADVANCED_ENTITY_KEYS
-        )
+        and any(candidate.unique_id.endswith(f"_{key}") for key in ADVANCED_ENTITY_KEYS)
         and not (candidate.options.get(DOMAIN) or {}).get(ENTITY_OPTION_AUTO_DISABLED)
     )
     if pending:
@@ -269,9 +267,7 @@ async def _async_reconcile_network_info(
 
     # A local_key refreshed from the cloud (charger re-paired) must be persisted,
     # otherwise every restart would start from the stale key again.
-    if coordinator.new_local_key and coordinator.new_local_key != entry.data.get(
-        CONF_LOCAL_KEY
-    ):
+    if coordinator.new_local_key and coordinator.new_local_key != entry.data.get(CONF_LOCAL_KEY):
         updates[CONF_LOCAL_KEY] = coordinator.new_local_key
 
     if not _normalized_mac(entry.data.get(CONF_MAC)) and coordinator.last_discovery:
@@ -280,9 +276,7 @@ async def _async_reconcile_network_info(
             updates[CONF_MAC] = mac
 
     if updates:
-        hass.config_entries.async_update_entry(
-            entry, data={**entry.data, **updates}
-        )
+        hass.config_entries.async_update_entry(entry, data={**entry.data, **updates})
 
 
 def _normalized_mac(value: Any) -> str | None:
@@ -390,6 +384,7 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         _handle_profile_assistant,
         schema=SERVICE_PROFILE_ASSISTANT_SCHEMA,
     )
+
     async def _handle_set_vehicle_energy(call: ServiceCall) -> None:
         entry = _resolve_entry_from_call(hass, call)
         tracker = _resolve_vehicle_tracker(entry)
@@ -432,9 +427,7 @@ def _resolve_entry_from_call(hass: HomeAssistant, call: ServiceCall) -> ConfigEn
         for entry in loaded_entries:
             if entry.entry_id == entry_id:
                 return entry
-        raise ServiceValidationError(
-            f"Entry '{entry_id}' is not loaded for domain '{DOMAIN}'."
-        )
+        raise ServiceValidationError(f"Entry '{entry_id}' is not loaded for domain '{DOMAIN}'.")
     if len(loaded_entries) == 1:
         return loaded_entries[0]
     if not loaded_entries:

@@ -49,6 +49,11 @@ jobs:
       - name: Run ruff
         run: ruff check .
 
+      # Formatting was never enforced, so 35 of 49 files had drifted -- including
+      # stray 8/16/20-space indents in the surplus controller that no check saw.
+      - name: Check formatting
+        run: ruff format --check .
+
   tests:
     name: Tests
     runs-on: ubuntu-latest

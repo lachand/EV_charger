@@ -189,6 +189,4 @@ def cap_to_available_power(
     Used by load balancing to stay under the main breaker: unlike
     ``current_supported_by`` a zero budget means "stop", not "no surplus".
     """
-    return current_supported_by(
-        max(0.0, headroom_w), available_currents, line_voltage=line_voltage
-    )
+    return current_supported_by(max(0.0, headroom_w), available_currents, line_voltage=line_voltage)

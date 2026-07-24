@@ -44,7 +44,7 @@ def test_unwired_phases_are_omitted(charging_dps):
 def test_three_phase_is_summed():
     dps = {
         "102": '{"L1":[2350,160,37],"L2":[2350,160,37],"L3":[2350,160,37],'
-               '"t":290,"p":111,"d":0,"e":0}',
+        '"t":290,"p":111,"d":0,"e":0}',
         "109": "WORKING",
     }
     data = _metrics(dps)

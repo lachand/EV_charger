@@ -172,9 +172,7 @@ class TuyaEVChargerCurrentNumber(TuyaEVChargerEntity, NumberEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        return self._with_technical_attributes(
-            {"allowed_currents": list(self._allowed_currents())}
-        )
+        return self._with_technical_attributes({"allowed_currents": list(self._allowed_currents())})
 
     async def async_set_native_value(self, value: float) -> None:
         # Automations and external controllers routinely send floats; rounding is
@@ -204,7 +202,6 @@ class TuyaEVChargerCurrentNumber(TuyaEVChargerEntity, NumberEntity):
 
     def _allowed_currents(self) -> tuple[int, ...]:
         return allowed_currents(self.coordinator.data, self._entry.options)
-
 
 
 class TuyaEVChargerSurplusOptionNumber(TuyaEVChargerEntity, NumberEntity):
@@ -301,10 +298,7 @@ class TuyaEVChargerSurplusOptionNumber(TuyaEVChargerEntity, NumberEntity):
         new_options[CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT] = low
         new_options[CONF_SURPLUS_START_THRESHOLD_W] = start_threshold_w
         new_options[CONF_SURPLUS_STOP_THRESHOLD_W] = stop_threshold_w
-        if (
-            self.entity_description.option_key
-            == CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W
-        ):
+        if self.entity_description.option_key == CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W:
             new_options[CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W] = clamped
         # Keep legacy key aligned for backward compatibility.
         new_options[CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT] = high

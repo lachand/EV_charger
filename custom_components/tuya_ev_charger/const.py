@@ -23,6 +23,7 @@ class ConnectionFault(StrEnum):
     # rotated by a re-pairing.
     UNDECRYPTABLE = "undecryptable"
 
+
 DOMAIN = "tuya_ev_charger"
 
 ATTR_CHARGER_TOKEN = "tuya_ev_charger_token"
@@ -119,7 +120,9 @@ CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID = "surplus_battery_soc_sensor_entity_i
 CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT = "surplus_battery_soc_high_threshold_pct"
 CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT = "surplus_battery_soc_low_threshold_pct"
 CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT = "surplus_battery_soc_threshold_pct"
-CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID = "surplus_battery_net_discharge_sensor_entity_id"
+CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID = (
+    "surplus_battery_net_discharge_sensor_entity_id"
+)
 CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED = "surplus_battery_net_discharge_sensor_inverted"
 CONF_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV = "surplus_allow_battery_discharge_for_ev"
 CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W = "surplus_max_battery_discharge_for_ev_w"

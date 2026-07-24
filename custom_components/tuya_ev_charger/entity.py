@@ -47,14 +47,20 @@ class TuyaEVChargerEntity(CoordinatorEntity[TuyaEVChargerDataUpdateCoordinator])
         data = self.coordinator.data
         charger_info = data.charger_info if data is not None else {}
 
-        manufacturer = _first_non_empty(
-            charger_info,
-            ("manufacturer", "brand", "vendor"),
-        ) or "Tuya"
-        model = _first_non_empty(
-            charger_info,
-            ("model", "product_model", "device_model", "product"),
-        ) or "EV Charger"
+        manufacturer = (
+            _first_non_empty(
+                charger_info,
+                ("manufacturer", "brand", "vendor"),
+            )
+            or "Tuya"
+        )
+        model = (
+            _first_non_empty(
+                charger_info,
+                ("model", "product_model", "device_model", "product"),
+            )
+            or "EV Charger"
+        )
         sw_version = _first_non_empty(
             charger_info,
             ("sw_version", "firmware_version", "version"),
@@ -63,7 +69,9 @@ class TuyaEVChargerEntity(CoordinatorEntity[TuyaEVChargerDataUpdateCoordinator])
             charger_info,
             ("serial_number", "sn", "serial"),
         )
-        hw_version = str(data.product_variant) if data and data.product_variant is not None else None
+        hw_version = (
+            str(data.product_variant) if data and data.product_variant is not None else None
+        )
 
         device_info = DeviceInfo(
             identifiers={(DOMAIN, self._runtime_data.client.device_id)},

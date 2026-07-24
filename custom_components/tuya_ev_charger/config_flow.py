@@ -147,7 +147,6 @@ OPTIONAL_ENTITY_OPTIONS: tuple[str, ...] = (
 )
 
 
-
 @dataclass(frozen=True, slots=True)
 class _Opt:
     """One row of the options form.
@@ -165,57 +164,128 @@ class _Opt:
 
 
 _OPTIONS_FORM: tuple[_Opt, ...] = (
-    _Opt(CONF_SCAN_INTERVAL, "int", DEFAULT_SCAN_INTERVAL_SECONDS,
-         MIN_SCAN_INTERVAL_SECONDS, MAX_SCAN_INTERVAL_SECONDS),
+    _Opt(
+        CONF_SCAN_INTERVAL,
+        "int",
+        DEFAULT_SCAN_INTERVAL_SECONDS,
+        MIN_SCAN_INTERVAL_SECONDS,
+        MAX_SCAN_INTERVAL_SECONDS,
+    ),
     _Opt(CONF_CHARGER_PROFILE, "choice", DEFAULT_CHARGER_PROFILE, choices=CHARGER_PROFILES),
     _Opt(CONF_CHARGER_PROFILE_JSON, "multiline", DEFAULT_CHARGER_PROFILE_JSON),
     _Opt(CONF_CONTINUOUS_CURRENT, "bool", DEFAULT_CONTINUOUS_CURRENT),
-    _Opt(CONF_MAX_CHARGE_CURRENT_A, "int", DEFAULT_MAX_CHARGE_CURRENT_A,
-         MIN_CHARGE_CURRENT_LIMIT_A, MAX_CHARGE_CURRENT_LIMIT_A),
-    _Opt(CONF_MIN_CHARGE_CURRENT_A, "int", DEFAULT_MIN_CHARGE_CURRENT_A,
-         MIN_CHARGE_CURRENT_LIMIT_A, MAX_CHARGE_CURRENT_LIMIT_A),
+    _Opt(
+        CONF_MAX_CHARGE_CURRENT_A,
+        "int",
+        DEFAULT_MAX_CHARGE_CURRENT_A,
+        MIN_CHARGE_CURRENT_LIMIT_A,
+        MAX_CHARGE_CURRENT_LIMIT_A,
+    ),
+    _Opt(
+        CONF_MIN_CHARGE_CURRENT_A,
+        "int",
+        DEFAULT_MIN_CHARGE_CURRENT_A,
+        MIN_CHARGE_CURRENT_LIMIT_A,
+        MAX_CHARGE_CURRENT_LIMIT_A,
+    ),
     _Opt(CONF_VEHICLES, "text", DEFAULT_VEHICLES),
-    _Opt(CONF_MAX_HOUSE_POWER_W, "int", DEFAULT_MAX_HOUSE_POWER_W,
-         MIN_MAX_HOUSE_POWER_W, MAX_MAX_HOUSE_POWER_W),
-    _Opt(CONF_MAX_INVERTER_POWER_W, "int", DEFAULT_MAX_INVERTER_POWER_W,
-         MIN_MAX_HOUSE_POWER_W, MAX_MAX_HOUSE_POWER_W),
+    _Opt(
+        CONF_MAX_HOUSE_POWER_W,
+        "int",
+        DEFAULT_MAX_HOUSE_POWER_W,
+        MIN_MAX_HOUSE_POWER_W,
+        MAX_MAX_HOUSE_POWER_W,
+    ),
+    _Opt(
+        CONF_MAX_INVERTER_POWER_W,
+        "int",
+        DEFAULT_MAX_INVERTER_POWER_W,
+        MIN_MAX_HOUSE_POWER_W,
+        MAX_MAX_HOUSE_POWER_W,
+    ),
     _Opt(CONF_TOTAL_LOAD_SENSOR_ENTITY_ID, "entity", DEFAULT_TOTAL_LOAD_SENSOR_ENTITY_ID),
     _Opt(CONF_OFF_PEAK_WINDOWS, "text", DEFAULT_OFF_PEAK_WINDOWS),
     _Opt(CONF_DEPARTURE_TIME, "text", DEFAULT_DEPARTURE_TIME),
-    _Opt(CONF_DEPARTURE_ENERGY_KWH, "int", DEFAULT_DEPARTURE_ENERGY_KWH,
-         MIN_DEPARTURE_ENERGY_KWH, MAX_DEPARTURE_ENERGY_KWH),
+    _Opt(
+        CONF_DEPARTURE_ENERGY_KWH,
+        "int",
+        DEFAULT_DEPARTURE_ENERGY_KWH,
+        MIN_DEPARTURE_ENERGY_KWH,
+        MAX_DEPARTURE_ENERGY_KWH,
+    ),
     _Opt(CONF_OFF_PEAK_PRICE, "price", DEFAULT_OFF_PEAK_PRICE),
     _Opt(CONF_PEAK_PRICE, "price", DEFAULT_PEAK_PRICE),
     _Opt(CONF_SURPLUS_MODE_ENABLED, "bool", DEFAULT_SURPLUS_MODE_ENABLED),
     _Opt(CONF_SURPLUS_SENSOR_ENTITY_ID, "entity", DEFAULT_SURPLUS_SENSOR_ENTITY_ID),
     _Opt(CONF_SURPLUS_SENSOR_INVERTED, "bool", DEFAULT_SURPLUS_SENSOR_INVERTED),
-    _Opt(CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID, "entity",
-         DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID),
-    _Opt(CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED, "bool",
-         DEFAULT_SURPLUS_CURTAILMENT_SENSOR_INVERTED),
-    _Opt(CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID, "entity",
-         DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID),
-    _Opt(CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT, "int",
-         DEFAULT_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
-         MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT),
-    _Opt(CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT, "int",
-         DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
-         MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT),
-    _Opt(CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID, "entity",
-         DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID),
-    _Opt(CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED, "bool",
-         DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED),
-    _Opt(CONF_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV, "bool",
-         DEFAULT_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV),
-    _Opt(CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W, "int",
-         DEFAULT_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-         MIN_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W, MAX_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W),
-    _Opt(CONF_SURPLUS_START_THRESHOLD_W, "int", DEFAULT_SURPLUS_START_THRESHOLD_W,
-         MIN_SURPLUS_THRESHOLD_W, MAX_SURPLUS_THRESHOLD_W),
-    _Opt(CONF_SURPLUS_STOP_THRESHOLD_W, "int", DEFAULT_SURPLUS_STOP_THRESHOLD_W,
-         MIN_SURPLUS_THRESHOLD_W, MAX_SURPLUS_THRESHOLD_W),
-    _Opt(CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID, "entity",
-         DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID),
+    _Opt(
+        CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
+        "entity",
+        DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
+    ),
+    _Opt(
+        CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
+        "bool",
+        DEFAULT_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
+    ),
+    _Opt(
+        CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
+        "entity",
+        DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
+    ),
+    _Opt(
+        CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
+        "int",
+        DEFAULT_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
+        MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+        MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+    ),
+    _Opt(
+        CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
+        "int",
+        DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
+        MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+        MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+    ),
+    _Opt(
+        CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
+        "entity",
+        DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
+    ),
+    _Opt(
+        CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
+        "bool",
+        DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
+    ),
+    _Opt(
+        CONF_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
+        "bool",
+        DEFAULT_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
+    ),
+    _Opt(
+        CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
+        "int",
+        DEFAULT_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
+        MIN_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
+        MAX_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
+    ),
+    _Opt(
+        CONF_SURPLUS_START_THRESHOLD_W,
+        "int",
+        DEFAULT_SURPLUS_START_THRESHOLD_W,
+        MIN_SURPLUS_THRESHOLD_W,
+        MAX_SURPLUS_THRESHOLD_W,
+    ),
+    _Opt(
+        CONF_SURPLUS_STOP_THRESHOLD_W,
+        "int",
+        DEFAULT_SURPLUS_STOP_THRESHOLD_W,
+        MIN_SURPLUS_THRESHOLD_W,
+        MAX_SURPLUS_THRESHOLD_W,
+    ),
+    _Opt(
+        CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID, "entity", DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID
+    ),
 )
 
 
@@ -421,9 +491,7 @@ class TuyaEVChargerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ): str,
                     vol.Required(
                         CONF_CLOUD_REGION,
-                        default=(user_input or {}).get(
-                            CONF_CLOUD_REGION, DEFAULT_CLOUD_REGION
-                        ),
+                        default=(user_input or {}).get(CONF_CLOUD_REGION, DEFAULT_CLOUD_REGION),
                     ): vol.In(CLOUD_REGIONS),
                     vol.Optional(
                         CONF_DEVICE_ID,
@@ -591,9 +659,7 @@ class TuyaEVChargerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             else:
                 # Keep everything we are not asking about (cloud credentials,
                 # learned MAC) and only overwrite the submitted fields.
-                return self.async_update_reload_and_abort(
-                    entry, data={**entry.data, **user_input}
-                )
+                return self.async_update_reload_and_abort(entry, data={**entry.data, **user_input})
 
         return self.async_show_form(
             step_id="reconfigure",
@@ -610,9 +676,7 @@ class TuyaEVChargerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """
         mac = dr.format_mac(discovery_info.macaddress)
         device_registry = dr.async_get(self.hass)
-        device = device_registry.async_get_device(
-            connections={(dr.CONNECTION_NETWORK_MAC, mac)}
-        )
+        device = device_registry.async_get_device(connections={(dr.CONNECTION_NETWORK_MAC, mac)})
         if device is None:
             return self.async_abort(reason="not_tuya_ev_charger")
 
@@ -624,9 +688,7 @@ class TuyaEVChargerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if not unique_id:
                 continue
             await self.async_set_unique_id(unique_id)
-            self._abort_if_unique_id_configured(
-                updates={CONF_HOST: discovery_info.ip}
-            )
+            self._abort_if_unique_id_configured(updates={CONF_HOST: discovery_info.ip})
 
         return self.async_abort(reason="not_tuya_ev_charger")
 
@@ -636,7 +698,6 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
         self._config_entry = config_entry
         # Why the custom DP mapping was rejected, shown next to the field.
         self._profile_json_problem: str | None = None
-
 
     def _build_options_schema(
         self,
@@ -655,9 +716,9 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                 # selector, and wrapping the selector to tolerate it breaks the
                 # schema serialisation the frontend needs.
                 current = _option_entity(options, opt.key, opt.default)
-                fields[
-                    vol.Optional(opt.key, description={"suggested_value": current})
-                ] = _sensor_selector()
+                fields[vol.Optional(opt.key, description={"suggested_value": current})] = (
+                    _sensor_selector()
+                )
                 continue
 
             default = computed.get(opt.key)
@@ -667,9 +728,7 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                 fields[vol.Required(opt.key, default=default)] = bool
             elif opt.kind == "int":
                 if default is None:
-                    default = _option_int(
-                        options, opt.key, opt.default, opt.minimum, opt.maximum
-                    )
+                    default = _option_int(options, opt.key, opt.default, opt.minimum, opt.maximum)
                 fields[vol.Required(opt.key, default=default)] = vol.All(
                     vol.Coerce(int), vol.Range(min=opt.minimum, max=opt.maximum)
                 )
@@ -954,16 +1013,30 @@ def _normalize_text_value(data: dict[str, Any], key: str, default: str) -> None:
 
 def _normalize_surplus_options(data: dict[str, Any]) -> None:
     try:
-        high = int(data.get(CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT, DEFAULT_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT))
+        high = int(
+            data.get(
+                CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
+                DEFAULT_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
+            )
+        )
     except (TypeError, ValueError):
         high = DEFAULT_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT
     try:
-        low = int(data.get(CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT, DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT))
+        low = int(
+            data.get(
+                CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
+                DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
+            )
+        )
     except (TypeError, ValueError):
         low = DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT
 
-    high = max(MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, min(MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, high))
-    low = max(MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, min(MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, low))
+    high = max(
+        MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, min(MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, high)
+    )
+    low = max(
+        MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, min(MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, low)
+    )
 
     if high <= MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT:
         high = MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT + 1
@@ -971,11 +1044,15 @@ def _normalize_surplus_options(data: dict[str, Any]) -> None:
         low = max(MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, high - 1)
 
     try:
-        start_threshold_w = int(data.get(CONF_SURPLUS_START_THRESHOLD_W, DEFAULT_SURPLUS_START_THRESHOLD_W))
+        start_threshold_w = int(
+            data.get(CONF_SURPLUS_START_THRESHOLD_W, DEFAULT_SURPLUS_START_THRESHOLD_W)
+        )
     except (TypeError, ValueError):
         start_threshold_w = DEFAULT_SURPLUS_START_THRESHOLD_W
     try:
-        stop_threshold_w = int(data.get(CONF_SURPLUS_STOP_THRESHOLD_W, DEFAULT_SURPLUS_STOP_THRESHOLD_W))
+        stop_threshold_w = int(
+            data.get(CONF_SURPLUS_STOP_THRESHOLD_W, DEFAULT_SURPLUS_STOP_THRESHOLD_W)
+        )
     except (TypeError, ValueError):
         stop_threshold_w = DEFAULT_SURPLUS_STOP_THRESHOLD_W
     try:
@@ -988,7 +1065,9 @@ def _normalize_surplus_options(data: dict[str, Any]) -> None:
     except (TypeError, ValueError):
         max_battery_discharge_w = DEFAULT_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W
 
-    start_threshold_w = max(MIN_SURPLUS_THRESHOLD_W, min(MAX_SURPLUS_THRESHOLD_W, start_threshold_w))
+    start_threshold_w = max(
+        MIN_SURPLUS_THRESHOLD_W, min(MAX_SURPLUS_THRESHOLD_W, start_threshold_w)
+    )
     stop_threshold_w = max(MIN_SURPLUS_THRESHOLD_W, min(MAX_SURPLUS_THRESHOLD_W, stop_threshold_w))
     if stop_threshold_w > start_threshold_w:
         stop_threshold_w = start_threshold_w

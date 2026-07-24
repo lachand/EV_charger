@@ -17,9 +17,7 @@ import pytest
 
 Image = pytest.importorskip("PIL.Image", reason="Pillow not installed")
 
-BRAND = pathlib.Path(__file__).resolve().parents[1] / (
-    "custom_components/tuya_ev_charger/brand"
-)
+BRAND = pathlib.Path(__file__).resolve().parents[1] / ("custom_components/tuya_ev_charger/brand")
 
 # (filename, exact required side in px). 1x and its hDPI double.
 ICONS = [("icon.png", 256), ("icon@2x.png", 512)]

@@ -9,14 +9,33 @@ def _metrics_stub(**kwargs):
     from tuya_ev_charger.tuya_ev_charger import EVMetrics
 
     defaults = dict(
-        voltage_l1=230.0, current_l1=0.0, power_l1=0.0, phases={}, total_power=0.0,
-        session_energy_kwh=None, session_duration_s=None,
-        last_session_energy_kwh=None, last_session_duration_s=None,
-        temperature=20.0, work_state=None, work_state_debug="IDLE", status="idle",
-        plug_in_action=None, do_charge=None, current_target=10, max_current_cfg=16,
-        nfc_enabled=None, downcounter=None, selftest=None, alarm=None,
-        adjust_current_options=(6, 8, 10, 13, 16), product_variant=None,
-        charger_info={}, schedule_enabled=False, schedule_start=None, schedule_end=None,
+        voltage_l1=230.0,
+        current_l1=0.0,
+        power_l1=0.0,
+        phases={},
+        total_power=0.0,
+        session_energy_kwh=None,
+        session_duration_s=None,
+        last_session_energy_kwh=None,
+        last_session_duration_s=None,
+        temperature=20.0,
+        work_state=None,
+        work_state_debug="IDLE",
+        status="idle",
+        plug_in_action=None,
+        do_charge=None,
+        current_target=10,
+        max_current_cfg=16,
+        nfc_enabled=None,
+        downcounter=None,
+        selftest=None,
+        alarm=None,
+        adjust_current_options=(6, 8, 10, 13, 16),
+        product_variant=None,
+        charger_info={},
+        schedule_enabled=False,
+        schedule_start=None,
+        schedule_end=None,
     )
     defaults.update(kwargs)
     return EVMetrics(**defaults)
@@ -87,8 +106,7 @@ def test_advanced_entities_are_created_disabled():
 
     described = {
         d.key: d
-        for d in (*sensor.SENSOR_DESCRIPTIONS,
-                  *sensor.SURPLUS_CONTROLLER_SENSOR_DESCRIPTIONS)
+        for d in (*sensor.SENSOR_DESCRIPTIONS, *sensor.SURPLUS_CONTROLLER_SENSOR_DESCRIPTIONS)
     }
     for key in ADVANCED_ENTITY_KEYS & set(described):
         assert described[key].entity_registry_enabled_default is False, key
@@ -98,8 +116,16 @@ def test_everyday_entities_stay_enabled():
     """The policy must never hide what the charger is actually for."""
     from tuya_ev_charger import sensor
 
-    everyday = {"voltage_l1", "current_l1", "power_l1", "power_total",
-                "energy_session", "status", "temperature", "alarm"}
+    everyday = {
+        "voltage_l1",
+        "current_l1",
+        "power_l1",
+        "power_total",
+        "energy_session",
+        "status",
+        "temperature",
+        "alarm",
+    }
     for d in sensor.SENSOR_DESCRIPTIONS:
         if d.key in everyday:
             assert d.entity_registry_enabled_default is True, d.key
@@ -110,14 +136,16 @@ def test_unavailable_capabilities_are_detected():
     from tuya_ev_charger.entity_cleanup import unavailable_capability_keys
     from tuya_ev_charger.tuya_ev_charger import PhaseMetrics
 
-    single = _metrics_stub(phases={"L1": PhaseMetrics(230.0, 0.0, 0.0, 0.0)},
-                           plug_in_action=None, nfc_enabled=None)
+    single = _metrics_stub(
+        phases={"L1": PhaseMetrics(230.0, 0.0, 0.0, 0.0)}, plug_in_action=None, nfc_enabled=None
+    )
     keys = unavailable_capability_keys(single)
     assert {"voltage_l2", "power_l3", "plug_in_action", "nfc_enabled"} <= keys
     assert not any(k.endswith("_l1") for k in keys)
 
     three_phase = _metrics_stub(
         phases={p: PhaseMetrics(235.0, 16.0, 3.76, 3.7) for p in ("L1", "L2", "L3")},
-        plug_in_action="charge", nfc_enabled=True,
+        plug_in_action="charge",
+        nfc_enabled=True,
     )
     assert unavailable_capability_keys(three_phase) == set()

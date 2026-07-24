@@ -15,7 +15,9 @@ from .const import (
 from .tuya_ev_charger import EVMetrics
 
 
-def allowed_currents(data: EVMetrics | None, options: Mapping[str, Any] | None = None) -> tuple[int, ...]:
+def allowed_currents(
+    data: EVMetrics | None, options: Mapping[str, Any] | None = None
+) -> tuple[int, ...]:
     min_current = min(ALLOWED_CURRENTS)
     max_current = max(ALLOWED_CURRENTS)
 
@@ -34,9 +36,7 @@ def allowed_currents(data: EVMetrics | None, options: Mapping[str, Any] | None =
         if data is not None and data.max_current_cfg is not None:
             max_current = min(max_current, data.max_current_cfg)
 
-        return _apply_installation_limits(
-            tuple(range(min_current, max_current + 1)), options
-        )
+        return _apply_installation_limits(tuple(range(min_current, max_current + 1)), options)
 
     if data is not None and data.adjust_current_options:
         opts = tuple(

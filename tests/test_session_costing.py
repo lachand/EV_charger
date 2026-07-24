@@ -107,18 +107,18 @@ def test_no_price_configured_returns_none_not_zero():
     """A sensor stuck at 0 EUR reads as free electricity, not as unconfigured."""
     from tuya_ev_charger.session_costing import SessionSplit
 
-    assert _cost(
-        energy_kwh=10.0, split=SessionSplit(60, 60), off_peak_price=0, peak_price=0
-    ) is None
+    assert (
+        _cost(energy_kwh=10.0, split=SessionSplit(60, 60), off_peak_price=0, peak_price=0) is None
+    )
 
 
 def test_only_a_peak_price_is_enough_to_produce_a_cost():
     """Most users on a flat tariff will fill in one price and leave the other."""
     from tuya_ev_charger.session_costing import SessionSplit
 
-    assert _cost(
-        energy_kwh=10.0, split=SessionSplit(0, 120), off_peak_price=0, peak_price=0.27
-    ) == 2.7
+    assert (
+        _cost(energy_kwh=10.0, split=SessionSplit(0, 120), off_peak_price=0, peak_price=0.27) == 2.7
+    )
 
 
 def test_a_session_with_no_energy_costs_nothing():
@@ -131,13 +131,9 @@ def test_end_to_end_an_overnight_charge():
     """21:30 to 05:30, 30 kWh: 30 min peak, 450 min off-peak."""
     from tuya_ev_charger.session_costing import session_cost, split_session
 
-    split = split_session(
-        ended_at=_at(5, 30), duration_s=8 * 3600, off_peak_windows=_windows()
-    )
+    split = split_session(ended_at=_at(5, 30), duration_s=8 * 3600, off_peak_windows=_windows())
     assert (split.off_peak_minutes, split.peak_minutes) == (450, 30)
 
-    cost = session_cost(
-        energy_kwh=30.0, split=split, off_peak_price=0.16, peak_price=0.27
-    )
+    cost = session_cost(energy_kwh=30.0, split=split, off_peak_price=0.16, peak_price=0.27)
     # 28.125 kWh off-peak, 1.875 kWh peak.
     assert cost == pytest.approx(4.5 + 0.50625, abs=1e-4)

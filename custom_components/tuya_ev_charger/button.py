@@ -46,9 +46,7 @@ class TuyaEVChargerReadyToChargeButton(TuyaEVChargerEntity, ButtonEntity):
         self._attr_unique_id = f"{runtime_data.client.device_id}_ready_to_charge"
 
     async def async_press(self) -> None:
-        if not await self._runtime_data.client.async_set_work_state(
-            WORK_STATE_READY_TO_CHARGE
-        ):
+        if not await self._runtime_data.client.async_set_work_state(WORK_STATE_READY_TO_CHARGE):
             raise HomeAssistantError("Unable to set the charger to ready-to-charge.")
         await self.coordinator.async_request_refresh()
 

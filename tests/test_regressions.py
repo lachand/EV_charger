@@ -76,14 +76,10 @@ def test_options_form_declares_no_defaults_on_entity_pickers():
         TuyaEVChargerOptionsFlow,
     )
 
-    flow = TuyaEVChargerOptionsFlow(
-        types.SimpleNamespace(data={}, options={}, entry_id="test")
-    )
+    flow = TuyaEVChargerOptionsFlow(types.SimpleNamespace(data={}, options={}, entry_id="test"))
     schema = flow._build_options_schema({}, computed={})
 
-    entity_markers = [
-        marker for marker in schema.schema if str(marker) in OPTIONAL_ENTITY_OPTIONS
-    ]
+    entity_markers = [marker for marker in schema.schema if str(marker) in OPTIONAL_ENTITY_OPTIONS]
     assert len(entity_markers) == len(OPTIONAL_ENTITY_OPTIONS)
 
     for marker in entity_markers:
@@ -164,9 +160,7 @@ def test_fault_diagnosis_is_throttled():
     from tuya_ev_charger.const import ConnectionFault
     from tuya_ev_charger.coordinator import TuyaEVChargerDataUpdateCoordinator
 
-    coordinator = TuyaEVChargerDataUpdateCoordinator.__new__(
-        TuyaEVChargerDataUpdateCoordinator
-    )
+    coordinator = TuyaEVChargerDataUpdateCoordinator.__new__(TuyaEVChargerDataUpdateCoordinator)
     coordinator._last_fault = None
     coordinator._last_fault_at = 0.0
     calls: list[int] = []
@@ -178,9 +172,7 @@ def test_fault_diagnosis_is_throttled():
 
     clock = {"now": 1000.0}
     coordinator.client = _Client()
-    coordinator.hass = types.SimpleNamespace(
-        loop=types.SimpleNamespace(time=lambda: clock["now"])
-    )
+    coordinator.hass = types.SimpleNamespace(loop=types.SimpleNamespace(time=lambda: clock["now"]))
 
     from tuya_ev_charger.const import FAULT_DIAGNOSIS_COOLDOWN_SECONDS
 
@@ -213,9 +205,7 @@ def _bare_coordinator(**overrides):
 
     from tuya_ev_charger.coordinator import TuyaEVChargerDataUpdateCoordinator
 
-    coordinator = TuyaEVChargerDataUpdateCoordinator.__new__(
-        TuyaEVChargerDataUpdateCoordinator
-    )
+    coordinator = TuyaEVChargerDataUpdateCoordinator.__new__(TuyaEVChargerDataUpdateCoordinator)
     coordinator._last_fault = None
     coordinator._last_fault_at = 0.0
     coordinator._polls_ok = 0
@@ -238,9 +228,7 @@ def test_success_clears_the_cached_fault():
     """A stale verdict must not survive the charger coming back."""
     from tuya_ev_charger.const import ConnectionFault
 
-    coordinator = _bare_coordinator(
-        _last_fault=ConnectionFault.REFUSED, _last_fault_at=1000.0
-    )
+    coordinator = _bare_coordinator(_last_fault=ConnectionFault.REFUSED, _last_fault_at=1000.0)
 
     coordinator._async_note_success()
     assert coordinator._last_fault is None
@@ -284,15 +272,11 @@ def test_routine_poll_does_not_block_on_the_scan():
     from tuya_ev_charger.coordinator import TuyaEVChargerDataUpdateCoordinator
 
     def _make(data):
-        c = TuyaEVChargerDataUpdateCoordinator.__new__(
-            TuyaEVChargerDataUpdateCoordinator
-        )
+        c = TuyaEVChargerDataUpdateCoordinator.__new__(TuyaEVChargerDataUpdateCoordinator)
         c._last_rediscovery_at = 0.0
         c._relocating = None
         c.data = data
-        c.hass = types.SimpleNamespace(
-            loop=types.SimpleNamespace(time=lambda: 100_000.0)
-        )
+        c.hass = types.SimpleNamespace(loop=types.SimpleNamespace(time=lambda: 100_000.0))
         c.scheduled = False
         c._schedule_relocation = lambda: setattr(c, "scheduled", True)
         return c
@@ -403,15 +387,11 @@ def test_the_tinytuya_floor_matches_between_manifest_and_tests():
     fix for protocol 3.4/3.5 that would have reached nobody.
     """
     manifest = json.loads((COMPONENT / "manifest.json").read_text())
-    runtime = next(
-        req for req in manifest["requirements"] if req.startswith("tinytuya")
-    )
+    runtime = next(req for req in manifest["requirements"] if req.startswith("tinytuya"))
 
     requirements = (REPO_ROOT / "requirements-test.txt").read_text()
     tested = next(
-        line.strip()
-        for line in requirements.splitlines()
-        if line.strip().startswith("tinytuya")
+        line.strip() for line in requirements.splitlines() if line.strip().startswith("tinytuya")
     )
 
     assert runtime == tested, (

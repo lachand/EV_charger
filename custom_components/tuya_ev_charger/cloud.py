@@ -85,9 +85,7 @@ async def async_fetch_local_key(
     device_id: str,
 ) -> str | None:
     """Return the current local_key for ``device_id``, or None if not found."""
-    devices = await async_fetch_devices(
-        hass, region, api_key, api_secret, device_id
-    )
+    devices = await async_fetch_devices(hass, region, api_key, api_secret, device_id)
     for device in devices:
         if str(device.get("id", "")).strip() == str(device_id).strip():
             key = str(device.get("key", "") or "").strip()

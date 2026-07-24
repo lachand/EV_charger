@@ -358,9 +358,7 @@ class SolarSurplusController:
         if self._evaluation_task is not None and not self._evaluation_task.done():
             self._rerun_requested = True
             return
-        self._evaluation_task = self._hass.async_create_task(
-            self._async_evaluation_loop(reason)
-        )
+        self._evaluation_task = self._hass.async_create_task(self._async_evaluation_loop(reason))
 
     async def _async_evaluation_loop(self, reason: str) -> None:
         current_reason = reason
@@ -493,9 +491,13 @@ class SolarSurplusController:
             self._set_decision("surplus_paused_active")
             self._regulation_active = False
             self._clear_surplus_debug_state()
-            if is_charging and self._session_active and await self._client.async_set_charge_enabled(False):
-                    self._register_stop(now)
-                    await self._coordinator.async_request_refresh()
+            if (
+                is_charging
+                and self._session_active
+                and await self._client.async_set_charge_enabled(False)
+            ):
+                self._register_stop(now)
+                await self._coordinator.async_request_refresh()
             self._notify_state_listeners()
             return
 
@@ -593,9 +595,7 @@ class SolarSurplusController:
             if target_current != current_target:
                 increasing = target_current > current_target
                 last_action_ts = (
-                    self._last_increase_action_ts
-                    if increasing
-                    else self._last_decrease_action_ts
+                    self._last_increase_action_ts if increasing else self._last_decrease_action_ts
                 )
                 cooldown_s = (
                     self._settings.adjust_up_cooldown_s
@@ -668,13 +668,14 @@ class SolarSurplusController:
 
         self._start_candidate_since = None
         startup_current = min_current
-        if data.current_target != startup_current and not await self._client.async_set_charge_current(
-            startup_current
+        if (
+            data.current_target != startup_current
+            and not await self._client.async_set_charge_current(startup_current)
         ):
-                self._set_decision("failed_set_startup_current")
-                self._regulation_active = False
-                self._notify_state_listeners()
-                return
+            self._set_decision("failed_set_startup_current")
+            self._regulation_active = False
+            self._notify_state_listeners()
+            return
 
         if await self._client.async_set_charge_enabled(True):
             self._last_increase_action_ts = now
@@ -758,7 +759,10 @@ class SolarSurplusController:
             if duration_s >= FIXED_MAX_SESSION_DURATION_MIN * 60:
                 return "session_limit_duration"
 
-        if FIXED_MAX_SESSION_ENERGY_KWH > 0 and self._session_energy_kwh >= FIXED_MAX_SESSION_ENERGY_KWH:
+        if (
+            FIXED_MAX_SESSION_ENERGY_KWH > 0
+            and self._session_energy_kwh >= FIXED_MAX_SESSION_ENERGY_KWH
+        ):
             return "session_limit_energy"
 
         end_minutes = _parse_end_time(FIXED_MAX_SESSION_END_TIME)
@@ -819,9 +823,7 @@ class SolarSurplusController:
         # Curtailment only counts in zero-injection setups, which is what having
         # the sensor configured signals.
         curtailed_w = (
-            self._read_curtailment_power_w()
-            if self._settings.curtailment_sensor_entity_id
-            else 0.0
+            self._read_curtailment_power_w() if self._settings.curtailment_sensor_entity_id else 0.0
         )
         inputs = SurplusInputs(
             grid_power_w=grid_power_w,
@@ -976,9 +978,7 @@ class SolarSurplusController:
         limit_w = self._settings.max_inverter_power_w
         if limit_w <= 0:
             return None
-        total_load_w = self._read_sensor_power_w(
-            self._settings.total_load_sensor_entity_id
-        )
+        total_load_w = self._read_sensor_power_w(self._settings.total_load_sensor_entity_id)
         if total_load_w is None:
             return None
 
@@ -1216,19 +1216,30 @@ def _settings_from_entry(entry: ConfigEntry) -> SolarSurplusSettings:
         off_peak_windows=_option_str(options, CONF_OFF_PEAK_WINDOWS, DEFAULT_OFF_PEAK_WINDOWS),
         departure_time=_option_str(options, CONF_DEPARTURE_TIME, DEFAULT_DEPARTURE_TIME),
         departure_energy_kwh=_option_int(
-            options, CONF_DEPARTURE_ENERGY_KWH, DEFAULT_DEPARTURE_ENERGY_KWH,
-            MIN_DEPARTURE_ENERGY_KWH, MAX_DEPARTURE_ENERGY_KWH,
+            options,
+            CONF_DEPARTURE_ENERGY_KWH,
+            DEFAULT_DEPARTURE_ENERGY_KWH,
+            MIN_DEPARTURE_ENERGY_KWH,
+            MAX_DEPARTURE_ENERGY_KWH,
         ),
         max_house_power_w=_option_int(
-            options, CONF_MAX_HOUSE_POWER_W, DEFAULT_MAX_HOUSE_POWER_W,
-            MIN_MAX_HOUSE_POWER_W, MAX_MAX_HOUSE_POWER_W,
+            options,
+            CONF_MAX_HOUSE_POWER_W,
+            DEFAULT_MAX_HOUSE_POWER_W,
+            MIN_MAX_HOUSE_POWER_W,
+            MAX_MAX_HOUSE_POWER_W,
         ),
         max_inverter_power_w=_option_int(
-            options, CONF_MAX_INVERTER_POWER_W, DEFAULT_MAX_INVERTER_POWER_W,
-            MIN_MAX_HOUSE_POWER_W, MAX_MAX_HOUSE_POWER_W,
+            options,
+            CONF_MAX_INVERTER_POWER_W,
+            DEFAULT_MAX_INVERTER_POWER_W,
+            MIN_MAX_HOUSE_POWER_W,
+            MAX_MAX_HOUSE_POWER_W,
         ),
         total_load_sensor_entity_id=_option_str(
-            options, CONF_TOTAL_LOAD_SENSOR_ENTITY_ID, DEFAULT_TOTAL_LOAD_SENSOR_ENTITY_ID,
+            options,
+            CONF_TOTAL_LOAD_SENSOR_ENTITY_ID,
+            DEFAULT_TOTAL_LOAD_SENSOR_ENTITY_ID,
         ),
         grid_sensor_entity_id=_option_str(
             options,
@@ -1344,9 +1355,7 @@ def _current_supported_by_surplus(
     effective_surplus_w: float,
     line_voltage: int,
 ) -> int:
-    return current_supported_by(
-        effective_surplus_w, available_currents, line_voltage=line_voltage
-    )
+    return current_supported_by(effective_surplus_w, available_currents, line_voltage=line_voltage)
 
 
 def _ramp_current(

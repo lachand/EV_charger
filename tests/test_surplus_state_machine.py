@@ -26,9 +26,7 @@ class _State:
 class _Hass:
     def __init__(self, sensors):
         self.scheduled: list = []
-        self.states = types.SimpleNamespace(
-            get=lambda entity_id: self._sensors.get(entity_id)
-        )
+        self.states = types.SimpleNamespace(get=lambda entity_id: self._sensors.get(entity_id))
         self._sensors = {k: _State(v) for k, v in sensors.items()}
 
     def set(self, entity_id, value):

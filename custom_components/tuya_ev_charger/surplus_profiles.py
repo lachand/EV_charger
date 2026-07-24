@@ -84,9 +84,7 @@ def apply_surplus_profile(options: dict[str, Any], profile: str) -> dict[str, An
     options[CONF_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV] = True
     options[CONF_SURPLUS_START_THRESHOLD_W] = preset.start_threshold_w
     options[CONF_SURPLUS_STOP_THRESHOLD_W] = preset.stop_threshold_w
-    options[CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W] = (
-        preset.max_battery_discharge_for_ev_w
-    )
+    options[CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W] = preset.max_battery_discharge_for_ev_w
     options[CONF_SURPLUS_ADJUST_UP_COOLDOWN_S] = preset.adjust_up_cooldown_s
     options[CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S] = preset.adjust_down_cooldown_s
     return options

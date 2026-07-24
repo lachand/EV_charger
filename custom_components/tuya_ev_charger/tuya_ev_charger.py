@@ -396,9 +396,7 @@ class TuyaEVChargerClient:
         """
         for raw_value, name in PLUG_IN_ACTION_MAP.items():
             if name == action:
-                return await self._async_send_command(
-                    self._dp.plug_in_action, raw_value
-                )
+                return await self._async_send_command(self._dp.plug_in_action, raw_value)
         raise ValueError(f"Unsupported plug-in action '{action}'.")
 
     async def async_set_work_state(self, state: int) -> bool:
@@ -619,9 +617,7 @@ def validate_custom_dp_profile(raw_json: str) -> str | None:
         return f"unknown field(s): {', '.join(unknown)}"
 
     empty = sorted(
-        name
-        for name, value in payload.items()
-        if value is None or not str(value).strip()
+        name for name, value in payload.items() if value is None or not str(value).strip()
     )
     if empty:
         return f"empty value(s) for: {', '.join(empty)}"

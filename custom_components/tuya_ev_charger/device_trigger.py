@@ -70,9 +70,7 @@ def _status_entity_id(hass: HomeAssistant, device_id: str) -> str | None:
     return None
 
 
-async def async_get_triggers(
-    hass: HomeAssistant, device_id: str
-) -> list[dict[str, Any]]:
+async def async_get_triggers(hass: HomeAssistant, device_id: str) -> list[dict[str, Any]]:
     entity_id = _status_entity_id(hass, device_id)
     if entity_id is None:
         return []
@@ -96,9 +94,7 @@ async def async_attach_trigger(
 ) -> CALLBACK_TYPE:
     from_state, to_state = TRIGGER_TRANSITIONS[config[CONF_TYPE]]
 
-    entity_id = config.get(CONF_ENTITY_ID) or _status_entity_id(
-        hass, config[CONF_DEVICE_ID]
-    )
+    entity_id = config.get(CONF_ENTITY_ID) or _status_entity_id(hass, config[CONF_DEVICE_ID])
     state_config: dict[str, Any] = {
         state_trigger.CONF_PLATFORM: "state",
         state_trigger.CONF_ENTITY_ID: entity_id,

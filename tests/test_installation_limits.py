@@ -52,9 +52,7 @@ def test_the_floor_raises_the_minimum():
 
 
 def test_both_limits_together():
-    assert _currents({"min_charge_current_a": 8, "max_charge_current_a": 20}) == tuple(
-        range(8, 21)
-    )
+    assert _currents({"min_charge_current_a": 8, "max_charge_current_a": 20}) == tuple(range(8, 21))
 
 
 @pytest.mark.parametrize("value", [0, None, "", "abc", -5])

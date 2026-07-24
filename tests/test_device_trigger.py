@@ -24,9 +24,7 @@ class _RegistryEntry:
 def _with_entities(monkeypatch, entries):
     from tuya_ev_charger import device_trigger
 
-    monkeypatch.setattr(
-        device_trigger.er, "async_get", lambda hass: None, raising=False
-    )
+    monkeypatch.setattr(device_trigger.er, "async_get", lambda hass: None, raising=False)
     monkeypatch.setattr(
         device_trigger.er,
         "async_entries_for_device",
@@ -148,7 +146,9 @@ def test_attaching_builds_the_right_state_trigger(monkeypatch):
         return lambda: None
 
     monkeypatch.setattr(
-        device_trigger.state_trigger, "async_validate_trigger_config", _validate,
+        device_trigger.state_trigger,
+        "async_validate_trigger_config",
+        _validate,
         raising=False,
     )
     monkeypatch.setattr(
@@ -185,7 +185,9 @@ def test_a_trigger_without_a_from_state_omits_it(monkeypatch):
         return lambda: None
 
     monkeypatch.setattr(
-        device_trigger.state_trigger, "async_validate_trigger_config", _validate,
+        device_trigger.state_trigger,
+        "async_validate_trigger_config",
+        _validate,
         raising=False,
     )
     monkeypatch.setattr(

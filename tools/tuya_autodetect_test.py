@@ -38,6 +38,7 @@ def _ensure_tinytuya_importable() -> None:
     """Import tinytuya, falling back to the integration's own .venv if needed."""
     try:
         import tinytuya
+
         return
     except ModuleNotFoundError:
         pass
@@ -138,7 +139,11 @@ def _probe_voltage(dev_id: str, host: str, local_key: str, version: str) -> tupl
     except Exception as err:
         return False, f"error: {type(err).__name__}: {err}"
 
-    if not isinstance(payload, dict) or "Error" in payload or not isinstance(payload.get("dps"), dict):
+    if (
+        not isinstance(payload, dict)
+        or "Error" in payload
+        or not isinstance(payload.get("dps"), dict)
+    ):
         return False, f"no valid response ({payload})"
 
     dps = payload["dps"]
@@ -157,7 +162,9 @@ def _probe_voltage(dev_id: str, host: str, local_key: str, version: str) -> tupl
     return True, f"responded, dps keys: {sorted(dps)}"
 
 
-def _probe_devices(devices: dict[str, dict], local_key: str, protocol: str, override_id: str | None) -> None:
+def _probe_devices(
+    devices: dict[str, dict], local_key: str, protocol: str, override_id: str | None
+) -> None:
     print("=== Read-verification probe (integration's confirmation step) ===")
     print("Trying each device with the provided local_key...\n")
     any_ok = False
@@ -171,7 +178,9 @@ def _probe_devices(devices: dict[str, dict], local_key: str, protocol: str, over
         print(f"  [{flag}] {host} (gwId {dev_id}, v{version}) -> {detail}")
     print()
     if any_ok:
-        print("=> The charger answered a live read. Auto-detection via read-verification WILL work.\n")
+        print(
+            "=> The charger answered a live read. Auto-detection via read-verification WILL work.\n"
+        )
     else:
         print("=> No device answered a live read. Possible causes:")
         print("   * 'Connection refused' / Err 901: a Tuya device allows only ONE local")
@@ -232,17 +241,31 @@ def _cross_check_config_entries(path: str, devices: dict[str, dict]) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--device-id", help="Locate this specific charger (gwId) like the integration does.")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--device-id", help="Locate this specific charger (gwId) like the integration does."
+    )
     parser.add_argument(
         "--local-key",
         help="Probe each discovered device with this local_key and read its grid "
         "voltage — reproduces the integration's read-verification step.",
     )
-    parser.add_argument("--protocol", default="3.5", help="Protocol version for the probe (default 3.5).")
-    parser.add_argument("--scantime", type=int, default=18, help="UDP listen window in seconds (default 18).")
-    parser.add_argument("--force", action="store_true", help="Active scan (unicast) instead of relying on UDP broadcast.")
-    parser.add_argument("--network", help="CIDR to force-scan, e.g. 192.168.1.0/24 (implies --force).")
+    parser.add_argument(
+        "--protocol", default="3.5", help="Protocol version for the probe (default 3.5)."
+    )
+    parser.add_argument(
+        "--scantime", type=int, default=18, help="UDP listen window in seconds (default 18)."
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Active scan (unicast) instead of relying on UDP broadcast.",
+    )
+    parser.add_argument(
+        "--network", help="CIDR to force-scan, e.g. 192.168.1.0/24 (implies --force)."
+    )
     parser.add_argument("--json", action="store_true", help="Emit raw JSON of discovered devices.")
     parser.add_argument(
         "--config-entries",
@@ -261,10 +284,14 @@ def main() -> int:
         forcescan = True
 
     print("=== Tuya EV charger auto-detection test ===")
-    print(f"tinytuya version : {getattr(tinytuya, 'version', getattr(tinytuya, '__version__', '?'))}")
+    print(
+        f"tinytuya version : {getattr(tinytuya, 'version', getattr(tinytuya, '__version__', '?'))}"
+    )
     print(f"python           : {sys.version.split()[0]} ({sys.executable})")
     print(f"this host IP     : {_local_network_hint()}")
-    print(f"scan mode        : {'forcescan ' + str(forcescan) if forcescan else 'UDP broadcast listen'}")
+    print(
+        f"scan mode        : {'forcescan ' + str(forcescan) if forcescan else 'UDP broadcast listen'}"
+    )
     print(f"scan window      : {args.scantime}s")
     if args.device_id:
         print(f"looking for      : {args.device_id}")
@@ -284,7 +311,9 @@ def main() -> int:
         print("No Tuya devices found.\n")
         print("Likely causes:")
         print("  * This machine is on a different subnet/VLAN than the charger")
-        print("    (UDP broadcast does not cross subnets). Try: --force --network <charger-subnet>/24")
+        print(
+            "    (UDP broadcast does not cross subnets). Try: --force --network <charger-subnet>/24"
+        )
         print("  * A firewall blocks UDP ports 6666/6667")
         print("  * The charger is unplugged / not yet on the network")
         print("  * Client isolation (guest Wi-Fi) is enabled on the AP")
@@ -307,8 +336,10 @@ def main() -> int:
     if args.device_id:
         match = devices.get(args.device_id)
         if match:
-            print(f"OK: charger {args.device_id} located at {match.get('ip')} "
-                  f"(mac {match.get('mac')}). Auto-detection WOULD work.")
+            print(
+                f"OK: charger {args.device_id} located at {match.get('ip')} "
+                f"(mac {match.get('mac')}). Auto-detection WOULD work."
+            )
             return 0
         print(f"FAIL: device_id {args.device_id} was NOT among the broadcasts.")
         print("  * Check the value stored in the config entry — an older buggy scan")

@@ -282,7 +282,9 @@ SENSOR_DESCRIPTIONS: tuple[TuyaEVChargerSensorDescription, ...] = (
     ),
 )
 
-SURPLUS_CONTROLLER_SENSOR_DESCRIPTIONS: tuple[TuyaEVChargerSurplusControllerSensorDescription, ...] = (
+SURPLUS_CONTROLLER_SENSOR_DESCRIPTIONS: tuple[
+    TuyaEVChargerSurplusControllerSensorDescription, ...
+] = (
     TuyaEVChargerSurplusControllerSensorDescription(
         key="surplus_last_decision_reason",
         translation_key="surplus_last_decision_reason",
@@ -359,8 +361,7 @@ async def async_setup_entry(
     _ = hass
     runtime_data: TuyaEVChargerRuntimeData = entry.runtime_data
     entities: list[SensorEntity] = [
-        TuyaEVChargerSensor(entry, runtime_data, description)
-        for description in SENSOR_DESCRIPTIONS
+        TuyaEVChargerSensor(entry, runtime_data, description) for description in SENSOR_DESCRIPTIONS
     ]
     entities.extend(
         TuyaEVChargerSurplusControllerSensor(entry, runtime_data, description)
@@ -368,9 +369,7 @@ async def async_setup_entry(
     )
     entities.extend(
         TuyaEVChargerVehicleEnergySensor(entry, runtime_data, vehicle)
-        for vehicle in configured_vehicles(
-            entry.options.get(CONF_VEHICLES, DEFAULT_VEHICLES)
-        )
+        for vehicle in configured_vehicles(entry.options.get(CONF_VEHICLES, DEFAULT_VEHICLES))
     )
     entities.append(TuyaEVChargerConnectionHealthSensor(entry, runtime_data))
     entities.append(TuyaEVChargerLastSessionCostSensor(entry, runtime_data))
@@ -392,9 +391,7 @@ class TuyaEVChargerConnectionHealthSensor(TuyaEVChargerEntity, SensorEntity):
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_suggested_display_precision = 1
 
-    def __init__(
-        self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData
-    ) -> None:
+    def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
         super().__init__(entry=entry, runtime_data=runtime_data)
         self._attr_unique_id = f"{runtime_data.client.device_id}_connection_health"
 
@@ -428,9 +425,7 @@ class TuyaEVChargerLastSessionCostSensor(TuyaEVChargerEntity, SensorEntity):
     _attr_state_class = SensorStateClass.TOTAL
     _attr_suggested_display_precision = 2
 
-    def __init__(
-        self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData
-    ) -> None:
+    def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
         super().__init__(entry=entry, runtime_data=runtime_data)
         self._attr_unique_id = f"{runtime_data.client.device_id}_last_session_cost"
 
@@ -474,9 +469,7 @@ class TuyaEVChargerSessionHistorySensor(TuyaEVChargerEntity, SensorEntity):
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_entity_registry_enabled_default = False
 
-    def __init__(
-        self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData
-    ) -> None:
+    def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
         super().__init__(entry=entry, runtime_data=runtime_data)
         self._attr_unique_id = f"{runtime_data.client.device_id}_session_count"
 
