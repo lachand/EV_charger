@@ -7,6 +7,27 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.13.3
+
+Two defects found by writing the state machine's first tests, before touching any
+of its logic.
+
+- **A protection reduction wrote twice and left the car slower than the cap
+  allowed.** After capping the current, the cycle fell through into surplus
+  regulation, which wrote a second time — two DP writes, two beeps. Worse, the
+  ramp could not recognise the value just written (the charger still reports the
+  old setpoint, no longer on the capped ladder), so it restarted from the minimum:
+  a 15 A cap left the car charging at **7 A**. The cycle now ends at the cap and
+  regulates normally from the next, refreshed reading.
+- **`force_charge_for` under a protection cap gave the slowest rate, not the
+  fastest.** Requesting 32 A when a cap had narrowed the ladder to 15 A fell back
+  to the *minimum* (6 A), answering an explicit "charge as fast as possible" with
+  the slowest possible rate. It now clamps to the highest current still offered.
+- `tests/test_surplus_state_machine.py`: the state machine's first coverage —
+  start/stop delays, ramp cooldowns in both directions, battery hysteresis,
+  protection caps and force charge. It had none, which is why both defects above
+  survived several releases.
+
 ## 2.13.2
 
 - **tinytuya raised to >= 1.20.0, for a security fix that affects every user.**

@@ -447,6 +447,15 @@ class SolarSurplusController:
             if await self._client.async_set_charge_current(protection_cap):
                 await self._coordinator.async_request_refresh()
             self._set_decision(f"{cap_source}_reduced")
+            # Stop here for this cycle. Falling through into surplus regulation
+            # wrote a second time -- two beeps -- and worse: the ramp does not
+            # recognise the value just written (the charger still reports the old
+            # setpoint, which is no longer on the capped ladder), so it restarted
+            # from the minimum and dropped the car to 7 A when the cap allowed 15.
+            # The next cycle regulates normally from the refreshed setpoint.
+            self._regulation_active = True
+            self._notify_state_listeners()
+            return
 
         # Tariff arbitration comes before load balancing only because refusing
         # to charge at all makes capping moot. Surplus is exempt: free solar is
@@ -688,7 +697,14 @@ class SolarSurplusController:
     ) -> None:
         target_current = self._force_charge_current_a
         if target_current not in available_currents:
-            target_current = min_current
+            # Clamp to the highest current still on offer rather than falling back
+            # to the minimum. The requested value is usually absent because a
+            # protection cap narrowed the ladder, and answering an explicit
+            # "charge as fast as you can" with the *slowest* rate is the opposite
+            # of the intent. Only when the request is below everything offered
+            # does the minimum apply.
+            allowed = [value for value in available_currents if value <= (target_current or 0)]
+            target_current = max(allowed) if allowed else min_current
 
         if data.current_target != target_current:
             if await self._client.async_set_charge_current(target_current):
