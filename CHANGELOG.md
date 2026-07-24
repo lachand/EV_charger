@@ -7,6 +7,25 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.17.0
+
+- **Predictive pre-emption** (the limitation documented in 2.13.1). A cap is only
+  as fast as its sensor, and a hob is +2 kW in under a second — but Home Assistant
+  usually knows *before* the meter. Name the switches that announce a large load
+  and their wattage is held back from the car immediately, on the state change
+  rather than at the next poll. The reservation **expires** after two minutes, once
+  the appliance is in the measurement, so the same load is never subtracted twice.
+- **Adaptive polling.** The interval now follows what the charger is doing —
+  faster while regulating, slower when idle, slower still asleep — instead of
+  polling every 30 s into an empty garage and holding the single local connection
+  for nothing.
+- **New `release_connection` service.** Lends the local socket to the Smart Life
+  app (or `tinytuya`) for a few minutes, then resumes by itself. The socket is
+  closed rather than idled, since an open one holds the slot anyway; entities keep
+  their last values because the charger is lent out, not broken. Previously the
+  only way was disabling the integration.
+- Suite: 339 → **389 tests**.
+
 ## 2.16.1
 
 - **The options form is grouped into seven collapsible sections** instead of 30

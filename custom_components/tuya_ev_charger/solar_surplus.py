@@ -40,6 +40,7 @@ from .const import (
     CHARGER_PROFILE_DEPOW_V2,
     CONF_DEPARTURE_ENERGY_KWH,
     CONF_DEPARTURE_TIME,
+    CONF_LOAD_RESERVATIONS,
     CONF_MAX_HOUSE_POWER_W,
     CONF_MAX_INVERTER_POWER_W,
     CONF_OFF_PEAK_WINDOWS,
@@ -64,6 +65,7 @@ from .const import (
     CONF_TOTAL_LOAD_SENSOR_ENTITY_ID,
     DEFAULT_DEPARTURE_ENERGY_KWH,
     DEFAULT_DEPARTURE_TIME,
+    DEFAULT_LOAD_RESERVATIONS,
     DEFAULT_MAX_HOUSE_POWER_W,
     DEFAULT_MAX_INVERTER_POWER_W,
     DEFAULT_OFF_PEAK_WINDOWS,
@@ -105,6 +107,11 @@ from .const import (
 )
 from .coordinator import TuyaEVChargerDataUpdateCoordinator
 from .helpers import allowed_currents
+from .preemption import (
+    ReservationTracker,
+    headroom_with_reservations,
+    parse_reservations,
+)
 from .surplus_decision import (
     DEFAULT_LINE_VOLTAGE_V,
     ForecastState,
@@ -140,6 +147,7 @@ class SolarSurplusSettings:
     max_house_power_w: int
     max_inverter_power_w: int
     total_load_sensor_entity_id: str
+    load_reservations: str
     off_peak_windows: str
     departure_time: str
     departure_energy_kwh: int
@@ -220,6 +228,7 @@ class SolarSurplusController:
         self._battery_soc_hysteresis_enabled: bool | None = None
         self._last_decision_trace: dict[str, Any] = {}
         self._grid_sign = GridSignDetector()
+        self._reservations = ReservationTracker()
 
     @property
     def snapshot(self) -> SolarSurplusSnapshot:
@@ -350,6 +359,9 @@ class SolarSurplusController:
             self._settings.battery_soc_sensor_entity_id,
             self._settings.battery_net_discharge_sensor_entity_id,
             self._settings.forecast_sensor_entity_id,
+            # The announcing entities matter most of all: reacting to them the
+            # instant they switch is the entire point of a reservation.
+            *parse_reservations(self._settings.load_reservations),
         ):
             if entity_id and entity_id not in sensor_entities:
                 sensor_entities.append(entity_id)
@@ -638,6 +650,9 @@ class SolarSurplusController:
         self._record_decision_trace(verdict, reason, context)
         self._set_decision(str(reason))
         self._regulation_active = verdict.regulation_active
+        # Lets the coordinator poll faster while regulation is actually driving
+        # the charger, rather than waiting for it to report "charging".
+        self._coordinator.regulating = verdict.regulation_active
         if verdict.clear_debug:
             self._clear_surplus_debug_state()
         self._notify_state_listeners()
@@ -909,10 +924,11 @@ class SolarSurplusController:
         its rating. This must therefore read *total* load — household plus car —
         not the grid.
 
-        `headroom_for_car_w` is reused unchanged: passing total load where it
-        expects grid power gives ``limit - (total_load - ev_power)``, i.e. the
-        rating minus what the house draws without the car, which is exactly the
-        budget left for charging.
+        Announced-but-not-yet-measured loads are subtracted on top. A cap can
+        only react as fast as its sensor, and a hob is +2 kW in under a second,
+        so waiting for the measurement means reacting after the overload. The
+        reservation expires once the sensor has had time to catch up, which is
+        what stops the same appliance being counted twice.
 
         Returns None, like load balancing, when disabled or the reading is
         missing: a cap off a stale total-load figure is worse than none.
@@ -924,12 +940,26 @@ class SolarSurplusController:
         if total_load_w is None:
             return None
 
-        headroom_w = headroom_for_car_w(
-            grid_power_w=total_load_w,
+        headroom_w = headroom_with_reservations(
+            limit_w=float(limit_w),
+            measured_load_w=total_load_w,
             ev_power_w=_ev_power_w(data),
-            house_limit_w=float(limit_w),
+            reserved_w=self._reserved_power_w(),
         )
         return cap_to_available_power(available_currents, headroom_w)
+
+    def _reserved_power_w(self) -> float:
+        """Watts held back for appliances that have announced themselves."""
+        table = parse_reservations(self._settings.load_reservations)
+        if not table:
+            return 0.0
+        now = monotonic()
+        states = {
+            entity_id: (state.state if (state := self._hass.states.get(entity_id)) else None)
+            for entity_id in table
+        }
+        self._reservations.observe(table, states, now)
+        return self._reservations.reserved_w(table, now)
 
     def _read_grid_power_w(self) -> float | None:
         value = self._read_sensor_power_w(self._settings.grid_sensor_entity_id)
@@ -1180,6 +1210,7 @@ def _settings_from_entry(entry: ConfigEntry) -> SolarSurplusSettings:
             CONF_TOTAL_LOAD_SENSOR_ENTITY_ID,
             DEFAULT_TOTAL_LOAD_SENSOR_ENTITY_ID,
         ),
+        load_reservations=_option_str(options, CONF_LOAD_RESERVATIONS, DEFAULT_LOAD_RESERVATIONS),
         grid_sensor_entity_id=_option_str(
             options,
             CONF_SURPLUS_SENSOR_ENTITY_ID,

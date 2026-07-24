@@ -224,6 +224,10 @@ def _bare_coordinator(**overrides):
     coordinator._relocations = 0
     coordinator._key_refreshes = 0
     coordinator.last_discovery = None
+    coordinator._base_interval_s = 30
+    coordinator._release_until = None
+    coordinator.regulating = False
+    coordinator.update_interval = None
     coordinator.hass = types.SimpleNamespace()
     coordinator.entry = types.SimpleNamespace(entry_id="test")
     coordinator.client = types.SimpleNamespace(host="192.168.1.237")

@@ -501,3 +501,92 @@ def test_the_trace_names_the_protection_limit_that_bound(monkeypatch):
     assert trace["decided_by"] == "protection_reduce"
     assert trace["protection_cap_a"] == 15
     assert trace["protection_source"] == "inverter_limit"
+
+
+# --- predictive pre-emption ------------------------------------------------
+
+
+def test_an_announced_hob_cuts_the_car_before_the_meter_moves(monkeypatch):
+    """The limitation documented in 2.13.1, addressed end to end.
+
+    The inverter cap can only react as fast as its sensor. Here the hob switch
+    turns on and the total-load reading has not budged yet -- the car must come
+    down on the announcement alone.
+    """
+    h = _charging_harness(
+        monkeypatch,
+        sensors={
+            "sensor.grid": -5000,
+            "sensor.total_load": 5500,  # car 5 kW + 500 W baseline; hob not seen
+            "switch.hob": "off",
+        },
+        options={
+            "max_inverter_power_w": 5500,
+            "total_load_sensor_entity_id": "sensor.total_load",
+            "load_reservations": "switch.hob: 3000",
+        },
+    )
+    h.coordinator.data = _metrics(charging=True, current_target=21, total_power_kw=5.0)
+
+    # Nothing announced yet: 5500 - (5500 - 5000) = 5000 W of headroom, so the
+    # 21 A setpoint stands and nothing is written.
+    h.tick()
+    assert ("current", 8) not in h.writes
+
+    # The hob switch flips. The power sensor still reads 5500.
+    h.hass.set("switch.hob", "on")
+    reason = h.tick(1)
+
+    # 5500 - 500 - 3000 = 2000 W -> 8 A, written straight away.
+    assert reason == "inverter_limit_reduced"
+    assert ("current", 8) in h.writes
+
+
+def test_the_reservation_expires_so_the_car_is_not_held_down_twice(monkeypatch):
+    """Once the sensor reports the hob, the reservation must stop applying, or
+    the same 3 kW would be subtracted twice for as long as the hob was on."""
+    from tuya_ev_charger.preemption import DEFAULT_RESERVATION_WINDOW_S
+
+    h = _charging_harness(
+        monkeypatch,
+        sensors={
+            "sensor.grid": -5000,
+            "sensor.total_load": 5500,
+            "switch.hob": "on",
+        },
+        options={
+            "max_inverter_power_w": 5500,
+            "total_load_sensor_entity_id": "sensor.total_load",
+            "load_reservations": "switch.hob: 3000",
+        },
+    )
+    h.coordinator.data = _metrics(charging=True, current_target=8, total_power_kw=1.8)
+    h.tick()
+
+    # The hob is now in the measurement: 1800 car + 500 base + 3000 hob.
+    h.hass.set("sensor.total_load", 5300)
+    ladder = tuple(range(6, 33))
+    cap_during = h.controller._inverter_limit_current(h.coordinator.data, ladder)
+
+    h.now += DEFAULT_RESERVATION_WINDOW_S + 1
+    cap_after = h.controller._inverter_limit_current(h.coordinator.data, ladder)
+
+    assert cap_after > cap_during, (
+        "the reservation still applied after its window, double-counting the hob"
+    )
+
+
+def test_the_announcing_entity_is_watched_for_state_changes(monkeypatch):
+    """Reacting the instant it switches is the entire point; without the
+    subscription the cap would wait for the next 30 s poll."""
+    h = Harness(
+        monkeypatch,
+        options={
+            "max_inverter_power_w": 5500,
+            "total_load_sensor_entity_id": "sensor.total_load",
+            "load_reservations": "switch.hob: 3000, switch.oven: 2500",
+        },
+    )
+    tracked = h.controller._tracked_sensor_entities()
+    assert "switch.hob" in tracked
+    assert "switch.oven" in tracked

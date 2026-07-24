@@ -76,7 +76,8 @@
             "data": {
               "max_house_power_w": "Puissance max de la maison pour le delestage (W, 0 = desactive)",
               "max_inverter_power_w": "Sortie max de l'onduleur (W, 0 = desactive) - protege un onduleur hybride ; requiert le capteur de charge totale ci-dessous",
-              "total_load_sensor_entity_id": "Capteur de charge totale de la maison (pour la limite onduleur) - consommation totale, pas le compteur reseau"
+              "total_load_sensor_entity_id": "Capteur de charge totale de la maison (pour la limite onduleur) - consommation totale, pas le compteur reseau",
+              "load_reservations": "Entites annoncant une grosse charge (ex. switch.hob: 3000, switch.oven: 2500)"
             }
           },
           "vehicles": {

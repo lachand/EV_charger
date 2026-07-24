@@ -39,6 +39,7 @@ from .const import (
     SERVICE_FORCE_CHARGE_FOR,
     SERVICE_PAUSE_SURPLUS,
     SERVICE_PROFILE_ASSISTANT,
+    SERVICE_RELEASE_CONNECTION,
     SERVICE_SET_SURPLUS_PROFILE,
     SERVICE_SET_VEHICLE_ENERGY,
 )
@@ -102,6 +103,16 @@ SERVICE_SET_SURPLUS_PROFILE_SCHEMA = vol.Schema(
     {
         vol.Optional(SERVICE_DATA_ENTRY_ID): str,
         vol.Required(SERVICE_DATA_PROFILE): vol.All(str, vol.Length(min=1)),
+    }
+)
+
+SERVICE_RELEASE_CONNECTION_SCHEMA = vol.Schema(
+    {
+        vol.Optional(SERVICE_DATA_ENTRY_ID): str,
+        vol.Required(SERVICE_DATA_DURATION_MINUTES): vol.All(
+            vol.Coerce(int),
+            vol.Range(min=0, max=120),
+        ),
     }
 )
 
@@ -474,6 +485,21 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             notification_id=f"{DOMAIN}_{entry.entry_id}_dry_run_surplus",
         )
 
+    async def _handle_release_connection(call: ServiceCall) -> None:
+        entry = _resolve_entry_from_call(hass, call)
+        runtime_data: TuyaEVChargerRuntimeData = entry.runtime_data
+        minutes = int(call.data[SERVICE_DATA_DURATION_MINUTES])
+        if minutes <= 0:
+            runtime_data.coordinator.async_resume_connection()
+            return
+        await runtime_data.coordinator.async_release_connection(duration_s=minutes * 60)
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_RELEASE_CONNECTION,
+        _handle_release_connection,
+        schema=SERVICE_RELEASE_CONNECTION_SCHEMA,
+    )
     hass.services.async_register(
         DOMAIN,
         SERVICE_DRY_RUN_SURPLUS,

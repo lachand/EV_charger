@@ -110,6 +110,9 @@ CONF_MIN_CHARGE_CURRENT_A = "min_charge_current_a"
 # household draw from the grid meter. Read against total load, not the grid.
 CONF_MAX_INVERTER_POWER_W = "max_inverter_power_w"
 CONF_TOTAL_LOAD_SENSOR_ENTITY_ID = "total_load_sensor_entity_id"
+# Entities that announce a large load before the meter sees it, as
+# "switch.hob: 3000, switch.oven: 2500". Bridges the sensor's latency.
+CONF_LOAD_RESERVATIONS = "load_reservations"
 CONF_DEVICE_ID = "device_id"
 CONF_LOCAL_KEY = "local_key"
 CONF_MAC = "mac"
@@ -143,6 +146,7 @@ SERVICE_PAUSE_SURPLUS = "pause_surplus"
 SERVICE_PROFILE_ASSISTANT = "profile_assistant"
 SERVICE_SET_SURPLUS_PROFILE = "set_surplus_profile"
 SERVICE_SET_VEHICLE_ENERGY = "set_vehicle_energy"
+SERVICE_RELEASE_CONNECTION = "release_connection"
 
 SURPLUS_PROFILE_ECO = "eco"
 SURPLUS_PROFILE_BALANCED = "balanced"
@@ -208,6 +212,7 @@ DEFAULT_MAX_CHARGE_CURRENT_A = 0
 DEFAULT_MIN_CHARGE_CURRENT_A = 0
 DEFAULT_MAX_INVERTER_POWER_W = 0
 DEFAULT_TOTAL_LOAD_SENSOR_ENTITY_ID = ""
+DEFAULT_LOAD_RESERVATIONS = ""
 # The bounds of the form field, not of the applied limit: 0 disables it, and the
 # ceiling is the highest current any supported charger offers.
 MIN_CHARGE_CURRENT_LIMIT_A = 0

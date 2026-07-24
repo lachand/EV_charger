@@ -85,3 +85,18 @@ dry_run_surplus:
       selector:
         config_entry:
           integration: tuya_ev_charger
+
+release_connection:
+  fields:
+    entry_id:
+      selector:
+        config_entry:
+          integration: tuya_ev_charger
+    duration_minutes:
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 120
+          step: 1
+          mode: box

@@ -221,6 +221,32 @@ Both protection limits can be set at once; the tighter of the two applies — an
 they also bound `force_charge_for`, since forcing a charge overrides scheduling,
 not the physical limits of the installation.
 
+### Reacting before the meter moves
+
+The caveat above — a cap is only as fast as its sensor — has an answer for the
+loads Home Assistant knows about in advance. Set **Entities announcing a large
+load** to the switches that turn on *before* the draw appears:
+
+```
+switch.hob: 3000, switch.oven: 2500
+```
+
+When one of those turns on, its wattage is held back from the car **immediately**,
+without waiting for the power sensor. The integration also subscribes to those
+entities, so it reacts on the state change rather than at the next poll.
+
+A reservation is a bridge over the sensor's latency, not a standing allowance: it
+expires after two minutes, by which time the appliance is in the measurement.
+Without that expiry the same 3 kW would be subtracted twice and the car would stay
+throttled for as long as the hob was on.
+
+### Adaptive polling
+
+The charger accepts one local connection, so the poll interval follows what is
+happening rather than staying fixed: faster while a charge is being regulated,
+slower when a cable is merely plugged in, slower still when the charger is asleep.
+Your configured interval sets the scale; only its shape is adjusted.
+
 ---
 
 ## Off-peak hours and departure time
@@ -448,6 +474,24 @@ will not start** — it turns "it doesn't work" into a reproducible scenario.
 It is genuinely side-effect free: the regulation's timers are copied before the
 question is asked, so calling it cannot consume a start delay or nudge the solar
 forecast average.
+
+### `release_connection`
+
+Hands the charger's single local connection to another client for a while — the
+Smart Life app, or `tinytuya` for a DP dump — then takes it back on its own.
+
+```yaml
+action: tuya_ev_charger.release_connection
+data:
+  duration_minutes: 10
+```
+
+The socket is closed, not merely idled: an open socket holds the slot even when
+nothing is read from it. Entities keep their last values rather than going
+unavailable, because the charger is not faulty, it is lent out. `0` minutes
+resumes immediately.
+
+Before this, using the phone app meant disabling the whole integration.
 
 ### `profile_assistant`
 

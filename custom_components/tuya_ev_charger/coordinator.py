@@ -30,6 +30,7 @@ from .const import (
     ConnectionFault,
 )
 from .discovery import async_scan_devices_by_id
+from .polling import poll_interval_s
 from .repairs import ISSUE_CONNECTION_REFUSED, async_clear, async_raise
 from .session_costing import session_cost, split_session
 from .session_history import SessionRecord
@@ -89,12 +90,25 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         self._relocations = 0
         self._key_refreshes = 0
         self._relocating: Any = None
+        # Polling cadence. The charger has a single local connection, so it is
+        # matched to what is happening rather than fixed: see polling.py.
+        self._base_interval_s = int(update_interval.total_seconds())
+        # Set while the local connection is deliberately handed to another client
+        # (the Smart Life app); see async_release_connection.
+        self._release_until: float | None = None
+        self.regulating = False
 
     async def _async_update_data(self) -> EVMetrics:
+        if self._release_until is not None:
+            released = await self._async_handle_release()
+            if released is not None:
+                return released
+
         metrics = await self._async_fetch_metrics()
         if metrics is not None:
             self._async_note_success()
             await self._async_on_metrics(metrics)
+            self._async_retune_interval(metrics)
             return metrics
 
         # Communication failed: after a power cycle the charger's DHCP IP may
@@ -182,6 +196,65 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         self._last_fault_at = now
         return fault
 
+    def _async_retune_interval(self, metrics: EVMetrics) -> None:
+        """Match the poll interval to what the charger is doing.
+
+        Fast while a charge is being regulated, where reaction time *is* the
+        feature; slower when a cable is merely plugged in; slower still when the
+        charger is asleep, since nothing changes then without a person present.
+        """
+        wanted = timedelta(
+            seconds=poll_interval_s(
+                base_interval_s=self._base_interval_s,
+                status=metrics.status,
+                regulating=self.regulating,
+            )
+        )
+        if wanted != self.update_interval:
+            LOGGER.debug(
+                "Poll interval %s -> %s (status=%s, regulating=%s)",
+                self.update_interval,
+                wanted,
+                metrics.status,
+                self.regulating,
+            )
+            self.update_interval = wanted
+
+    async def async_release_connection(self, duration_s: int) -> None:
+        """Hand the charger's single local slot to another client for a while.
+
+        A Tuya charger accepts exactly one local connection, so using the Smart
+        Life app meant disabling the whole integration. This closes the socket and
+        stops polling for `duration_s`, then resumes on its own -- entities keep
+        their last value rather than going unavailable, because the charger is not
+        faulty, it is lent out.
+        """
+        self._release_until = self.hass.loop.time() + max(0, duration_s)
+        await self.client.async_close()
+        LOGGER.info("Released the local connection to %s for %ss", self.entry.title, duration_s)
+
+    def async_resume_connection(self) -> None:
+        """Take the local connection back before the release would expire."""
+        self._release_until = None
+
+    @property
+    def connection_released(self) -> bool:
+        if self._release_until is None:
+            return False
+        return self.hass.loop.time() < self._release_until
+
+    async def _async_handle_release(self) -> EVMetrics | None:
+        """Skip the poll while the connection is lent out.
+
+        Returns the last known metrics so entities hold their values, or None once
+        the release has expired so the caller polls normally again.
+        """
+        if self.connection_released:
+            return self.data
+        self._release_until = None
+        LOGGER.info("Resuming polling of %s; the release expired", self.entry.title)
+        return None
+
     @property
     def connection_health(self) -> dict[str, Any]:
         """Everything worth knowing about the local link, in one place.
@@ -207,6 +280,10 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
             "relocations": self._relocations,
             "key_refreshes": self._key_refreshes,
             "last_discovery": self.last_discovery,
+            "poll_interval_s": int(self.update_interval.total_seconds())
+            if self.update_interval
+            else None,
+            "connection_released": self.connection_released,
         }
 
     def _async_note_success(self) -> None:
