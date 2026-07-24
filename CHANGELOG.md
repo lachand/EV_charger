@@ -7,6 +7,21 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.16.0
+
+- **Repair notices for settings that fail silently.** A protection limit with no
+  sensor never engages; a malformed off-peak window is skipped by design; a
+  departure time with no energy target is ignored. None of these raise anything
+  today — the feature simply does nothing. Six checks now surface in
+  *Settings → Repairs*, and clear themselves once fixed.
+- **Inverted grid sensor detection.** If the grid reading consistently falls when
+  the car draws more, the sign convention is reversed — which makes surplus
+  regulation chase its own tail and load balancing compute more headroom than the
+  supply has. Requires three consecutive contradicting observations, ignores
+  changes too small to attribute and readings the grid barely followed: a false
+  accusation about a working setup would be worse than silence.
+- Suite: 312 → **331 tests**.
+
 ## 2.15.0
 
 - **The decision reason is readable.** `sensor.surplus_last_decision_reason` is

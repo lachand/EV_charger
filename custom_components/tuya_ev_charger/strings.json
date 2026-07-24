@@ -360,6 +360,30 @@
           }
         }
       }
+    },
+    "load_limit_without_sensor": {
+      "title": "Load balancing has no grid sensor",
+      "description": "A maximum house power is set, but no grid power sensor is configured, so load balancing never engages and your main breaker is not being protected. Set **Grid power sensor** in the integration's options, or set the maximum back to 0 to turn load balancing off."
+    },
+    "inverter_limit_without_sensor": {
+      "title": "The inverter limit has no total-load sensor",
+      "description": "A maximum inverter output is set, but no total household load sensor is configured, so the limit never engages. This limit deliberately cannot use the grid sensor: on a hybrid inverter the battery hides the overload from the grid meter, which is the whole reason the limit exists. Set **Total household load sensor**, or set the maximum back to 0."
+    },
+    "surplus_without_sensor": {
+      "title": "Surplus mode has no grid sensor",
+      "description": "Surplus mode is on but no grid power sensor is configured, so it cannot know how much solar is spare and will never start a charge. Set **Grid power sensor** in the integration's options."
+    },
+    "off_peak_windows_malformed": {
+      "title": "None of the off-peak windows could be read",
+      "description": "Off-peak windows are configured but none of them parsed, so charging is not restricted to any hours. The expected format is `22:00-06:00`, with several separated by commas: `22:00-06:00, 12:30-14:30`."
+    },
+    "departure_without_energy": {
+      "title": "The departure time has no energy target",
+      "description": "A departure time is set but the energy needed by then is 0, so the deadline cannot be planned for and is ignored. Set **Energy needed by departure**, or clear the departure time."
+    },
+    "grid_sensor_sign_inverted": {
+      "title": "The grid sensor's sign looks inverted",
+      "description": "The grid reading consistently falls when the car draws more, which is the opposite of what an import-positive meter does. Left as is, surplus regulation chases its own tail and load balancing computes more headroom than your supply has. Tick **Invert grid sensor sign** in the integration's options. If your setup is genuinely unusual and the reading is correct, this notice can be ignored."
     }
   },
   "services": {

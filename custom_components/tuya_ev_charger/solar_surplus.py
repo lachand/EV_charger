@@ -30,6 +30,12 @@ from .charge_planner import (
     parse_windows,
     plan_charge,
 )
+from .config_diagnosis import (
+    ConfigProblem,
+    DiagnosisInputs,
+    GridSignDetector,
+    static_problems,
+)
 from .const import (
     CHARGER_PROFILE_DEPOW_V2,
     CONF_DEPARTURE_ENERGY_KWH,
@@ -213,6 +219,7 @@ class SolarSurplusController:
         self._forecast_last_sample_ts: float | None = None
         self._battery_soc_hysteresis_enabled: bool | None = None
         self._last_decision_trace: dict[str, Any] = {}
+        self._grid_sign = GridSignDetector()
 
     @property
     def snapshot(self) -> SolarSurplusSnapshot:
@@ -412,6 +419,8 @@ class SolarSurplusController:
         self._update_session_energy(now, data, is_charging, grid_power_for_energy)
 
         context = self._build_gate_context(now, data, is_charging)
+        if context.grid_power_w is not None:
+            self._grid_sign.observe(ev_power_w=_ev_power_w(data), grid_power_w=context.grid_power_w)
         verdict = evaluate(context, self._timers)
         await self._async_apply(verdict, data=data, now=now, context=context)
 
@@ -501,6 +510,31 @@ class SolarSurplusController:
             min_run_time_s=float(FIXED_MIN_RUN_TIME_S),
             session_limit_reason=self._session_limit_reason(now),
         )
+
+    def config_problems(self) -> list[str]:
+        """Settings that are switched on but cannot do anything.
+
+        Combines the static checks with the one finding that needs measurements:
+        a grid sensor whose sign convention is reversed.
+        """
+        settings = self._settings
+        problems = static_problems(
+            DiagnosisInputs(
+                surplus_mode_enabled=settings.mode_enabled,
+                grid_sensor_entity_id=settings.grid_sensor_entity_id,
+                max_house_power_w=settings.max_house_power_w,
+                max_inverter_power_w=settings.max_inverter_power_w,
+                total_load_sensor_entity_id=settings.total_load_sensor_entity_id,
+                off_peak_windows_raw=settings.off_peak_windows,
+                off_peak_windows_parsed=len(parse_windows(settings.off_peak_windows)),
+                departure_time=settings.departure_time,
+                departure_energy_kwh=settings.departure_energy_kwh,
+            )
+        )
+        values = [problem.value for problem in problems]
+        if self._grid_sign.inverted:
+            values.append(ConfigProblem.GRID_SENSOR_SIGN_INVERTED.value)
+        return values
 
     def async_dry_run(self) -> dict[str, Any]:
         """What regulation would do right now, without writing to the charger.

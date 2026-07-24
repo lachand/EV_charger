@@ -51,6 +51,26 @@ def async_clear(hass: HomeAssistant, entry_id: str, kind: str) -> None:
     ir.async_delete_issue(hass, DOMAIN, _issue_id(entry_id, kind))
 
 
+def async_sync_config_problems(
+    hass: HomeAssistant,
+    entry_id: str,
+    problems: list[str],
+) -> None:
+    """Raise a repair per detected problem, and clear the ones now resolved.
+
+    Cleared as well as raised, so fixing the setting makes the notice disappear
+    on its own rather than lingering until a restart.
+    """
+    from .config_diagnosis import ConfigProblem
+
+    active = set(problems)
+    for problem in ConfigProblem:
+        if problem.value in active:
+            async_raise(hass, entry_id, problem.value)
+        else:
+            async_clear(hass, entry_id, problem.value)
+
+
 def async_offer_entity_cleanup(hass: HomeAssistant, entry_id: str, count: int) -> None:
     """Offer to hide advanced entities an existing install already registered.
 

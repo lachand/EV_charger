@@ -11,8 +11,8 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 
 ## Resume here
 
-- **Current version:** 2.15.0
-- **Phase in progress:** Phases 1–2 ✅ done. **Start phase 3** (B5 + A4 + A5).
+- **Current version:** 2.16.0
+- **Phase in progress:** Phases 1–2 ✅ done, phase 3 partly: **B5 ✅**. Left in phase 3: **A4** (collapsible option sections) and **A5** (`async_migrate_entry`), both small and independent.
 - **Next concrete action:** **B3, decision traceability.** `charge_gates.py` now
   enumerates every reason as `DecisionReason`, so translating them (en/fr) and
   attaching a structured trace to `sensor.surplus_last_decision_reason` is
@@ -34,7 +34,7 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 |---|---|---|---|
 | **1** | A1 decision layer + A2 partial + formatting | 2.14.0 | ✅ done |
 | 2 | B3 traceability + B2 simulation + A6 leftovers | 2.15.0 | 🔄 next |
-| 3 | B5 proactive repairs + A4 form sections + A5 entry migration | 2.16.0 | ⬜ |
+| 3 | B5 proactive repairs (2.16.0) + A4 form sections + A5 entry migration | 2.16.x | 🔄 B5 done |
 | 4 | **B1 predictive pre-emption** + B6 adaptive polling + B7 Smart Life coexistence | 2.17.0 | ⬜ |
 | 5 | B4 learned charge curve + B12 session anomalies + B13 per-vehicle statistics | 2.18.0 | ⬜ |
 | 6 | B8 carbon intensity + B9 daily forecast + B10 Tempo/RTE + A3 `quality_scale.yaml` | 2.19.0+ | ⬜ |
@@ -65,7 +65,7 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 | **B2** ⭐⭐ | ⬜ | **Simulation and replay.** Implement `dry_run_surplus` (A6): "given these sensor values, what would regulation do?", answered without writing to the charger. Plus a recording mode that logs decision inputs for offline replay. Turns "surplus won't start" reports into reproducible scenarios. Cheap now that the layer is pure. |
 | **B3** ⭐⭐ | ⬜ | **Decision traceability.** 39 reasons exist; the user sees one, last, untranslated (`load_limit_no_headroom`). Add a structured trace attribute — which gates ran, which one bound, with values — and translate the reasons. Makes surplus self-diagnosing instead of requiring a code read. |
 | **B4** ⭐⭐ | ⬜ | **Learned charge curve.** `_estimate_charge_power_kw` is deliberately pessimistic for want of anything better, so departure deadlines start charges too early. Session history (2.10.0) already stores duration, energy and power: derive the vehicle's real curve, taper included, per vehicle. No new data collection. |
-| **B5** ⭐ | ⬜ | **Proactive config repairs.** `repairs.py` exists. Detect the silent misconfigurations: an **inverted grid sensor sign** (detectable by correlation — car power up while the meter goes down), an inverter cap with no total-load sensor (protection inert), a price of 0 with the cost sensor enabled, a malformed off-peak window (skipped by design, invisibly), a departure time with no energy target. Each currently produces a user convinced the feature is broken. |
+| **B5** ⭐ | ✅ 2.16.0 | **Proactive config repairs.** `repairs.py` exists. Detect the silent misconfigurations: an **inverted grid sensor sign** (detectable by correlation — car power up while the meter goes down), an inverter cap with no total-load sensor (protection inert), a price of 0 with the cost sensor enabled, a malformed off-peak window (skipped by design, invisibly), a departure time with no energy target. Each currently produces a user convinced the feature is broken. |
 | **B6** ⭐ | ⬜ | **Adaptive polling.** One local connection, polled every 30 s whether charging or asleep. Fast while charging (10 s, where regulation needs it), slow at rest, suspended in `SLEEP`. Less contention with the Smart Life app; `update_interval` is already adjustable at runtime. |
 | **B7** ⭐ | ⬜ | **Explicit Smart Life coexistence.** A switch or service that *releases* the local socket for N minutes so the phone app can be used, then resumes on its own. Today the only way is disabling the whole integration. |
 | **B8** | ⬜ | **Carbon-intensity charging.** Charge on the cleanest hours, not only the cheapest, from an electricitymaps/CO2 Signal sensor. `charge_planner.py` already takes windows; derive them from a sensor. |

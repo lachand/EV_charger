@@ -430,3 +430,20 @@ def test_the_reason_sensor_declares_every_reason_as_an_option():
         if item.key == "surplus_last_decision_reason"
     )
     assert set(description.options) == {reason.value for reason in DecisionReason}
+
+
+def test_every_config_problem_has_a_translated_repair_notice():
+    """An untranslated repair shows as a raw key in Settings > Repairs, which is
+    worse than not raising it: the user sees an alarm they cannot read."""
+    from tuya_ev_charger.config_diagnosis import ConfigProblem
+
+    problems = {problem.value for problem in ConfigProblem}
+
+    for name in ("strings.json", "translations/en.json", "translations/fr.json"):
+        payload = json.loads((COMPONENT / name).read_text(encoding="utf-8"))
+        issues = payload.get("issues", {})
+        missing = sorted(problems - set(issues))
+        assert not missing, f"{name} is missing repair notices for {missing}"
+        for key in problems:
+            assert issues[key].get("title"), f"{name}: {key} has no title"
+            assert issues[key].get("description"), f"{name}: {key} has no description"

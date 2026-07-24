@@ -43,7 +43,12 @@ from .const import (
 )
 from .coordinator import TuyaEVChargerDataUpdateCoordinator
 from .entity_cleanup import async_disable_entities, unavailable_capability_keys
-from .repairs import ISSUE_TIDY_ENTITIES, async_clear, async_offer_entity_cleanup
+from .repairs import (
+    ISSUE_TIDY_ENTITIES,
+    async_clear,
+    async_offer_entity_cleanup,
+    async_sync_config_problems,
+)
 from .session_history import SessionHistory
 from .solar_surplus import SolarSurplusController
 from .surplus_profiles import (
@@ -214,6 +219,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await _async_tidy_entities(hass, entry, coordinator)
+    # Settings that are switched on but cannot work. Re-checked on every reload,
+    # so fixing one clears its notice without needing a restart.
+    if runtime_data.solar_surplus_controller is not None:
+        async_sync_config_problems(
+            hass, entry.entry_id, runtime_data.solar_surplus_controller.config_problems()
+        )
     await _async_register_services(hass)
     LOGGER.debug("Tuya EV charger integration initialized: %s", entry.title)
     return True

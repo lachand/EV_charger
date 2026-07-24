@@ -329,6 +329,30 @@
           }
         }
       }
+    },
+    "load_limit_without_sensor": {
+      "title": "Le delestage n'a pas de capteur reseau",
+      "description": "Une puissance maximale de la maison est definie, mais aucun capteur de puissance reseau n'est configure : le delestage ne s'active donc jamais et votre disjoncteur principal n'est pas protege. Renseignez **Capteur de puissance reseau** dans les options, ou remettez le maximum a 0 pour desactiver le delestage."
+    },
+    "inverter_limit_without_sensor": {
+      "title": "La limite onduleur n'a pas de capteur de charge totale",
+      "description": "Une sortie maximale d'onduleur est definie, mais aucun capteur de charge totale n'est configure : la limite ne s'active jamais. Cette limite ne peut deliberement pas utiliser le capteur reseau : sur un onduleur hybride, la batterie masque la surcharge au compteur, ce qui est precisement la raison d'etre de cette limite. Renseignez **Capteur de charge totale de la maison**, ou remettez le maximum a 0."
+    },
+    "surplus_without_sensor": {
+      "title": "Le mode surplus n'a pas de capteur reseau",
+      "description": "Le mode surplus est actif mais aucun capteur de puissance reseau n'est configure : il ne peut pas savoir quel solaire est disponible et ne demarrera jamais de charge. Renseignez **Capteur de puissance reseau** dans les options."
+    },
+    "off_peak_windows_malformed": {
+      "title": "Aucune plage d'heures creuses n'a pu etre lue",
+      "description": "Des heures creuses sont configurees mais aucune n'a pu etre interpretee : la charge n'est donc restreinte a aucun horaire. Le format attendu est `22:00-06:00`, plusieurs plages separees par des virgules : `22:00-06:00, 12:30-14:30`."
+    },
+    "departure_without_energy": {
+      "title": "L'heure de depart n'a pas d'objectif d'energie",
+      "description": "Une heure de depart est definie mais l'energie necessaire est a 0 : l'echeance ne peut pas etre planifiee et elle est ignoree. Renseignez **Energie necessaire au depart**, ou effacez l'heure de depart."
+    },
+    "grid_sensor_sign_inverted": {
+      "title": "Le signe du capteur reseau semble inverse",
+      "description": "La mesure reseau baisse systematiquement quand la voiture consomme davantage, soit l'inverse de ce que fait un compteur positif a l'import. En l'etat, la regulation surplus se poursuit elle-meme et le delestage calcule plus de marge que votre abonnement n'en a. Cochez **Inverser le signe du capteur reseau** dans les options. Si votre installation est reellement atypique et que la mesure est correcte, cette notice peut etre ignoree."
     }
   },
   "services": {
