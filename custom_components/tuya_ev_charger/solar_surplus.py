@@ -13,6 +13,15 @@ from homeassistant.core import Event, EventStateChangedData, HomeAssistant, call
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.util import dt as dt_util
 
+from .charge_gates import (
+    DecisionReason,
+    GateAction,
+    GateContext,
+    TimerState,
+    Verdict,
+    battery_hysteresis,
+    evaluate,
+)
 from .charge_planner import (
     ChargeWindow,
     Plan,
@@ -98,7 +107,6 @@ from .surplus_decision import (
     cap_to_available_power,
     current_supported_by,
     headroom_for_car_w,
-    ramp_towards,
     raw_surplus_w,
 )
 from .tuya_ev_charger import EVMetrics, TuyaEVChargerClient
@@ -117,12 +125,6 @@ FIXED_MAX_SESSION_END_TIME = ""
 FIXED_FORECAST_WEIGHT_PCT = 35
 FIXED_FORECAST_SMOOTHING_S = 180
 FIXED_FORECAST_DROP_GUARD_W = 500
-
-# Decisions taken outside surplus regulation, which must survive the
-# "surplus mode is off" branch rather than be flattened to "mode_disabled".
-_ACTIVE_WITHOUT_SURPLUS_REASONS = frozenset(
-    {"load_limit_reduced", "inverter_limit_reduced", "tariff_deadline"}
-)
 
 
 @dataclass(slots=True, frozen=True)
@@ -184,10 +186,9 @@ class SolarSurplusController:
         self._rerun_requested = False
         self._listeners: list[Callable[[], None]] = []
 
-        self._start_candidate_since: float | None = None
-        self._stop_candidate_since: float | None = None
-        self._last_increase_action_ts: float = 0.0
-        self._last_decrease_action_ts: float = 0.0
+        # The regulation's memory between cycles, owned by the pure layer so the
+        # delays and cooldowns can be exercised without Home Assistant.
+        self._timers = TimerState()
 
         self._force_charge_until_ts: float | None = None
         self._force_charge_current_a: int | None = None
@@ -377,14 +378,25 @@ class SolarSurplusController:
             current_reason = "rerun"
 
     async def _async_evaluate_once(self, reason: str) -> None:
+        """Decide once, then act once.
+
+        The decision lives in `charge_gates.evaluate`, which knows nothing about
+        Home Assistant. This method only resolves the inputs, hands them over, and
+        carries out the single verdict that comes back.
+        """
         _ = reason
         now = monotonic()
         data = self._coordinator.data
         if data is None:
-            self._set_decision("no_coordinator_data")
-            self._regulation_active = False
-            self._clear_surplus_debug_state()
-            self._notify_state_listeners()
+            await self._async_apply(
+                Verdict(
+                    action=GateAction.IDLE,
+                    reason=DecisionReason.NO_COORDINATOR_DATA,
+                    clear_debug=True,
+                ),
+                data=None,
+                now=now,
+            )
             return
 
         is_charging = _is_charging(data)
@@ -393,362 +405,182 @@ class SolarSurplusController:
         )
         self._update_session_energy(now, data, is_charging, grid_power_for_energy)
 
-        available_currents = allowed_currents(data, self._entry.options)
-        if not available_currents:
-            self._set_decision("no_allowed_currents")
-            self._regulation_active = False
-            self._clear_surplus_debug_state()
-            self._notify_state_listeners()
-            return
-        min_current = min(available_currents)
+        context = self._build_gate_context(now, data, is_charging)
+        verdict = evaluate(context, self._timers)
+        await self._async_apply(verdict, data=data, now=now)
 
-        # Protection limits are safety features, not surplus features: they
-        # apply even with surplus mode off, and nothing may raise the current
-        # above them afterwards. Two independent caps, whichever is tighter:
-        #   - load balancing, from the grid meter (protects the main breaker);
-        #   - the inverter cap, from total load (protects a hybrid inverter whose
-        #     battery hides the extra draw from the grid meter entirely).
-        #
-        # Computed before force charge on purpose: forcing a charge overrides
-        # scheduling, not the physical limits of the installation.
+    def _build_gate_context(self, now: float, data: EVMetrics, is_charging: bool) -> GateContext:
+        """Resolve every input the gates may look at.
+
+        The protection caps narrow the current ladder *here*, so the un-narrowed
+        ladder never reaches a gate and cannot be widened again by one. That is
+        the 2.13.1 fix expressed as a property of the data rather than as an
+        ordering to be remembered.
+        """
+        available_currents = allowed_currents(data, self._entry.options)
         protection_cap, cap_source = self._protection_cap(data, available_currents)
         if protection_cap is not None:
-            if protection_cap < min_current:
-                if is_charging:
-                    await self._client.async_set_charge_enabled(False)
-                    self._register_stop(now)
-                    await self._coordinator.async_request_refresh()
-                self._set_decision(f"{cap_source}_no_headroom")
-                self._regulation_active = False
-                self._clear_surplus_debug_state()
-                self._notify_state_listeners()
-                return
+            available_currents = tuple(
+                value for value in available_currents if value <= protection_cap
+            )
 
-            available_currents = tuple(c for c in available_currents if c <= protection_cap)
-            min_current = min(available_currents)
-
-        if self._is_force_charge_active(now):
-            # Runs on the already-capped ladder, so a forced charge cannot push
-            # the installation past its limits.
-            self._clear_surplus_debug_state()
-            await self._async_apply_force_charge(now, data, available_currents, min_current)
-            self._regulation_active = True
-            self._notify_state_listeners()
-            return
-
-        if protection_cap is not None and (
-            data.current_target is not None and data.current_target > protection_cap
-        ):
-            # Straight to the cap: no ramp step, no cooldown. An overload is not
-            # a passing cloud, and walking down 1 A at a time would trip the
-            # breaker long before arriving.
-            if await self._client.async_set_charge_current(protection_cap):
-                await self._coordinator.async_request_refresh()
-            self._set_decision(f"{cap_source}_reduced")
-            # Stop here for this cycle. Falling through into surplus regulation
-            # wrote a second time -- two beeps -- and worse: the ramp does not
-            # recognise the value just written (the charger still reports the old
-            # setpoint, which is no longer on the capped ladder), so it restarted
-            # from the minimum and dropped the car to 7 A when the cap allowed 15.
-            # The next cycle regulates normally from the refreshed setpoint.
-            self._regulation_active = True
-            self._notify_state_listeners()
-            return
-
-        # Tariff arbitration comes before load balancing only because refusing
-        # to charge at all makes capping moot. Surplus is exempt: free solar is
-        # cheaper than any off-peak rate, so it must not be deferred.
-        if not self._settings.mode_enabled:
-            tariff = self._plan_tariff(data, available_currents)
-            if tariff is not None and not tariff.allowed:
-                if is_charging:
-                    await self._client.async_set_charge_enabled(False)
-                    self._register_stop(now)
-                    await self._coordinator.async_request_refresh()
-                self._set_decision(f"tariff_{tariff.window.value}")
-                self._regulation_active = False
-                self._clear_surplus_debug_state()
-                self._notify_state_listeners()
-                return
-            if tariff is not None and tariff.window is ChargeWindow.DEADLINE and not is_charging:
-                # Waiting any longer would miss the departure deadline.
-                await self._client.async_set_charge_enabled(True)
-                self._start_session(now)
-                await self._coordinator.async_request_refresh()
-                self._set_decision("tariff_deadline")
-
-        if not self._settings.mode_enabled:
-            self._regulation_active = False
-            self._clear_surplus_debug_state()
-            # Load balancing and the tariff planner both act with surplus mode
-            # off, and their reason is more informative than "disabled".
-            if self._last_decision_reason not in _ACTIVE_WITHOUT_SURPLUS_REASONS:
-                self._set_decision("mode_disabled")
-            self._notify_state_listeners()
-            return
-
-        if self._is_pause_active(now):
-            self._set_decision("surplus_paused_active")
-            self._regulation_active = False
-            self._clear_surplus_debug_state()
-            if (
-                is_charging
-                and self._session_active
-                and await self._client.async_set_charge_enabled(False)
-            ):
-                self._register_stop(now)
-                await self._coordinator.async_request_refresh()
-            self._notify_state_listeners()
-            return
-
-        if not self._settings.grid_sensor_entity_id:
-            self._set_decision("missing_grid_sensor")
-            self._regulation_active = False
-            self._clear_surplus_debug_state()
-            self._notify_state_listeners()
-            return
-
-        grid_power_w = self._read_grid_power_w()
-        if grid_power_w is None:
-            self._set_decision("grid_sensor_unavailable")
-            self._regulation_active = False
-            self._clear_surplus_debug_state()
-            self._start_candidate_since = None
-            self._stop_candidate_since = None
-            self._notify_state_listeners()
-            return
+        grid_power_w = self._read_grid_power_w() if self._settings.grid_sensor_entity_id else None
 
         battery_ready = self._is_battery_ready()
-        available_surplus_w = self._available_surplus_w(
-            data=data,
-            grid_power_w=grid_power_w,
-            battery_ready=battery_ready,
-            now=now,
-            update_state=True,
-        )
-        self._last_available_surplus_w = available_surplus_w
-
-        max_supported_current = _current_supported_by_surplus(
-            available_currents,
-            available_surplus_w,
-            FIXED_LINE_VOLTAGE_V,
-        )
-        target_current = (
-            max(min_current, max_supported_current)
-            if max_supported_current >= min_current
-            else None
-        )
-        self._last_target_current_a = target_current
-
-        if is_charging and not self._session_active:
-            self._start_session(now)
-
-        if is_charging:
-            self._start_candidate_since = None
-            stop_reason = self._stop_reason(
-                now=now,
+        available_surplus_w = 0.0
+        max_supported_current = 0
+        target_current: int | None = None
+        if self._settings.mode_enabled and grid_power_w is not None:
+            available_surplus_w = self._available_surplus_w(
+                data=data,
+                grid_power_w=grid_power_w,
                 battery_ready=battery_ready,
-                available_surplus_w=available_surplus_w,
-                max_supported_current=max_supported_current,
-                min_current=min_current,
+                now=now,
+                update_state=True,
             )
-            if stop_reason:
-                if self._min_runtime_guard_applies(now, stop_reason):
-                    self._stop_candidate_since = None
-                    self._set_decision("min_runtime_guard")
-                    self._regulation_active = True
-                    self._notify_state_listeners()
-                    return
+            self._last_available_surplus_w = available_surplus_w
+            max_supported_current = _current_supported_by_surplus(
+                available_currents, available_surplus_w, FIXED_LINE_VOLTAGE_V
+            )
+            min_current = min(available_currents) if available_currents else 0
+            target_current = (
+                max(min_current, max_supported_current)
+                if available_currents and max_supported_current >= min_current
+                else None
+            )
+            self._last_target_current_a = target_current
 
-                if self._stop_candidate_since is None:
-                    self._stop_candidate_since = now
-                    self._set_decision("stop_delay_pending")
-                    self._regulation_active = True
-                    self._notify_state_listeners()
-                    return
-                if now - self._stop_candidate_since < FIXED_STOP_DELAY_S:
-                    self._set_decision("stop_delay_pending")
-                    self._regulation_active = True
-                    self._notify_state_listeners()
-                    return
+        tariff_allowed: bool | None = None
+        tariff_reason: DecisionReason | None = None
+        tariff_is_deadline = False
+        if not self._settings.mode_enabled:
+            plan = self._plan_tariff(data, available_currents)
+            if plan is not None:
+                tariff_allowed = plan.allowed
+                tariff_reason = DecisionReason(f"tariff_{plan.window.value}")
+                tariff_is_deadline = plan.window is ChargeWindow.DEADLINE
 
-                self._stop_candidate_since = None
-                if await self._client.async_set_charge_enabled(False):
-                    self._register_stop(now)
-                    await self._coordinator.async_request_refresh()
-                self._set_decision(stop_reason)
-                self._regulation_active = False
-                self._notify_state_listeners()
-                return
+        return GateContext(
+            now=now,
+            is_charging=is_charging,
+            session_active=self._session_active,
+            current_target=data.current_target,
+            available_currents=available_currents,
+            protection_cap=protection_cap,
+            cap_source=cap_source,
+            surplus_mode_enabled=self._settings.mode_enabled,
+            grid_sensor_configured=bool(self._settings.grid_sensor_entity_id),
+            grid_power_w=grid_power_w,
+            force_charge_active=self._is_force_charge_active(now),
+            force_charge_current_a=self._force_charge_current_a,
+            pause_active=self._is_pause_active(now),
+            tariff_allowed=tariff_allowed,
+            tariff_reason=tariff_reason,
+            tariff_is_deadline=tariff_is_deadline,
+            battery_ready=battery_ready,
+            available_surplus_w=available_surplus_w,
+            start_threshold_w=float(self._settings.start_threshold_w),
+            stop_threshold_w=float(self._settings.stop_threshold_w),
+            max_supported_current=max_supported_current,
+            target_current=target_current,
+            adjust_up_cooldown_s=float(self._settings.adjust_up_cooldown_s),
+            adjust_down_cooldown_s=float(self._settings.adjust_down_cooldown_s),
+            start_delay_s=float(FIXED_START_DELAY_S),
+            stop_delay_s=float(FIXED_STOP_DELAY_S),
+            ramp_step=FIXED_RAMP_STEP_A,
+            min_run_time_s=float(FIXED_MIN_RUN_TIME_S),
+            session_limit_reason=self._session_limit_reason(now),
+        )
 
-            self._stop_candidate_since = None
-            if target_current is None:
-                self._set_decision("no_target_current")
-                self._regulation_active = True
-                self._notify_state_listeners()
-                return
+    async def _async_apply(self, verdict: Verdict, *, data: EVMetrics | None, now: float) -> None:
+        """Carry out one verdict. The only place that writes to the charger.
 
-            current_target = data.current_target
-            if current_target is None or current_target not in available_currents:
-                current_target = min_current
+        Collapsing 25 near-identical exit blocks into this method is what makes a
+        decision impossible to overwrite by a later branch, and the charger
+        impossible to write to twice in one cycle.
+        """
+        reason: DecisionReason = verdict.reason
 
-            if target_current != current_target:
-                increasing = target_current > current_target
-                last_action_ts = (
-                    self._last_increase_action_ts if increasing else self._last_decrease_action_ts
-                )
-                cooldown_s = (
-                    self._settings.adjust_up_cooldown_s
-                    if increasing
-                    else self._settings.adjust_down_cooldown_s
-                )
-                if now - last_action_ts >= cooldown_s:
-                    next_current = _ramp_current(
-                        current=current_target,
-                        target=target_current,
-                        available_currents=available_currents,
-                        ramp_step=FIXED_RAMP_STEP_A,
-                    )
-                    if next_current != current_target:
-                        if await self._client.async_set_charge_current(next_current):
-                            if increasing:
-                                self._last_increase_action_ts = now
-                            else:
-                                self._last_decrease_action_ts = now
-                            await self._coordinator.async_request_refresh()
-                            self._set_decision("adjust_current")
-                    else:
-                        self._set_decision("target_already_reached")
-                else:
-                    self._set_decision("adjust_cooldown_active")
-            else:
-                self._set_decision("holding_current")
+        if verdict.action is GateAction.FORCE_CHARGE:
+            reason = await self._async_force_charge_verdict(verdict, data, now)
+        elif verdict.action is GateAction.SET_CURRENT and verdict.target_current is not None:
+            await self._async_write_current(verdict.target_current, data, now)
+        elif verdict.action is GateAction.START_CHARGE:
+            reason = await self._async_start_charge(verdict, data, now)
+        elif verdict.action is GateAction.STOP_CHARGE:
+            await self._async_stop_charge(verdict, data, now)
 
-            self._regulation_active = True
-            self._notify_state_listeners()
-            return
-
-        if self._session_active:
-            self._register_stop(now)
-
-        self._stop_candidate_since = None
-
-        if not battery_ready:
-            self._start_candidate_since = None
-            self._set_decision("battery_soc_below_threshold")
-            self._regulation_active = False
-            self._notify_state_listeners()
-            return
-
-        if available_surplus_w < float(self._settings.start_threshold_w):
-            self._start_candidate_since = None
-            self._set_decision("below_start_threshold")
-            self._regulation_active = False
-            self._notify_state_listeners()
-            return
-
-        if max_supported_current < min_current:
-            self._start_candidate_since = None
-            self._set_decision("insufficient_surplus_current")
-            self._regulation_active = False
-            self._notify_state_listeners()
-            return
-
-        if self._start_candidate_since is None:
-            self._start_candidate_since = now
-            self._set_decision("start_delay_pending")
-            self._regulation_active = False
-            self._notify_state_listeners()
-            return
-        if now - self._start_candidate_since < FIXED_START_DELAY_S:
-            self._set_decision("start_delay_pending")
-            self._regulation_active = False
-            self._notify_state_listeners()
-            return
-
-        self._start_candidate_since = None
-        startup_current = min_current
-        if (
-            data.current_target != startup_current
-            and not await self._client.async_set_charge_current(startup_current)
-        ):
-            self._set_decision("failed_set_startup_current")
-            self._regulation_active = False
-            self._notify_state_listeners()
-            return
-
-        if await self._client.async_set_charge_enabled(True):
-            self._last_increase_action_ts = now
-            self._last_decrease_action_ts = now
-            self._start_session(now)
-            self._set_decision("surplus_start")
-            self._regulation_active = True
-            await self._coordinator.async_request_refresh()
-        else:
-            self._set_decision("failed_start_charge")
-            self._regulation_active = False
+        self._set_decision(str(reason))
+        self._regulation_active = verdict.regulation_active
+        if verdict.clear_debug:
+            self._clear_surplus_debug_state()
         self._notify_state_listeners()
 
-    async def _async_apply_force_charge(
-        self,
-        now: float,
-        data: EVMetrics,
-        available_currents: tuple[int, ...],
-        min_current: int,
+    async def _async_write_current(self, target: int, data: EVMetrics | None, now: float) -> bool:
+        if not await self._client.async_set_charge_current(target):
+            return False
+        if data is not None and data.current_target is not None:
+            if target > data.current_target:
+                self._timers.last_increase_action_ts = now
+            else:
+                self._timers.last_decrease_action_ts = now
+        await self._coordinator.async_request_refresh()
+        return True
+
+    async def _async_start_charge(
+        self, verdict: Verdict, data: EVMetrics | None, now: float
+    ) -> DecisionReason:
+        target = verdict.target_current
+        if (
+            target is not None
+            and data is not None
+            and data.current_target != target
+            and not await self._client.async_set_charge_current(target)
+        ):
+            return DecisionReason.FAILED_SET_STARTUP_CURRENT
+
+        if not await self._client.async_set_charge_enabled(True):
+            return DecisionReason.FAILED_START_CHARGE
+
+        self._timers.last_increase_action_ts = now
+        self._timers.last_decrease_action_ts = now
+        self._start_session(now)
+        await self._coordinator.async_request_refresh()
+        return verdict.reason
+
+    async def _async_stop_charge(
+        self, verdict: Verdict, data: EVMetrics | None, now: float
     ) -> None:
-        target_current = self._force_charge_current_a
-        if target_current not in available_currents:
-            # Clamp to the highest current still on offer rather than falling back
-            # to the minimum. The requested value is usually absent because a
-            # protection cap narrowed the ladder, and answering an explicit
-            # "charge as fast as you can" with the *slowest* rate is the opposite
-            # of the intent. Only when the request is below everything offered
-            # does the minimum apply.
-            allowed = [value for value in available_currents if value <= (target_current or 0)]
-            target_current = max(allowed) if allowed else min_current
+        if data is None or not _is_charging(data):
+            return
+        # A charge started outside surplus mode -- from the app, say -- is not
+        # ours to interrupt when merely pausing.
+        if verdict.only_stop_own_session and not self._session_active:
+            return
+        if await self._client.async_set_charge_enabled(False):
+            self._register_stop(now)
+            await self._coordinator.async_request_refresh()
 
-        if data.current_target != target_current:
-            if await self._client.async_set_charge_current(target_current):
-                self._last_increase_action_ts = now
-                self._last_decrease_action_ts = now
-                await self._coordinator.async_request_refresh()
-                self._set_decision("force_charge_adjust_current")
-            else:
-                self._set_decision("force_charge_failed_set_current")
-                return
+    async def _async_force_charge_verdict(
+        self, verdict: Verdict, data: EVMetrics | None, now: float
+    ) -> DecisionReason:
+        target = verdict.target_current
+        reason = DecisionReason.FORCE_CHARGE_HOLDING
+        if data is not None and target is not None and data.current_target != target:
+            if not await self._async_write_current(target, data, now):
+                return DecisionReason.FORCE_CHARGE_FAILED_SET_CURRENT
+            reason = DecisionReason.FORCE_CHARGE_ADJUST_CURRENT
 
-        if not _is_charging(data):
-            if await self._client.async_set_charge_enabled(True):
-                self._start_session(now)
-                self._set_decision("force_charge_start")
-                await self._coordinator.async_request_refresh()
-            else:
-                self._set_decision("force_charge_failed_start")
-                return
-        else:
-            if not self._session_active:
-                self._start_session(now)
-            self._set_decision("force_charge_holding")
+        if data is not None and not _is_charging(data):
+            if not await self._client.async_set_charge_enabled(True):
+                return DecisionReason.FORCE_CHARGE_FAILED_START
+            self._start_session(now)
+            await self._coordinator.async_request_refresh()
+            return DecisionReason.FORCE_CHARGE_START
 
-    def _stop_reason(
-        self,
-        *,
-        now: float,
-        battery_ready: bool,
-        available_surplus_w: float,
-        max_supported_current: int,
-        min_current: int,
-    ) -> str | None:
-        session_limit = self._session_limit_reason(now)
-        if session_limit is not None:
-            return session_limit
-        if not battery_ready:
-            return "battery_soc_below_threshold"
-        if available_surplus_w <= float(self._settings.stop_threshold_w):
-            return "below_stop_threshold"
-        if max_supported_current < min_current:
-            return "insufficient_surplus_current"
-        return None
+        if not self._session_active:
+            self._start_session(now)
+        return reason
 
     def _session_limit_reason(self, now: float) -> str | None:
         if not self._session_active:
@@ -773,22 +605,6 @@ class SolarSurplusController:
                 return "session_limit_end_time"
 
         return None
-
-    def _min_runtime_guard_applies(self, now: float, stop_reason: str) -> bool:
-        if FIXED_MIN_RUN_TIME_S <= 0:
-            return False
-        if self._session_started_ts is None:
-            return False
-        elapsed = now - self._session_started_ts
-        if elapsed >= FIXED_MIN_RUN_TIME_S:
-            return False
-
-        # Keep hard safety stops immediate, only guard normal surplus oscillation.
-        return stop_reason in {
-            "below_stop_threshold",
-            "insufficient_surplus_current",
-            "battery_soc_below_threshold",
-        }
 
     def _available_surplus_w(
         self,
@@ -1036,16 +852,13 @@ class SolarSurplusController:
         if soc is None:
             return False
 
-        high = float(self._settings.battery_soc_high_threshold_pct)
-        low = float(self._settings.battery_soc_low_threshold_pct)
-        if self._battery_soc_hysteresis_enabled is None:
-            self._battery_soc_hysteresis_enabled = soc >= high
-        elif self._battery_soc_hysteresis_enabled and soc <= low:
-            self._battery_soc_hysteresis_enabled = False
-        elif not self._battery_soc_hysteresis_enabled and soc >= high:
-            self._battery_soc_hysteresis_enabled = True
-
-        return bool(self._battery_soc_hysteresis_enabled)
+        self._battery_soc_hysteresis_enabled = battery_hysteresis(
+            soc,
+            high=float(self._settings.battery_soc_high_threshold_pct),
+            low=float(self._settings.battery_soc_low_threshold_pct),
+            enabled=self._battery_soc_hysteresis_enabled,
+        )
+        return self._battery_soc_hysteresis_enabled
 
     def _read_sensor_power_w(self, entity_id: str) -> float | None:
         if not entity_id:
@@ -1356,15 +1169,6 @@ def _current_supported_by_surplus(
     line_voltage: int,
 ) -> int:
     return current_supported_by(effective_surplus_w, available_currents, line_voltage=line_voltage)
-
-
-def _ramp_current(
-    current: int,
-    target: int,
-    available_currents: tuple[int, ...],
-    ramp_step: int,
-) -> int:
-    return ramp_towards(current, target, available_currents, step=ramp_step)
 
 
 def _parse_end_time(raw: str) -> int | None:

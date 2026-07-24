@@ -185,7 +185,7 @@ def test_a_surplus_dip_disarms_the_start_timer(monkeypatch):
 
     h.hass.set("sensor.grid", -100)  # cloud
     assert h.tick(FIXED_START_DELAY_S - 5) == "below_start_threshold"
-    assert h.controller._start_candidate_since is None
+    assert h.controller._timers.start_candidate_since is None
 
     # Sun returns: the full delay must be served again from scratch.
     h.hass.set("sensor.grid", -3000)
@@ -244,7 +244,7 @@ def test_recovering_surplus_disarms_the_stop_timer(monkeypatch):
 
     h.hass.set("sensor.grid", -4000)
     h.tick(FIXED_STOP_DELAY_S - 5)
-    assert h.controller._stop_candidate_since is None
+    assert h.controller._timers.stop_candidate_since is None
     assert ("enabled", False) not in h.writes
 
 

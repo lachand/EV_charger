@@ -7,6 +7,31 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.14.0
+
+- **The surplus decision layer is extracted.** `_async_evaluate_once` had reached
+  **300 lines with 27 exit points**, and the 2.5.0 refactor meant to fix that had
+  in fact left the file *larger* (1 197 → 1 425 lines): every feature since added
+  another branch. Decisions now live in `charge_gates.py` — no Home Assistant
+  import — as an ordered list of gates over an immutable snapshot, returning one
+  verdict per cycle. The controller resolves inputs and applies that verdict in a
+  single place.
+  - `_async_evaluate_once`: **300 → 31 lines**; `solar_surplus.py` 1 425 → 1 254.
+  - The 25 near-identical exit blocks collapse to 4.
+  - The current ladder is narrowed by the protection caps **when the context is
+    built**, so the un-narrowed ladder never reaches a gate. The 2.13.1 ordering
+    fix is now a property of the data: the `inspect.getsource` guard that asserted
+    on the method's source text is gone, replaced by assertions on the gate list.
+  - Start/stop delays, ramp cooldowns and battery hysteresis are testable without
+    Home Assistant for the first time.
+- **First tests for `surplus_profiles.py`** — the only function that rewrites a
+  user's stored options had none — and for **`number.py`**, the current-write path
+  that beeps the charger and can interrupt a charge.
+- **`ruff format` enforced.** It had never run: 35 of 49 files had drifted,
+  including stray 8/16/20-space indents in the surplus controller. Verified
+  semantically neutral by comparing every reformatted file's AST.
+- Suite: 237 → **304 tests**.
+
 ## 2.13.3
 
 Two defects found by writing the state machine's first tests, before touching any
