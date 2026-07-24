@@ -16,6 +16,8 @@ from __future__ import annotations
 import asyncio
 import types
 
+import pytest
+
 
 class _State:
     def __init__(self, value, unit="W"):
@@ -590,3 +592,57 @@ def test_the_announcing_entity_is_watched_for_state_changes(monkeypatch):
     tracked = h.controller._tracked_sensor_entities()
     assert "switch.hob" in tracked
     assert "switch.oven" in tracked
+
+
+# --- learned charge rate ---------------------------------------------------
+
+
+def test_the_deadline_estimate_uses_what_the_car_has_achieved(monkeypatch):
+    """A car slower than its charger must lengthen the plan, not keep the
+    charger's rating and start hours too late."""
+    h = Harness(monkeypatch, options={"surplus_mode_enabled": False})
+    ladder = tuple(range(6, 33))
+
+    # No history: the charger's rating stands, 32 A single-phase.
+    assert h.controller._estimate_charge_power_kw(_metrics(), ladder) == pytest.approx(7.36)
+
+    # Three sessions of 7.4 kWh over two hours: this car does 3.7 kW.
+    h.coordinator.session_history = types.SimpleNamespace(
+        sessions=[{"duration_s": 7200, "energy_kwh": 7.4, "vehicle": None}] * 3
+    )
+    h.coordinator.vehicle_tracker = None
+
+    informed = h.controller._estimate_charge_power_kw(_metrics(), ladder)
+    assert informed < 7.36, "learning must lower the assumed rate"
+    assert informed == pytest.approx(3.7 * 0.95)
+
+
+def test_a_measured_charge_beats_any_learned_rate(monkeypatch):
+    """Nothing beats the reading from a charge in progress."""
+    h = Harness(monkeypatch, options={"surplus_mode_enabled": False})
+    h.coordinator.session_history = types.SimpleNamespace(
+        sessions=[{"duration_s": 7200, "energy_kwh": 7.4, "vehicle": None}] * 3
+    )
+    h.coordinator.vehicle_tracker = None
+
+    measured = h.controller._estimate_charge_power_kw(
+        _metrics(charging=True, total_power_kw=6.9), tuple(range(6, 33))
+    )
+    assert measured == pytest.approx(6.9)
+
+
+def test_a_broken_history_cannot_break_regulation(monkeypatch):
+    """Estimating is an accounting nicety; the charge must go on regardless."""
+    h = Harness(monkeypatch, options={"surplus_mode_enabled": False})
+
+    class _Exploding:
+        @property
+        def sessions(self):
+            raise RuntimeError("store unreadable")
+
+    h.coordinator.session_history = _Exploding()
+    h.coordinator.vehicle_tracker = None
+
+    assert h.controller._estimate_charge_power_kw(_metrics(), tuple(range(6, 33))) == pytest.approx(
+        7.36
+    )

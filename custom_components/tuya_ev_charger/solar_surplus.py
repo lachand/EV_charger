@@ -13,6 +13,7 @@ from homeassistant.core import Event, EventStateChangedData, HomeAssistant, call
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.util import dt as dt_util
 
+from .charge_curve import learned_power_kw, planning_power_kw
 from .charge_gates import (
     DecisionReason,
     GateAction,
@@ -848,16 +849,37 @@ class SolarSurplusController:
     ) -> float:
         """Power to assume when estimating how long the charge will take.
 
-        While charging, the measurement. Otherwise a deliberately pessimistic
-        single-phase estimate: under-estimating power over-estimates the time
-        needed and starts the charge earlier, which is the harmless direction to
-        be wrong in when a departure deadline is at stake.
+        While charging, the measurement -- nothing beats it.
+
+        Otherwise the charger's own rating, corrected by what this car has
+        actually been seen to achieve. The rating alone says nothing about the
+        *car*: a vehicle limited to 3.7 kW on a 7.4 kW charger had its charging
+        time halved and was started far too late to meet its deadline. Learning
+        may only ever lower the figure, never raise it above the hardware.
         """
         if data.total_power and data.total_power > 0:
             return float(data.total_power)
         if not available_currents:
             return 0.0
-        return max(available_currents) * DEFAULT_LINE_VOLTAGE_V / 1000.0
+
+        theoretical_kw = max(available_currents) * DEFAULT_LINE_VOLTAGE_V / 1000.0
+        return planning_power_kw(
+            theoretical_kw=theoretical_kw,
+            learned_kw=self._learned_power_kw(),
+        )
+
+    def _learned_power_kw(self) -> float | None:
+        """The rate this car has demonstrated across recorded sessions."""
+        history = getattr(self._coordinator, "session_history", None)
+        if history is None:
+            return None
+        tracker = getattr(self._coordinator, "vehicle_tracker", None)
+        vehicle = tracker.active_vehicle if tracker is not None else None
+        try:
+            return learned_power_kw(history.sessions, vehicle=vehicle)
+        except Exception as err:  # pragma: no cover - accounting must not break regulation
+            LOGGER.debug("Could not learn a charge rate: %s", err)
+            return None
 
     def _protection_cap(
         self,

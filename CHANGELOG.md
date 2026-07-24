@@ -7,6 +7,20 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.18.0
+
+- **Departure planning learns what the car actually achieves.** The estimate used
+  the *charger's* rating, which says nothing about the vehicle: a car limited to
+  3.7 kW on a 7.4 kW charger had its charging time halved and was started hours
+  too late to meet its deadline. Session history has held duration, energy and
+  vehicle since 2.10.0, so the rate is derived from it — per vehicle, after three
+  usable sessions, taking the best observed rate rather than the mean so
+  deliberately slow surplus sessions do not distort it.
+- Two safety rules: learning may only ever **lower** the assumed power (more time,
+  earlier start), never raise it above what the hardware allows; and a history that
+  cannot be read falls back to the old estimate rather than breaking regulation.
+- Suite: 389 → **409 tests**.
+
 ## 2.17.0
 
 - **Predictive pre-emption** (the limitation documented in 2.13.1). A cap is only

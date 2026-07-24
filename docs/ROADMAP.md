@@ -11,14 +11,17 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 
 ## Resume here
 
-- **Current version:** 2.17.0
-- **Phase in progress:** Phases 1–4 ✅ done. **Start phase 5** (B4 learned charge curve, B12 session
-  anomalies, B13 per-vehicle statistics) — all three exploit the session history already stored since
-  2.10.0, so none of them needs new data collection.
-- **Next concrete action:** **B4**. `_estimate_charge_power_kw` is deliberately pessimistic for want
-  of anything better, so departure deadlines start charges too early. Session history holds duration,
-  energy and power per session and per vehicle: derive the real curve, taper included, as a pure
-  function beside `charge_planner`.
+- **Current version:** 2.18.0
+- **Phase in progress:** Phases 1–4 ✅ done, phase 5 partly: **B4 ✅**. Left in phase 5: **B12**
+  (session anomalies) and **B13** (per-vehicle long-term statistics), both also drawing on the stored
+  session history.
+- **Next concrete action:** **B12**, session anomalies. `charge_curve.session_average_kw` already
+  turns a record into a comparable rate, so "this session charged far slower than usual" is a
+  comparison against the learned figure — a degrading cable or contactor, surfaced as a repair
+  notice using the machinery added in 2.16.0.
+- **Still outstanding, unrelated to the phases:** the 8 entity platforms with no tests (`switch` 181,
+  `select` 139, `entity` 121, `repairs` 110, `time` 98, `binary_sensor` 85, `button` 78,
+  `discovery` 66).
 - **Next concrete action:** **B3, decision traceability.** `charge_gates.py` now
   enumerates every reason as `DecisionReason`, so translating them (en/fr) and
   attaching a structured trace to `sensor.surplus_last_decision_reason` is
@@ -42,7 +45,7 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 | 2 | B3 traceability + B2 simulation + A6 leftovers | 2.15.0 | 🔄 next |
 | 3 | B5 proactive repairs (2.16.0) + A4 form sections + A5 entry migration (2.16.1) | 2.16.x | ✅ done |
 | 4 | **B1 predictive pre-emption** + B6 adaptive polling + B7 Smart Life coexistence | 2.17.0 | ✅ done |
-| 5 | B4 learned charge curve + B12 session anomalies + B13 per-vehicle statistics | 2.18.0 | 🔄 next |
+| 5 | B4 learned charge curve (2.18.0) + B12 session anomalies + B13 per-vehicle statistics | 2.18.x | 🔄 B4 done |
 | 6 | B8 carbon intensity + B9 daily forecast + B10 Tempo/RTE + A3 `quality_scale.yaml` | 2.19.0+ | ⬜ |
 | 7 | B11 phase imbalance + B14 session receipt + B15 vehicle subentries | on demand | ⬜ |
 
@@ -70,7 +73,7 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 | **B1** ⭐⭐ | ✅ 2.17.0 | **Predictive pre-emption of the inverter cap.** 2.13.1 documented an honest limit: a cap is only as fast as its sensor, and a hob is +2 kW in under a second. But HA often knows *before* the meter — a hob switch, a smart plug turning on. Let the user name entities that announce a large load, with a wattage to reserve for each, and reduce the car immediately on the state change rather than on the measurement. Turns a physical limit into a solvable problem; nothing in the HA ecosystem does it. |
 | **B2** ⭐⭐ | ⬜ | **Simulation and replay.** Implement `dry_run_surplus` (A6): "given these sensor values, what would regulation do?", answered without writing to the charger. Plus a recording mode that logs decision inputs for offline replay. Turns "surplus won't start" reports into reproducible scenarios. Cheap now that the layer is pure. |
 | **B3** ⭐⭐ | ⬜ | **Decision traceability.** 39 reasons exist; the user sees one, last, untranslated (`load_limit_no_headroom`). Add a structured trace attribute — which gates ran, which one bound, with values — and translate the reasons. Makes surplus self-diagnosing instead of requiring a code read. |
-| **B4** ⭐⭐ | ⬜ | **Learned charge curve.** `_estimate_charge_power_kw` is deliberately pessimistic for want of anything better, so departure deadlines start charges too early. Session history (2.10.0) already stores duration, energy and power: derive the vehicle's real curve, taper included, per vehicle. No new data collection. |
+| **B4** ⭐⭐ | ✅ 2.18.0 | **Learned charge curve.** `_estimate_charge_power_kw` is deliberately pessimistic for want of anything better, so departure deadlines start charges too early. Session history (2.10.0) already stores duration, energy and power: derive the vehicle's real curve, taper included, per vehicle. No new data collection. |
 | **B5** ⭐ | ✅ 2.16.0 | **Proactive config repairs.** `repairs.py` exists. Detect the silent misconfigurations: an **inverted grid sensor sign** (detectable by correlation — car power up while the meter goes down), an inverter cap with no total-load sensor (protection inert), a price of 0 with the cost sensor enabled, a malformed off-peak window (skipped by design, invisibly), a departure time with no energy target. Each currently produces a user convinced the feature is broken. |
 | **B6** ⭐ | ✅ 2.17.0 | **Adaptive polling.** One local connection, polled every 30 s whether charging or asleep. Fast while charging (10 s, where regulation needs it), slow at rest, suspended in `SLEEP`. Less contention with the Smart Life app; `update_interval` is already adjustable at runtime. |
 | **B7** ⭐ | ✅ 2.17.0 | **Explicit Smart Life coexistence.** A switch or service that *releases* the local socket for N minutes so the phone app can be used, then resumes on its own. Today the only way is disabling the whole integration. |
