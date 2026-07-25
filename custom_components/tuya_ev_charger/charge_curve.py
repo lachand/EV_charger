@@ -209,7 +209,7 @@ class ChargeCurve:
             remaining -= step
             position += step
             if remaining <= 1e-9:
-                return int(round(minutes))
+                return round(minutes)
         return None
 
     def _highest_learnt_kwh(self) -> float | None:

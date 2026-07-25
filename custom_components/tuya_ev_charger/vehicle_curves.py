@@ -71,9 +71,12 @@ class VehicleChargeCurves:
         """
         if not self._dirty:
             return
-        if not force and self._last_saved_at is not None:
-            if now - self._last_saved_at < SAVE_INTERVAL_S:
-                return
+        if (
+            not force
+            and self._last_saved_at is not None
+            and now - self._last_saved_at < SAVE_INTERVAL_S
+        ):
+            return
         await self._store.async_save(
             {"curves": {name: curve.to_dict() for name, curve in self._curves.items()}}
         )
