@@ -45,6 +45,8 @@ from .const import (
 from .entity import TuyaEVChargerEntity
 from .helpers import allowed_currents
 
+PARALLEL_UPDATES = 1  # The charger accepts one local connection; writes are serialised.
+
 CURRENT_SETPOINT_DESCRIPTION = NumberEntityDescription(
     key="charge_current",
     translation_key="charge_current",

@@ -1,0 +1,107 @@
+# Home Assistant quality scale.
+#
+# Every `done` here was checked against the code, not assumed. The manifest
+# claimed `silver` for a long time with no file to back it; this is that file,
+# written honestly -- including the rules not yet met, marked `todo` with the gap,
+# and the ones that do not apply, marked `exempt` with the reason.
+#
+# Silver is met. The `todo`s are the road to gold.
+
+rules:
+  # --- Bronze ---------------------------------------------------------------
+  action-setup:
+    status: todo
+    comment: >-
+      Services are registered in async_setup_entry, not async_setup, so they do
+      not exist before an entry is configured. Every service targets a config
+      entry, so this is low-impact, but moving registration to async_setup is the
+      correct shape.
+  appropriate-polling: done  # Adaptive interval in polling.py: fast while regulating, slow asleep.
+  brands: done  # Local brand/ icon (HA 2026.3+), plus a conformance test.
+  common-modules: done  # coordinator.py and entity.py hold the shared coordinator and base entity.
+  config-flow: done  # Scan, cloud and manual paths, with reconfigure and reauth.
+  config-flow-test-coverage:
+    status: todo
+    comment: >-
+      The config flow has regression tests for the failures that reached users
+      (options-form serialisation, entity-picker defaults) but not the full
+      per-step coverage this rule asks for.
+  dependency-transparency: done  # Single documented dependency, tinytuya, pinned in the manifest.
+  docs-actions: done  # Every service documented in the README with a YAML example.
+  docs-conditions:
+    status: exempt
+    comment: The integration provides no conditions.
+  docs-high-level-description: done  # README opens with what it is and does.
+  docs-installation-instructions: done  # HACS install and the three setup paths.
+  docs-removal-instructions: done  # Reconfiguring section explains delete vs reconfigure.
+  docs-triggers: done  # The five device triggers are documented.
+  entity-event-setup: done  # The surplus controller subscribes/unsubscribes in start/shutdown.
+  entity-unique-id: done  # Every entity sets `_attr_unique_id` from the device id.
+  has-entity-name: done  # `_attr_has_entity_name = True` on the base entity.
+  runtime-data: done  # State lives in entry.runtime_data (TuyaEVChargerRuntimeData).
+  test-before-configure: done  # The config flow performs a real read before creating the entry.
+  test-before-setup: done  # async_setup_entry raises ConfigEntryNotReady on a failed first refresh.
+  unique-config-entry: done  # The device id is the unique id; a duplicate is aborted.
+
+  # --- Silver ---------------------------------------------------------------
+  action-exceptions: done  # Services raise ServiceValidationError / HomeAssistantError, not bare errors.
+  config-entry-unloading: done  # async_unload_entry unloads platforms and closes the socket.
+  docs-configuration-parameters: done  # The options are documented in the README Options table.
+  docs-installation-parameters: done  # The three setup paths document every field asked for.
+  entity-unavailable: done  # Entities follow the coordinator's availability.
+  integration-owner: done  # codeowners is set in the manifest.
+  log-when-unavailable: done  # The coordinator logs the fault, once, with the cause.
+  parallel-updates: done  # PARALLEL_UPDATES set on every platform: 0 read-only, 1 for writes.
+  reauthentication-flow: done  # A rotated local_key triggers async_step_reauth.
+  test-coverage:
+    status: todo
+    comment: >-
+      The decision layers and services are covered well (400+ tests), but eight
+      entity platforms -- switch, select, entity, repairs, time, binary_sensor,
+      button, discovery -- still have no direct tests. This is the main gap to
+      close before claiming the bar fully.
+
+  # --- Gold (the road ahead) ------------------------------------------------
+  devices: done  # Entities are grouped under one device via DeviceInfo.
+  diagnostics: done  # Redacted diagnostics, with a secret-redaction test.
+  discovery: done  # DHCP discovery is declared and handled.
+  discovery-update-info: done  # A new DHCP lease updates the stored host.
+  docs-data-update: done  # The polling behaviour is documented.
+  docs-examples: done  # Blueprints and service examples are shipped.
+  docs-known-limitations:
+    status: done
+    comment: >-
+      The README states the ones that matter: the tariff planner not applying
+      with surplus mode on, the inverter cap being only as fast as its sensor, and
+      the taper curve using delivered energy rather than SoC.
+  docs-supported-devices: done  # The Compatibility section lists confirmed models.
+  docs-supported-functions: done  # Exposed entities are documented.
+  docs-troubleshooting: done  # A Troubleshooting section exists.
+  docs-use-cases: done  # Surplus, load balancing, tariffs and departure are described.
+  dynamic-devices:
+    status: exempt
+    comment: One config entry is exactly one charger; there are no dynamically added devices.
+  entity-category: done  # Diagnostic and config entities carry the right category.
+  entity-device-class: done  # Power, energy, current and temperature entities set device classes.
+  entity-disabled-by-default: done  # Advanced and noisy entities are disabled by default.
+  entity-translations: done  # Entities use translation keys; states and the reason enum are translated.
+  exception-translations:
+    status: todo
+    comment: Service exceptions are raised with English messages, not translation keys.
+  icon-translations: done  # icons.json provides the entity icons.
+  reconfiguration-flow: done  # async_step_reconfigure changes address and credentials without deleting.
+  repair-issues: done  # Connection, config and charge-health problems raise actionable repairs.
+  stale-devices:
+    status: exempt
+    comment: The single device is the config entry; removing the entry removes it.
+
+  # --- Platinum -------------------------------------------------------------
+  async-dependency: done  # tinytuya calls run in a thread via asyncio.to_thread; the loop never blocks.
+  inject-websession:
+    status: exempt
+    comment: Local control uses tinytuya's own socket; the Tuya Cloud calls are made through tinytuya, not an injectable aiohttp session.
+  strict-typing:
+    status: todo
+    comment: >-
+      The code is type-hinted throughout but not checked: there is no mypy config
+      and no py.typed marker. Adding a strict mypy pass is the platinum gate.

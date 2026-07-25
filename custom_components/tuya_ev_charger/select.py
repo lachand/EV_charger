@@ -24,6 +24,8 @@ from .surplus_profiles import apply_surplus_profile, normalize_surplus_profile
 from .tuya_ev_charger import PLUG_IN_ACTION_OPTIONS
 from .vehicles import configured_vehicles
 
+PARALLEL_UPDATES = 1  # The charger accepts one local connection; writes are serialised.
+
 
 async def async_setup_entry(
     hass: HomeAssistant,

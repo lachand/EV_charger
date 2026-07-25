@@ -11,15 +11,16 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 
 ## Resume here
 
-- **Current version:** 2.19.0
-- **Phase in progress:** Phases 1–5 ✅ done. Remaining roadmap items: **phase 6** (B8 carbon
-  intensity, B9 daily forecast, B10 Tempo/RTE, A3 `quality_scale.yaml`) and **phase 7** (B11 phase
-  imbalance, B14 session receipt, B15 vehicle subentries).
-- **Next concrete action:** **A3**, `quality_scale.yaml`. The manifest claims `silver` with no file
-  to back it; writing the file honestly reveals the real gaps and maps the route to gold. It is also
-  the natural place to confront the biggest outstanding debt: **the 8 entity platforms with no tests**
-  (`switch` 181, `select` 139, `entity` 121, `repairs` 110, `time` 98, `binary_sensor` 85, `button`
-  78, `discovery` 66), which a serious quality-scale pass would require covering.
+- **Current version:** 2.20.0
+- **Phase in progress:** Phases 1–5 ✅ done. **A3 ✅ and A2 ✅** (2.20.0): quality_scale.yaml written,
+  every entity platform tested. Remaining roadmap items: **phase 6** (B8 carbon intensity, B9 daily
+  forecast, B10 Tempo/RTE) and **phase 7** (B11 phase imbalance, B14 session receipt, B15 vehicle
+  subentries).
+- **Next concrete action:** **B10 (Tempo/RTE)** is the most valuable remaining feature for French
+  users — a red Tempo day makes peak power prohibitive, and `charge_planner.py` already accepts
+  windows, so it is a matter of deriving them from a colour sensor. B8 (carbon intensity) and B9
+  (daily forecast) follow the same shape. The `todo`s left in `quality_scale.yaml` (services in
+  `async_setup`, strict typing, translated service exceptions) are the route to gold.
 - **Next concrete action:** **B3, decision traceability.** `charge_gates.py` now
   enumerates every reason as `DecisionReason`, so translating them (en/fr) and
   attaching a structured trace to `sensor.surplus_last_decision_reason` is
@@ -54,8 +55,8 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 | # | State | Finding |
 |---|---|---|
 | **A1** | ✅ 2.14.0 | The 2.5.0 refactor extracted the arithmetic but the orchestration kept growing: 1 197 → 1 425 lines, with `_async_evaluate_once` at 300 lines and 27 exit points. It had already cost the `force_charge_for` bug (2.13.1), guarded only by asserting on the method's *source text*. Now `charge_gates.py`: the order is a list, the timers are a passed-in `TimerState`, and one verdict per cycle. **300 → 31 lines; 25 duplicated exit blocks → 4.** |
-| **A2** | 🔄 partly 2.14.0 | Ten modules had no tests (~1 350 lines). Done: `surplus_profiles.py` (it rewrites the user's stored options — the riskiest of the set) and `number.py` (the current-write path). **Left:** `switch.py` 181, `select.py` 139, `entity.py` 121, `repairs.py` 110, `time.py` 98, `binary_sensor.py` 85, `button.py` 78, `discovery.py` 66. |
-| **A3** | ⬜ | `manifest.json` declares `quality_scale: silver` but `quality_scale.yaml` is absent — the file Home Assistant checks the claim against. Writing it honestly (marking `todo`/`exempt`) reveals the gaps mechanically and maps a route to gold. |
+| **A2** | ✅ 2.20.0 | Ten modules had no tests (~1 350 lines). Done: `surplus_profiles.py` (it rewrites the user's stored options — the riskiest of the set) and `number.py` (the current-write path). **Left:** `switch.py` 181, `select.py` 139, `entity.py` 121, `repairs.py` 110, `time.py` 98, `binary_sensor.py` 85, `button.py` 78, `discovery.py` 66. |
+| **A3** | ✅ 2.20.0 | `manifest.json` declares `quality_scale: silver` but `quality_scale.yaml` is absent — the file Home Assistant checks the claim against. Writing it honestly (marking `todo`/`exempt`) reveals the gaps mechanically and maps a route to gold. |
 | **A4** | ✅ 2.16.1 | 30 options in one flat screen. HA has supported collapsible `section`s since 2024.6; the data-driven `_OPTIONS_FORM` only needs a `section` field on `_Opt`. |
 | **A5** | ✅ 2.16.1 | `VERSION = 1` with no `async_migrate_entry`. Any change to `entry.data` would break existing installs with no net. |
 | **A6** | ⬜ | `SERVICE_DRY_RUN_SURPLUS` declared in `const.py`, registered nowhere — it survived the 2.4.0 purge. Also `DP_DO_RESET`, `DP_EARCH_FREE_CFG`, `DP_HEARTBEAT`, declared and unused. Implement rather than delete the first (see B2). |

@@ -13,6 +13,8 @@ from . import TuyaEVChargerRuntimeData
 from .const import CARD_ROLE_INDEX, CARD_ROLE_REGULATION_ACTIVE
 from .entity import TuyaEVChargerEntity
 
+PARALLEL_UPDATES = 0  # Read-only: values come from the shared coordinator, so nothing to serialise.
+
 
 async def async_setup_entry(
     hass: HomeAssistant,

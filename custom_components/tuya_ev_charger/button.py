@@ -13,6 +13,8 @@ from . import TuyaEVChargerRuntimeData
 from .const import CARD_ROLE_INDEX, CARD_ROLE_REBOOT, WORK_STATE_READY_TO_CHARGE
 from .entity import TuyaEVChargerEntity
 
+PARALLEL_UPDATES = 1  # The charger accepts one local connection; writes are serialised.
+
 LOGGER = logging.getLogger(__name__)
 
 

@@ -7,6 +7,24 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.20.0
+
+- **`quality_scale.yaml`, written honestly.** The manifest had claimed `silver`
+  for a long time with no file to back the claim. This is that file, every rule
+  checked against the code: all 20 bronze and 10 silver rules met, with the five
+  genuine gaps marked `todo` (services registered per-entry rather than in
+  `async_setup`, full config-flow test coverage, the entity-platform tests below,
+  translated service exceptions, and strict typing) and the inapplicable rules
+  marked `exempt`. It also maps the road to gold and platinum.
+- **`PARALLEL_UPDATES` on every platform** — 0 on the read-only ones, 1 on the
+  writing ones, since the charger accepts a single local connection.
+- **The eight untested entity platforms now have tests** (~880 lines that had
+  none): switch, select, button, time, binary_sensor, entity, repairs and
+  discovery. The write paths get the most attention — the write-skip that avoids
+  a needless beep, the failure that must raise rather than be swallowed, and the
+  schedule write that must preserve the other end of the window.
+- Suite: 439 → **485 tests**.
+
 ## 2.19.0
 
 - **The charge curve, taper included.** 2.18.0 learned a single rate; this records

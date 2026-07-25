@@ -16,6 +16,8 @@ from .const import (
 )
 from .entity import TuyaEVChargerEntity
 
+PARALLEL_UPDATES = 1  # The charger accepts one local connection; writes are serialised.
+
 
 async def async_setup_entry(
     hass: HomeAssistant,

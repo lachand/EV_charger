@@ -55,6 +55,8 @@ from .tuya_ev_charger import (
 )
 from .vehicles import configured_vehicles
 
+PARALLEL_UPDATES = 0  # Read-only: values come from the shared coordinator, so nothing to serialise.
+
 
 @dataclass(frozen=True, kw_only=True)
 class TuyaEVChargerSensorDescription(SensorEntityDescription):
