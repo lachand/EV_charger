@@ -427,6 +427,14 @@
     "grid_sensor_sign_inverted": {
       "title": "The grid sensor's sign looks inverted",
       "description": "The grid reading consistently falls when the car draws more, which is the opposite of what an import-positive meter does. Left as is, surplus regulation chases its own tail and load balancing computes more headroom than your supply has. Tick **Invert grid sensor sign** in the integration's options. If your setup is genuinely unusual and the reading is correct, this notice can be ignored."
+    },
+    "charging_slower_than_usual": {
+      "title": "Charging slower than this car usually does",
+      "description": "Several recent sessions have charged well below the fastest rate this car has demonstrated before. That can mean a connector or cable making poorer contact, a derating contactor, or a plug heating up. Worth checking the cable and the connector; the notice clears itself once a normal-speed session is recorded. If you have simply been charging on solar surplus lately, it is nothing to worry about."
+    },
+    "repeated_short_sessions": {
+      "title": "Several charges in a row ended early",
+      "description": "The last few sessions each delivered far less energy than this car's usual charge, which can point to a cable dropping the connection or the car stopping the session itself. If the charges were meant to be short, this can be ignored; otherwise check the cable seating. The notice clears once a full session is recorded."
     }
   },
   "services": {

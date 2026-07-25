@@ -103,3 +103,149 @@ def planning_power_kw(
     if theoretical_kw <= 0:
         return learned_kw
     return min(theoretical_kw, learned_kw)
+
+
+# --- the taper curve -------------------------------------------------------
+#
+# The learned *rate* above answers "how fast, on average". It cannot answer "how
+# much longer once the battery is nearly full", because a charge tapers: the last
+# few kWh come far slower than the first. Modelling that needs the instantaneous
+# power against how much has already been delivered, which the controller has on
+# every poll -- so this records power in buckets of delivered energy and, over
+# many sessions, draws the car's actual curve.
+#
+# The x-axis is energy delivered in the session, not state of charge, because SoC
+# is not available on most setups. Sessions that start at different SoC therefore
+# blur the curve, but the shape it reveals -- high and flat, then falling -- is
+# real and is what makes a remaining-time estimate honest near the top.
+
+# Delivered-energy bucket width. Fine enough to show a taper, coarse enough that a
+# bucket fills within a handful of sessions.
+BUCKET_KWH = 2.0
+# Ignore readings below this: regulation and surplus deliberately charge slowly,
+# and a 0-power sample between phases would drag a bucket down.
+MIN_SAMPLE_KW = 0.3
+# Recent sessions weigh more, so a battery that ages, or a swapped car, is
+# followed rather than averaged with history forever.
+SAMPLE_ALPHA = 0.2
+# A bucket needs a few samples before it is drawn, for the same reason a single
+# session is not a curve.
+MIN_BUCKET_SAMPLES = 3
+
+
+def _bucket_index(delivered_kwh: float) -> int:
+    return int(max(0.0, delivered_kwh) // BUCKET_KWH)
+
+
+class ChargeCurve:
+    """Power the car draws as a function of energy already delivered.
+
+    Buckets keyed by delivered-energy index; each holds an exponential moving
+    average of the power seen there and a sample count. Pure and serialisable, so
+    it can be persisted per vehicle and exercised without Home Assistant.
+    """
+
+    __slots__ = ("_count", "_ema")
+
+    def __init__(
+        self,
+        ema: dict[int, float] | None = None,
+        count: dict[int, int] | None = None,
+    ) -> None:
+        self._ema: dict[int, float] = dict(ema or {})
+        self._count: dict[int, int] = dict(count or {})
+
+    def record(self, delivered_kwh: float, power_kw: float) -> None:
+        """Add one (delivered, power) reading to its bucket."""
+        if power_kw < MIN_SAMPLE_KW:
+            return
+        index = _bucket_index(delivered_kwh)
+        seen = self._ema.get(index)
+        if seen is None:
+            self._ema[index] = power_kw
+        else:
+            self._ema[index] = seen + (power_kw - seen) * SAMPLE_ALPHA
+        self._count[index] = self._count.get(index, 0) + 1
+
+    def power_at(self, delivered_kwh: float) -> float | None:
+        """Modelled power at a delivered-energy point, or None if not yet learnt.
+
+        Falls back to the nearest lower learnt bucket, so a gap between two filled
+        buckets does not read as "unknown".
+        """
+        index = _bucket_index(delivered_kwh)
+        for candidate in range(index, -1, -1):
+            if self._count.get(candidate, 0) >= MIN_BUCKET_SAMPLES:
+                return self._ema[candidate]
+        return None
+
+    def minutes_for(self, from_kwh: float, added_kwh: float) -> int | None:
+        """Time to add ``added_kwh`` starting from ``from_kwh`` already delivered.
+
+        Integrates the curve bucket by bucket, so a charge finishing in the taper
+        is correctly estimated as taking longer than its flat-rate equivalent.
+        Returns None when the curve does not cover the range asked for, so the
+        caller falls back to the flat rate rather than trusting an extrapolation:
+        the taper beyond the highest bucket we have seen is exactly what we do not
+        know, and guessing it flat would defeat the purpose.
+        """
+        if added_kwh <= 0:
+            return 0
+        top = self._highest_learnt_kwh()
+        if top is None or from_kwh + added_kwh > top:
+            return None
+        remaining = added_kwh
+        position = max(0.0, from_kwh)
+        minutes = 0.0
+        # Bound the walk so a curve that never covers the range cannot loop.
+        for _ in range(1000):
+            power = self.power_at(position)
+            if power is None or power <= 0:
+                return None
+            # How far to the next bucket boundary, capped by what is left to add.
+            to_boundary = BUCKET_KWH - (position % BUCKET_KWH)
+            step = min(remaining, to_boundary)
+            minutes += (step / power) * 60.0
+            remaining -= step
+            position += step
+            if remaining <= 1e-9:
+                return int(round(minutes))
+        return None
+
+    def _highest_learnt_kwh(self) -> float | None:
+        """Top of the highest sufficiently-sampled bucket, or None if empty.
+
+        This is the edge of what has actually been observed; `minutes_for` will
+        not integrate past it.
+        """
+        learnt = [i for i, n in self._count.items() if n >= MIN_BUCKET_SAMPLES]
+        if not learnt:
+            return None
+        return (max(learnt) + 1) * BUCKET_KWH
+
+    def points(self) -> list[dict[str, float]]:
+        """The learnt curve, for display: delivered-energy against power."""
+        return [
+            {"delivered_kwh": round(index * BUCKET_KWH, 1), "power_kw": round(self._ema[index], 3)}
+            for index in sorted(self._ema)
+            if self._count.get(index, 0) >= MIN_BUCKET_SAMPLES
+        ]
+
+    @property
+    def sample_count(self) -> int:
+        return sum(self._count.values())
+
+    def to_dict(self) -> dict[str, Any]:
+        # String keys, because JSON stores have no integer keys.
+        return {
+            "ema": {str(k): round(v, 4) for k, v in self._ema.items()},
+            "count": {str(k): v for k, v in self._count.items()},
+        }
+
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any] | None) -> ChargeCurve:
+        if not raw:
+            return cls()
+        ema = {int(k): float(v) for k, v in (raw.get("ema") or {}).items()}
+        count = {int(k): int(v) for k, v in (raw.get("count") or {}).items()}
+        return cls(ema, count)

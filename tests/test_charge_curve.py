@@ -153,3 +153,114 @@ def test_the_end_to_end_effect_on_a_deadline():
 
     assert assumed == pytest.approx(162, abs=2)
     assert informed > assumed * 1.9, "the learned plan must allow roughly twice as long"
+
+
+# --- the taper curve -------------------------------------------------------
+
+
+def _curve():
+    from tuya_ev_charger.charge_curve import ChargeCurve
+
+    return ChargeCurve()
+
+
+def _teach(curve, samples, *, repeat=5):
+    """Feed (delivered_kwh, power_kw) pairs enough times to fill their buckets."""
+    for _ in range(repeat):
+        for delivered, power in samples:
+            curve.record(delivered, power)
+    return curve
+
+
+def test_a_bucket_needs_several_samples_before_it_is_trusted():
+    from tuya_ev_charger.charge_curve import MIN_BUCKET_SAMPLES
+
+    curve = _curve()
+    for _ in range(MIN_BUCKET_SAMPLES - 1):
+        curve.record(1.0, 7.0)
+    assert curve.power_at(1.0) is None
+
+    curve.record(1.0, 7.0)
+    assert curve.power_at(1.0) == pytest.approx(7.0)
+
+
+def test_the_curve_captures_a_taper():
+    """High and flat, then falling: exactly what a filling battery does."""
+    curve = _teach(
+        _curve(),
+        [(1.0, 7.4), (5.0, 7.4), (9.0, 7.4), (13.0, 4.0), (15.0, 2.0)],
+    )
+    assert curve.power_at(1.0) == pytest.approx(7.4, abs=0.1)
+    assert curve.power_at(13.0) == pytest.approx(4.0, abs=0.3)
+    assert curve.power_at(15.0) == pytest.approx(2.0, abs=0.3)
+    # The shape falls, it does not rise.
+    assert curve.power_at(15.0) < curve.power_at(1.0)
+
+
+def test_low_power_samples_are_ignored():
+    """A 0-power reading between phases, or a deliberate 6 A surplus session, must
+    not drag the modelled capability down."""
+    from tuya_ev_charger.charge_curve import MIN_SAMPLE_KW
+
+    curve = _curve()
+    for _ in range(10):
+        curve.record(1.0, MIN_SAMPLE_KW - 0.1)
+    assert curve.power_at(1.0) is None
+
+
+def test_a_gap_between_buckets_falls_back_to_the_last_known_power():
+    curve = _curve()
+    _teach(curve, [(1.0, 7.0)])  # only the first bucket is filled
+    # 5 kWh delivered has no bucket of its own yet; use the last one learnt.
+    assert curve.power_at(5.0) == pytest.approx(7.0)
+
+
+def test_minutes_for_a_flat_curve_matches_the_simple_calculation():
+    curve = _teach(_curve(), [(d, 7.4) for d in (1.0, 3.0, 5.0, 7.0, 9.0)])
+    # 7.4 kWh at a flat 7.4 kW is one hour.
+    assert curve.minutes_for(0.0, 7.4) == pytest.approx(60, abs=2)
+
+
+def test_minutes_for_charges_in_the_taper_take_longer():
+    """The whole point: finishing near the top is slower than the flat rate says."""
+    curve = _teach(
+        _curve(),
+        [(1.0, 7.0), (3.0, 7.0), (5.0, 7.0), (11.0, 2.0), (13.0, 2.0), (15.0, 2.0)],
+    )
+    # Adding 6 kWh from empty is mostly at 7 kW.
+    from_bottom = curve.minutes_for(0.0, 6.0)
+    # Adding 6 kWh starting already at 10 kWh delivered is mostly in the 2 kW taper.
+    from_top = curve.minutes_for(10.0, 6.0)
+    assert from_top > from_bottom * 2
+
+
+def test_minutes_for_returns_none_when_the_curve_does_not_cover_the_range():
+    """Better to defer to the flat rate than integrate over unknown buckets."""
+    curve = _teach(_curve(), [(1.0, 7.0)])
+    assert curve.minutes_for(20.0, 5.0) is None
+
+
+def test_the_curve_survives_serialisation():
+    curve = _teach(_curve(), [(1.0, 7.4), (13.0, 3.0)])
+    from tuya_ev_charger.charge_curve import ChargeCurve
+
+    revived = ChargeCurve.from_dict(curve.to_dict())
+    assert revived.power_at(1.0) == pytest.approx(curve.power_at(1.0))
+    assert revived.power_at(13.0) == pytest.approx(curve.power_at(13.0))
+    assert revived.points() == curve.points()
+
+
+def test_points_lists_only_filled_buckets_in_order():
+    curve = _curve()
+    _teach(curve, [(1.0, 7.0), (13.0, 3.0)])
+    curve.record(5.0, 6.0)  # a single sample, not enough
+    points = curve.points()
+    assert [p["delivered_kwh"] for p in points] == [0.0, 12.0]
+
+
+def test_recent_sessions_move_the_curve():
+    """A car swapped for a slower one must be followed, not averaged forever."""
+    curve = _teach(_curve(), [(1.0, 7.4)], repeat=10)
+    for _ in range(40):
+        curve.record(1.0, 3.0)
+    assert curve.power_at(1.0) < 5.0

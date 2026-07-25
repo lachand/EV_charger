@@ -71,6 +71,27 @@ def async_sync_config_problems(
             async_clear(hass, entry_id, problem.value)
 
 
+def async_sync_session_anomalies(
+    hass: HomeAssistant,
+    entry_id: str,
+    anomalies: list[str],
+) -> None:
+    """Raise a repair per detected charge anomaly, and clear the resolved ones.
+
+    Cleared as well as raised, so a charger that recovers -- a reseated cable, a
+    cooled connector -- drops its notice on the next healthy session rather than
+    keeping a stale alarm.
+    """
+    from .session_anomaly import SessionAnomaly
+
+    active = set(anomalies)
+    for anomaly in SessionAnomaly:
+        if anomaly.value in active:
+            async_raise(hass, entry_id, anomaly.value)
+        else:
+            async_clear(hass, entry_id, anomaly.value)
+
+
 def async_offer_entity_cleanup(hass: HomeAssistant, entry_id: str, count: int) -> None:
     """Offer to hide advanced entities an existing install already registered.
 

@@ -10,6 +10,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
+from .charge_curve import learned_power_kw
 from .charge_planner import parse_windows
 from .cloud import TuyaCloudError, async_fetch_local_key
 from .const import (
@@ -31,7 +32,13 @@ from .const import (
 )
 from .discovery import async_scan_devices_by_id
 from .polling import poll_interval_s
-from .repairs import ISSUE_CONNECTION_REFUSED, async_clear, async_raise
+from .repairs import (
+    ISSUE_CONNECTION_REFUSED,
+    async_clear,
+    async_raise,
+    async_sync_session_anomalies,
+)
+from .session_anomaly import detect_anomalies, typical_energy_kwh
 from .session_costing import session_cost, split_session
 from .session_history import SessionRecord
 from .tuya_ev_charger import EVMetrics, TuyaEVChargerClient
@@ -69,6 +76,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         # Set by async_setup_entry once storage has been loaded.
         self.vehicle_tracker: Any = None
         self.session_history: Any = None
+        self.vehicle_curves: Any = None
         # The charger's stored last session is only logged from the *second*
         # sighting onward: see _async_log_completed_session.
         self._session_log_primed = False
@@ -304,6 +312,10 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         """
         await self._async_track_vehicle_energy(metrics)
         await self._async_log_completed_session(metrics)
+        if self.vehicle_curves is not None:
+            # Rate-limited inside; a charge samples every few seconds but the store
+            # is written at most every few minutes.
+            await self.vehicle_curves.async_flush(self.hass.loop.time())
 
     async def _async_log_completed_session(self, metrics: EVMetrics) -> None:
         """Append DP 105 to the session log when it describes a new session.
@@ -323,6 +335,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
                 await history.async_record(
                     self._build_session_record(metrics, duration_s, energy_kwh)
                 )
+                self._async_check_session_anomalies()
             else:
                 # First successful poll of this run: the charger's stored session
                 # may predate it by weeks, and logging it would invent a session
@@ -332,6 +345,29 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
             LOGGER.debug("Session logging failed: %s", err)
         finally:
             self._session_log_primed = True
+
+    def _async_check_session_anomalies(self) -> None:
+        """Surface a degrading charge as a repair notice, after a new session.
+
+        Best-effort: an accounting glitch here must not disturb the poll loop.
+        """
+        history = self.session_history
+        if history is None:
+            return
+        try:
+            tracker = self.vehicle_tracker
+            vehicle = tracker.active_vehicle if tracker is not None else None
+            sessions = history.sessions
+            anomalies = detect_anomalies(
+                sessions,
+                established_best_kw=learned_power_kw(sessions, vehicle=vehicle),
+                typical_energy_kwh=typical_energy_kwh(sessions),
+            )
+            async_sync_session_anomalies(
+                self.hass, self.entry.entry_id, [a.value for a in anomalies]
+            )
+        except Exception as err:  # pragma: no cover - never break the poll loop
+            LOGGER.debug("Session anomaly check failed: %s", err)
 
     def _build_session_record(
         self, metrics: EVMetrics, duration_s: int, energy_kwh: float

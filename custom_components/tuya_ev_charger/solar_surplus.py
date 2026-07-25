@@ -831,16 +831,55 @@ class SolarSurplusController:
             return None
 
         target_kwh = float(self._settings.departure_energy_kwh)
+        needed_kwh = max(0.0, target_kwh - self._session_energy_kwh)
         return plan_charge(
             PlanRequest(
                 now=dt_util.now(),
                 off_peak_windows=windows,
                 departure=parse_clock(self._settings.departure_time),
                 # Only what is still missing counts towards the deadline.
-                energy_needed_kwh=max(0.0, target_kwh - self._session_energy_kwh),
-                charge_power_kw=self._estimate_charge_power_kw(data, available_currents),
+                energy_needed_kwh=needed_kwh,
+                charge_power_kw=self._planning_power_kw(data, available_currents, needed_kwh),
             )
         )
+
+    def _planning_power_kw(
+        self,
+        data: EVMetrics,
+        available_currents: tuple[int, ...],
+        needed_kwh: float,
+    ) -> float:
+        """The power to plan a deadline against, taper included where known.
+
+        The flat rate answers "how fast on average"; the curve answers "how much
+        longer once the battery is nearly full", which is what makes a plan honest
+        when a lot of energy is needed. When the curve covers the range, the time
+        it integrates is folded back into an effective power the planner consumes
+        unchanged. Otherwise the flat learned rate stands.
+        """
+        flat_kw = self._estimate_charge_power_kw(data, available_currents)
+        if needed_kwh <= 0:
+            return flat_kw
+
+        curve = self._active_charge_curve()
+        if curve is None:
+            return flat_kw
+        minutes = curve.minutes_for(self._session_energy_kwh, needed_kwh)
+        if minutes is None or minutes <= 0:
+            return flat_kw
+
+        taper_kw = needed_kwh / (minutes / 60.0)
+        # The taper only ever slows things down; never let it claim the car is
+        # faster than the flat estimate, for the same reason learning may not.
+        return min(flat_kw, taper_kw) if flat_kw > 0 else taper_kw
+
+    def _active_charge_curve(self):
+        curves = getattr(self._coordinator, "vehicle_curves", None)
+        if curves is None:
+            return None
+        tracker = getattr(self._coordinator, "vehicle_tracker", None)
+        vehicle = tracker.active_vehicle if tracker is not None else None
+        return curves.curve_for(vehicle)
 
     def _estimate_charge_power_kw(
         self,
@@ -1111,8 +1150,27 @@ class SolarSurplusController:
         if elapsed_s <= 0:
             return
 
-        session_increment_kwh = (_ev_power_w(data) / 1000.0) * (elapsed_s / 3600.0)
+        power_kw = _ev_power_w(data) / 1000.0
+        session_increment_kwh = power_kw * (elapsed_s / 3600.0)
         self._session_energy_kwh += max(0.0, session_increment_kwh)
+        self._record_curve_sample(power_kw)
+
+    def _record_curve_sample(self, power_kw: float) -> None:
+        """Feed one (delivered, power) reading into this car's charge curve.
+
+        Records against energy delivered *before* this increment, so a bucket
+        holds the power seen while at that fill level. Best-effort: learning a
+        curve must never disturb the charge it is watching.
+        """
+        curves = getattr(self._coordinator, "vehicle_curves", None)
+        if curves is None:
+            return
+        tracker = getattr(self._coordinator, "vehicle_tracker", None)
+        vehicle = tracker.active_vehicle if tracker is not None else None
+        try:
+            curves.record(vehicle, self._session_energy_kwh, power_kw)
+        except Exception as err:  # pragma: no cover - accounting must not break regulation
+            LOGGER.debug("Could not record a charge-curve sample: %s", err)
 
     def _set_decision(self, reason: str) -> None:
         self._last_decision_reason = reason

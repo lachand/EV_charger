@@ -378,6 +378,14 @@ async def async_setup_entry(
         TuyaEVChargerVehicleEnergySensor(entry, runtime_data, vehicle)
         for vehicle in configured_vehicles(entry.options.get(CONF_VEHICLES, DEFAULT_VEHICLES))
     )
+    entities.extend(
+        TuyaEVChargerChargeCurveSensor(entry, runtime_data, vehicle)
+        for vehicle in configured_vehicles(entry.options.get(CONF_VEHICLES, DEFAULT_VEHICLES))
+    )
+    # A single-car setup names no vehicles but still learns a curve under the
+    # default key; give it one sensor so that curve is visible too.
+    if not configured_vehicles(entry.options.get(CONF_VEHICLES, DEFAULT_VEHICLES)):
+        entities.append(TuyaEVChargerChargeCurveSensor(entry, runtime_data, None))
     entities.append(TuyaEVChargerConnectionHealthSensor(entry, runtime_data))
     entities.append(TuyaEVChargerLastSessionCostSensor(entry, runtime_data))
     entities.append(TuyaEVChargerSessionHistorySensor(entry, runtime_data))
@@ -527,6 +535,56 @@ class TuyaEVChargerVehicleEnergySensor(TuyaEVChargerEntity, SensorEntity):
         if tracker is None:
             return None
         return tracker.total_for(self._vehicle)
+
+
+class TuyaEVChargerChargeCurveSensor(TuyaEVChargerEntity, SensorEntity):
+    """The car's learned charge curve: its best observed power, with the full
+    delivered-energy-versus-power shape in the attributes.
+
+    Disabled by default -- the curve is a diagnostic for the departure planner and
+    a nicety to plot, not something most dashboards need.
+    """
+
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
+    _attr_suggested_display_precision = 2
+
+    def __init__(
+        self,
+        entry: ConfigEntry,
+        runtime_data: TuyaEVChargerRuntimeData,
+        vehicle: str | None,
+    ) -> None:
+        super().__init__(entry=entry, runtime_data=runtime_data)
+        self._vehicle = vehicle
+        label = vehicle or "car"
+        self._attr_name = f"{label} charge curve"
+        slug = re.sub(r"[^a-z0-9_]+", "_", label.lower()).strip("_")
+        self._attr_unique_id = f"{runtime_data.client.device_id}_charge_curve_{slug}"
+
+    def _points(self) -> list[dict[str, float]]:
+        curves = self._runtime_data.vehicle_curves
+        if curves is None:
+            return []
+        return curves.points_for(self._vehicle)
+
+    @property
+    def native_value(self) -> float | None:
+        """The peak of the learned curve -- what this car does at its best."""
+        points = self._points()
+        if not points:
+            return None
+        return max(point["power_kw"] for point in points)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        points = self._points()
+        if not points:
+            return None
+        return {"curve": points}
 
 
 class TuyaEVChargerSensor(TuyaEVChargerEntity, SensorEntity):

@@ -7,6 +7,27 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.19.0
+
+- **The charge curve, taper included.** 2.18.0 learned a single rate; this records
+  the instantaneous power against energy already delivered, so it captures the
+  taper — the last kWh arriving slower than the first. A departure needing a lot of
+  energy is planned against the integrated curve rather than a flat rate, and each
+  vehicle's curve is exposed as a diagnostic sensor (disabled by default) with the
+  full shape in its attributes. The curve integration refuses to extrapolate past
+  what it has actually observed, falling back to the flat rate there.
+- **Charge-health anomalies (B12).** Several recent sessions charging well below
+  the car's established best, or a run of charges each cutting short, now raise a
+  repair notice — a degrading cable, connector or contactor shows up in the history
+  first. Deliberately conservative: several agreeing sessions are required, and the
+  notice clears itself once a healthy session is recorded.
+- **Per-vehicle long-term statistics (B13).** Confirmed and pinned by test: the
+  per-vehicle energy sensors are proper energy meters, so the recorder already
+  keeps their history and they work in the Energy dashboard. (Retroactive import of
+  pre-existing sessions was left out: it needs the recorder API, cannot be tested
+  under the stub harness, and adds little over the automatic history.)
+- Suite: 409 → **439 tests**.
+
 ## 2.18.0
 
 - **Departure planning learns what the car actually achieves.** The estimate used

@@ -11,17 +11,15 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 
 ## Resume here
 
-- **Current version:** 2.18.0
-- **Phase in progress:** Phases 1–4 ✅ done, phase 5 partly: **B4 ✅**. Left in phase 5: **B12**
-  (session anomalies) and **B13** (per-vehicle long-term statistics), both also drawing on the stored
-  session history.
-- **Next concrete action:** **B12**, session anomalies. `charge_curve.session_average_kw` already
-  turns a record into a comparable rate, so "this session charged far slower than usual" is a
-  comparison against the learned figure — a degrading cable or contactor, surfaced as a repair
-  notice using the machinery added in 2.16.0.
-- **Still outstanding, unrelated to the phases:** the 8 entity platforms with no tests (`switch` 181,
-  `select` 139, `entity` 121, `repairs` 110, `time` 98, `binary_sensor` 85, `button` 78,
-  `discovery` 66).
+- **Current version:** 2.19.0
+- **Phase in progress:** Phases 1–5 ✅ done. Remaining roadmap items: **phase 6** (B8 carbon
+  intensity, B9 daily forecast, B10 Tempo/RTE, A3 `quality_scale.yaml`) and **phase 7** (B11 phase
+  imbalance, B14 session receipt, B15 vehicle subentries).
+- **Next concrete action:** **A3**, `quality_scale.yaml`. The manifest claims `silver` with no file
+  to back it; writing the file honestly reveals the real gaps and maps the route to gold. It is also
+  the natural place to confront the biggest outstanding debt: **the 8 entity platforms with no tests**
+  (`switch` 181, `select` 139, `entity` 121, `repairs` 110, `time` 98, `binary_sensor` 85, `button`
+  78, `discovery` 66), which a serious quality-scale pass would require covering.
 - **Next concrete action:** **B3, decision traceability.** `charge_gates.py` now
   enumerates every reason as `DecisionReason`, so translating them (en/fr) and
   attaching a structured trace to `sensor.surplus_last_decision_reason` is
@@ -45,7 +43,7 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 | 2 | B3 traceability + B2 simulation + A6 leftovers | 2.15.0 | 🔄 next |
 | 3 | B5 proactive repairs (2.16.0) + A4 form sections + A5 entry migration (2.16.1) | 2.16.x | ✅ done |
 | 4 | **B1 predictive pre-emption** + B6 adaptive polling + B7 Smart Life coexistence | 2.17.0 | ✅ done |
-| 5 | B4 learned charge curve (2.18.0) + B12 session anomalies + B13 per-vehicle statistics | 2.18.x | 🔄 B4 done |
+| 5 | B4 learned curve (2.18.0) + taper, B12 anomalies, B13 statistics (2.19.0) | 2.19.0 | ✅ done |
 | 6 | B8 carbon intensity + B9 daily forecast + B10 Tempo/RTE + A3 `quality_scale.yaml` | 2.19.0+ | ⬜ |
 | 7 | B11 phase imbalance + B14 session receipt + B15 vehicle subentries | on demand | ⬜ |
 
@@ -81,8 +79,8 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 | **B9** | ⬜ | **Daily-forecast planning.** The solar forecast is only an anti-drop guard (500 W). A day-ahead view can decide *when* to charge: wait for the production peak, or charge early if the afternoon looks cloudy. |
 | **B10** | ⬜ | **Real French tariffs (Tempo / RTE).** Configurable off-peak windows cover the common case, but Tempo's blue/white/red days change everything: on a red day the peak price is prohibitive. RTE Tempo integrations exist in HACS; accept a colour sensor and modulate. |
 | **B11** | ⬜ | **Phase-imbalance detection.** L1/L2/L3 are already decoded. A persistent imbalance on a three-phase charger points at wiring or the vehicle. Nobody exposes it; an installer would value it. |
-| **B12** | ⬜ | **Session anomalies.** From the stored history: "this session charged far slower than usual" (degrading contactor or cable), "three interrupted sessions in a row", "energy delivered falling at equal current". Predictive maintenance from data already on disk. |
-| **B13** | ⬜ | **Per-vehicle long-term statistics.** The per-vehicle sensors are `total_increasing` but do not land properly in the Energy dashboard. `async_add_external_statistics` would give a correct per-car history, retroactively included. |
+| **B12** | ✅ 2.19.0 | **Session anomalies.** From the stored history: "this session charged far slower than usual" (degrading contactor or cable), "three interrupted sessions in a row", "energy delivered falling at equal current". Predictive maintenance from data already on disk. |
+| **B13** | ✅ 2.19.0 | **Per-vehicle long-term statistics.** The per-vehicle sensors are `total_increasing` but do not land properly in the Energy dashboard. `async_add_external_statistics` would give a correct per-car history, retroactively included. |
 | **B14** | ⬜ | **Session receipt.** End-of-charge notification or markdown entity: energy, duration, off-peak/peak split, estimated cost, vehicle. Every field exists since 2.10.0. Useful for expense claims or splitting a bill between flatmates. |
 | **B15** | ⬜ | **Vehicle subentries.** `ConfigSubentryFlow` (HA 2025+): one vehicle = one subentry with its capacity, minimum current and learned curve (B4). Replaces the comma-separated `vehicles` list, which cannot carry per-car settings. |
 

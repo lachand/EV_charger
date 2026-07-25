@@ -268,13 +268,21 @@ nothing, since there is no way to know how long the charge takes.
 Malformed windows are ignored rather than fatal, so a typo narrows the schedule
 instead of breaking the integration.
 
-The time needed is estimated from what **your car** has actually achieved, not
-from the charger's rating. A vehicle limited to 3.7 kW on a 7.4 kW charger would
+The time needed is estimated from your car's own **charge curve**, learned from
+past sessions, not from the charger's rating. A vehicle limited to 3.7 kW on a 7.4 kW charger would
 otherwise have its charging time halved and be started hours too late to meet the
 deadline. Learning kicks in after three usable sessions, is tracked per vehicle,
 and may only ever *lengthen* the plan — a stray record can never shorten it and
 put the departure at risk. While a charge is running the live measurement is used
 instead, since nothing beats it.
+
+Because the instantaneous power is recorded against how much has already been
+delivered, the curve captures the **taper** — the way the last kWh come in slower
+than the first as the battery fills. A departure that needs a lot of energy is
+then planned honestly, allowing for that slow tail rather than assuming a flat
+rate to the end. Each vehicle's curve is exposed as a diagnostic sensor
+(`sensor.<car>_charge_curve`, disabled by default) with the full shape in its
+attributes, so it can be plotted.
 
 **Current limitation:** the planner applies when surplus mode is **off**. With
 surplus mode on, surplus regulation decides alone and the off-peak schedule is

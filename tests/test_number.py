@@ -174,3 +174,19 @@ def test_the_reported_value_tracks_the_charger():
 
     entity.coordinator.data = _metrics(current_target=None)
     assert entity.native_value is None
+
+
+# --- long-term statistics eligibility (B13) --------------------------------
+
+
+def test_vehicle_energy_sensors_qualify_for_long_term_statistics():
+    """Per-vehicle energy already feeds the Energy dashboard and long-term
+    statistics: an ENERGY sensor with TOTAL_INCREASING and a kWh unit is picked
+    up by the recorder automatically. This pins that contract, since dropping the
+    state class would silently remove the per-vehicle history without any error.
+    """
+    from tuya_ev_charger.sensor import TuyaEVChargerVehicleEnergySensor as V
+
+    assert str(V._attr_device_class) == "energy"
+    assert str(V._attr_state_class) == "total_increasing"
+    assert str(V._attr_native_unit_of_measurement) == "kWh"

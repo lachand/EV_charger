@@ -582,3 +582,18 @@ def test_a_current_entry_migrates_cleanly():
 
     entry = types.SimpleNamespace(version=CONFIG_ENTRY_VERSION, title="test")
     assert asyncio.run(integration.async_migrate_entry(None, entry)) is True
+
+
+def test_every_session_anomaly_has_a_translated_repair_notice():
+    """An untranslated anomaly would show as a raw key in Settings > Repairs."""
+    from tuya_ev_charger.session_anomaly import SessionAnomaly
+
+    anomalies = {a.value for a in SessionAnomaly}
+    for name in ("strings.json", "translations/en.json", "translations/fr.json"):
+        payload = json.loads((COMPONENT / name).read_text(encoding="utf-8"))
+        issues = payload.get("issues", {})
+        missing = sorted(anomalies - set(issues))
+        assert not missing, f"{name} is missing anomaly notices for {missing}"
+        for key in anomalies:
+            assert issues[key].get("title"), f"{name}: {key} has no title"
+            assert issues[key].get("description"), f"{name}: {key} has no description"

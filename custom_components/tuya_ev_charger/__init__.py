@@ -59,6 +59,7 @@ from .surplus_profiles import (
     normalize_surplus_profile,
 )
 from .tuya_ev_charger import TuyaEVChargerClient
+from .vehicle_curves import VehicleChargeCurves
 from .vehicles import VehicleEnergyTracker, configured_vehicles
 
 LOGGER = logging.getLogger(__name__)
@@ -141,6 +142,7 @@ class TuyaEVChargerRuntimeData:
     solar_surplus_controller: SolarSurplusController | None = None
     vehicle_tracker: VehicleEnergyTracker | None = None
     session_history: SessionHistory | None = None
+    vehicle_curves: VehicleChargeCurves | None = None
 
 
 def _scan_interval_seconds(entry: ConfigEntry) -> int:
@@ -247,6 +249,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await session_history.async_load()
     runtime_data.session_history = session_history
     coordinator.session_history = session_history
+
+    vehicle_curves = VehicleChargeCurves(hass, entry.entry_id)
+    await vehicle_curves.async_load()
+    runtime_data.vehicle_curves = vehicle_curves
+    coordinator.vehicle_curves = vehicle_curves
 
     runtime_data.solar_surplus_controller = SolarSurplusController(
         hass=hass,
@@ -357,6 +364,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Release the charger's single local connection so a reload/restart does not
     # leave a zombie socket that makes the device refuse the next connection.
     if runtime_data is not None:
+        if runtime_data.vehicle_curves is not None:
+            import time
+
+            await runtime_data.vehicle_curves.async_flush(time.monotonic(), force=True)
         await runtime_data.client.async_close()
     return unloaded
 

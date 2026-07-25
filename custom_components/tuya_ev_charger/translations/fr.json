@@ -396,6 +396,14 @@
     "grid_sensor_sign_inverted": {
       "title": "Le signe du capteur reseau semble inverse",
       "description": "La mesure reseau baisse systematiquement quand la voiture consomme davantage, soit l'inverse de ce que fait un compteur positif a l'import. En l'etat, la regulation surplus se poursuit elle-meme et le delestage calcule plus de marge que votre abonnement n'en a. Cochez **Inverser le signe du capteur reseau** dans les options. Si votre installation est reellement atypique et que la mesure est correcte, cette notice peut etre ignoree."
+    },
+    "charging_slower_than_usual": {
+      "title": "Charge plus lente que d'habitude pour cette voiture",
+      "description": "Plusieurs sessions recentes ont charge bien en dessous du meilleur debit deja demontre par cette voiture. Cela peut venir d'un connecteur ou d'un cable en moins bon contact, d'un contacteur qui se derate, ou d'une prise qui chauffe. Il vaut la peine de verifier le cable et le connecteur ; la notice disparait des qu'une session a vitesse normale est enregistree. Si vous avez simplement charge sur surplus solaire ces derniers temps, il n'y a pas d'inquietude."
+    },
+    "repeated_short_sessions": {
+      "title": "Plusieurs charges d'affilee se sont arretees tot",
+      "description": "Les dernieres sessions ont chacune livre bien moins d'energie qu'une charge habituelle de cette voiture, ce qui peut indiquer un cable qui perd la connexion ou la voiture qui arrete elle-meme la session. Si ces charges devaient etre courtes, ignorez ce message ; sinon verifiez le branchement du cable. La notice disparait des qu'une session complete est enregistree."
     }
   },
   "services": {
