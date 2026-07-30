@@ -853,13 +853,17 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
         user_input: dict[str, Any] | None = None,
     ) -> FlowResult:
         if user_input is not None:
+            flat_input = _flatten_sections(user_input)
             cleaned_input = dict(self._config_entry.options)
-            cleaned_input.update(_flatten_sections(user_input))
-            # Optional entity pickers are omitted from user_input when left
-            # empty, so an absent key means "cleared" and must not fall back to
-            # the previously stored value.
+            cleaned_input.update(flat_input)
+            # Optional entity pickers are omitted from their section's dict when
+            # left empty, so an absent key means "cleared" and must not fall back
+            # to the previously stored value. Must check the flattened dict: the
+            # raw user_input's top-level keys are section names, never field
+            # names, so checking it here always looked "absent" and wiped every
+            # entity-selector pick on every save.
             for key in OPTIONAL_ENTITY_OPTIONS:
-                if key not in user_input:
+                if key not in flat_input:
                     cleaned_input[key] = ""
             _normalize_optional_entity_value(cleaned_input, CONF_SURPLUS_SENSOR_ENTITY_ID)
             _normalize_optional_entity_value(cleaned_input, CONF_TOTAL_LOAD_SENSOR_ENTITY_ID)

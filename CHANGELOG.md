@@ -7,6 +7,25 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.21.0
+
+- **Continuous mode's ceiling no longer follows a narrower preset list.** Reported
+  by @BadgerBadgerAndFox (PR #24): DP 107's preset shortcuts were overwriting
+  `max_current_cfg` (DP 152, the charger's real hardware maximum) instead of only
+  setting the floor, so a charger reporting presets `[6,8,10,13]` on a genuine 15 A
+  hardware max was silently capped at 13 A. Fixed as submitted, plus a follow-up
+  for the case the PR's test did not cover: when DP 152 is absent entirely (some
+  firmwares never report it), the preset list's own max is now the fallback
+  ceiling instead of the global 32 A maximum.
+- **The options form was silently discarding every entity-selector pick on
+  save**, while numeric fields in the same form persisted correctly. Reported by
+  @SergioMonC (#26): the 2.19.0 move to collapsible sections flattened the
+  submitted values for storage, but the code that clears an *emptied* picker kept
+  checking the pre-flatten, still-nested payload -- whose top-level keys are
+  section names, never field names -- so every entity selector looked "absent"
+  and was wiped on every submit, regardless of what was picked.
+- Suite: 486 → **489 tests**.
+
 ## 2.20.0
 
 - **`quality_scale.yaml`, written honestly.** The manifest had claimed `silver`

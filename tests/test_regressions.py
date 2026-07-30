@@ -490,6 +490,52 @@ def test_flattening_tolerates_an_unsectioned_payload():
     assert _flatten_sections({"scan_interval": 30}) == {"scan_interval": 30}
 
 
+def test_options_flow_keeps_a_populated_entity_selector_alongside_numbers():
+    """2.19.0 flattened the merge but left this loop reading the pre-flatten,
+    still-nested dict, so every submit silently cleared every entity-selector
+    pick while numeric fields in the same section were kept."""
+    import asyncio
+    import types
+
+    from tuya_ev_charger.config_flow import TuyaEVChargerOptionsFlow
+
+    entry = types.SimpleNamespace(data={}, options={}, entry_id="test")
+    flow = TuyaEVChargerOptionsFlow(entry)
+    flow.async_create_entry = lambda data: {"type": "create_entry", "data": data}
+
+    nested = {
+        "protection": {
+            "max_inverter_power_w": 6000,
+            "total_load_sensor_entity_id": "sensor.total_load",
+        },
+    }
+    result = asyncio.run(flow.async_step_init(nested))
+
+    assert result["data"]["max_inverter_power_w"] == 6000
+    assert result["data"]["total_load_sensor_entity_id"] == "sensor.total_load"
+
+
+def test_options_flow_still_clears_an_entity_selector_left_blank():
+    """The fix for the regression above must not stop a genuinely cleared
+    picker from being wiped -- only a populated one must survive."""
+    import asyncio
+    import types
+
+    from tuya_ev_charger.config_flow import TuyaEVChargerOptionsFlow
+
+    entry = types.SimpleNamespace(
+        data={},
+        options={"total_load_sensor_entity_id": "sensor.old"},
+        entry_id="test",
+    )
+    flow = TuyaEVChargerOptionsFlow(entry)
+    flow.async_create_entry = lambda data: {"type": "create_entry", "data": data}
+
+    result = asyncio.run(flow.async_step_init({"protection": {"max_inverter_power_w": 6000}}))
+
+    assert result["data"]["total_load_sensor_entity_id"] == ""
+
+
 def test_every_option_belongs_to_a_declared_section():
     """A typo in `section=` would silently drop the field from the form."""
     from tuya_ev_charger.config_flow import _OPTIONS_FORM, _SECTION_ORDER

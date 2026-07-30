@@ -11,11 +11,13 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 
 ## Resume here
 
-- **Current version:** 2.20.0
+- **Current version:** 2.21.0
 - **Phase in progress:** Phases 1–5 ✅ done. **A3 ✅ and A2 ✅** (2.20.0): quality_scale.yaml written,
-  every entity platform tested. Remaining roadmap items: **phase 6** (B8 carbon intensity, B9 daily
-  forecast, B10 Tempo/RTE) and **phase 7** (B11 phase imbalance, B14 session receipt, B15 vehicle
-  subentries).
+  every entity platform tested. **2.21.0** was two field-reported bug fixes (continuous mode's
+  ceiling ignoring a narrower preset list, PR #24; the options form dropping entity-selector picks
+  on save, #26), not a roadmap phase. Remaining roadmap items: **phase 6** (B8 carbon intensity, B9
+  daily forecast, B10 Tempo/RTE) and **phase 7** (B11 phase imbalance, B14 session receipt, B15
+  vehicle subentries).
 - **Next concrete action:** **B10 (Tempo/RTE)** is the most valuable remaining feature for French
   users — a red Tempo day makes peak power prohibitive, and `charge_planner.py` already accepts
   windows, so it is a matter of deriving them from a colour sensor. B8 (carbon intensity) and B9
