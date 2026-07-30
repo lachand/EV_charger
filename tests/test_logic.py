@@ -57,6 +57,25 @@ def test_current_is_capped_by_the_charger_maximum():
     assert max(currents) == 16
 
 
+def test_continuous_ceiling_is_not_limited_by_a_narrower_preset_list():
+    """DP 107 can advertise fewer shortcuts than DP 152 actually allows.
+
+    Regression test: a charger whose preset list tops out below its real
+    hardware maximum (observed in the field: presets (6, 8, 10, 13) on a unit
+    whose DP 152 correctly reports 16A) must still offer up to the DP 152
+    value in continuous mode. The preset list should only ever inform the
+    floor, never lower the ceiling below max_current_cfg.
+    """
+    from tuya_ev_charger.helpers import allowed_currents
+
+    currents = allowed_currents(
+        _metrics_stub(max_current_cfg=16, adjust_current_options=(6, 8, 10, 13)),
+        {},
+    )
+    assert max(currents) == 16
+    assert min(currents) == 6
+
+
 def test_advertised_steps_can_be_restored():
     from tuya_ev_charger.helpers import allowed_currents
 

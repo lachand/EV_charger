@@ -30,8 +30,18 @@ def allowed_currents(
 
     if is_continuous:
         if data is not None and data.adjust_current_options:
+            # Only the floor comes from the preset list; the ceiling stays
+            # governed by max_current_cfg (DP 152, the charger's real hardware
+            # limit) computed above. DP 107 ("adjust_current_options") is only
+            # the set of quick-select shortcuts the Tuya app shows, not a
+            # hardware ceiling -- continuous mode is meant to allow any 1A step
+            # up to DP 152. Some chargers report a narrower preset list than
+            # they can actually deliver continuously, e.g. presets
+            # [6,8,10,13]A on a unit whose DP 152 correctly reports a 15A
+            # hardware max. Letting the preset list's max override
+            # max_current here silently capped continuous mode below what the
+            # hardware supports.
             min_current = min(data.adjust_current_options)
-            max_current = max(data.adjust_current_options)
 
         if data is not None and data.max_current_cfg is not None:
             max_current = min(max_current, data.max_current_cfg)
