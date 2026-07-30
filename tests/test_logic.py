@@ -83,6 +83,19 @@ def test_advertised_steps_can_be_restored():
     assert currents == (6, 8, 10, 13, 16)
 
 
+def test_continuous_ceiling_falls_back_to_presets_when_dp152_is_absent():
+    """Some firmwares never report DP 152; the preset ceiling is the only
+    signal left, and must not fall back to the global 32 A maximum."""
+    from tuya_ev_charger.helpers import allowed_currents
+
+    currents = allowed_currents(
+        _metrics_stub(max_current_cfg=None, adjust_current_options=(6, 8, 10, 13)),
+        {},
+    )
+    assert max(currents) == 13
+    assert min(currents) == 6
+
+
 @pytest.mark.parametrize(
     ("status", "power", "expected"),
     [

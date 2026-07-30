@@ -42,6 +42,12 @@ def allowed_currents(
             # max_current here silently capped continuous mode below what the
             # hardware supports.
             min_current = min(data.adjust_current_options)
+            # Some firmwares never report DP 152 at all. With no hardware
+            # ceiling to defer to, the preset list's own max is the only
+            # signal left -- falling through to the global ALLOWED_CURRENTS
+            # max would offer currents the charger never advertised.
+            if data.max_current_cfg is None:
+                max_current = max(data.adjust_current_options)
 
         if data is not None and data.max_current_cfg is not None:
             max_current = min(max_current, data.max_current_cfg)
