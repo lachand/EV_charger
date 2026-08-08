@@ -284,10 +284,35 @@ rate to the end. Each vehicle's curve is exposed as a diagnostic sensor
 (`sensor.<car>_charge_curve`, disabled by default) with the full shape in its
 attributes, so it can be plotted.
 
-**Current limitation:** the planner applies when surplus mode is **off**. With
-surplus mode on, surplus regulation decides alone and the off-peak schedule is
-not consulted — combining the two (solar first, off-peak next, full price last)
-is planned but not implemented.
+**With surplus mode on**, regulation chains three tiers: solar first; then, if
+a battery SOC sensor and thresholds are configured (see **Surplus mode** →
+battery, above), the house battery down to its low threshold; then, if an
+off-peak window is configured here, a grid-only charge restricted to that
+window instead of stopping outright once the battery floor is hit. It starts
+the moment the window opens (or immediately, if the floor is already hit while
+inside it), still capped by both protection limits above, and hands back to
+solar/battery regulation once the battery recovers or the window closes. No
+extra setting: it reuses **Off-peak windows** / **Departure time** / **Energy
+needed by departure** as-is. Without an off-peak window configured, hitting
+the floor still stops the charge outright, exactly as before.
+
+---
+
+## Blocking charging on an external condition
+
+For an inverter that can go off-grid, or any other boolean condition that
+should stop charging outright, point **External charge-allowed sensor** at a
+`binary_sensor.*` or `input_boolean.*` entity. `on` (or the opposite, with
+**Invert** ticked) means charging may proceed; anything else — `off`,
+unavailable, missing — stops it immediately, overriding even an explicit
+`force_charge_for` call, since the point is protecting the house battery from
+an EV load it cannot support during an outage. This applies whether or not
+surplus mode is on.
+
+Optional and inert until an entity is set. Unlike the power sensors elsewhere
+in this integration, a missing or unavailable reading here fails **closed**
+(blocks charging) rather than open, since a gap in the reading is exactly when
+this protection matters most.
 
 ---
 
@@ -405,6 +430,7 @@ charging, instead of holding the last value.
 | `continuous_current` | 1 A steps (default **on**) |
 | `max_charge_current_a` / `min_charge_current_a` | Your circuit's rating; `0` uses the charger's |
 | `max_inverter_power_w` / `total_load_sensor_entity_id` | Cap total load under a hybrid inverter's rating; `0` disables |
+| `external_charge_allowed_sensor_entity_id`, `external_charge_allowed_sensor_inverted` | Optional binary_sensor/input_boolean gate; blocks charging entirely, even `force_charge_for`, when it says no |
 | `vehicles` | Comma-separated car names; enables per-vehicle tracking |
 | `max_house_power_w` | Subscribed power for load balancing; `0` disables it |
 | `off_peak_windows` | `22:00-06:00, 12:30-14:30`; empty charges at any hour |

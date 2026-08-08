@@ -7,6 +7,36 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.22.0
+
+- **Off-peak windows (and every other free-text option) couldn't be cleared.**
+  Reported by @nilsburg (#30): submitting the options form with e.g. "Off-peak
+  windows" left blank silently kept the previous value — the same class of bug
+  fixed for entity pickers in 2.21.0, but one layer deeper. These fields' schema
+  still carried a voluptuous default, so Home Assistant's own validation refilled
+  the stale value before the options flow ever saw the field was empty. Fixed the
+  same way the entity pickers were, generalised to all four affected fields:
+  `off_peak_windows`, `departure_time`, `vehicles`, and the custom DP profile JSON.
+- **Solar surplus now chains into the battery floor, then an off-peak window,
+  instead of stopping outright.** Raised by @SergioMonC (#31), who asked how to
+  combine solar first, then the house battery down to a floor SOC, then grid
+  charging restricted to off-peak hours. The first two already worked; the third
+  didn't — with surplus mode on, hitting the battery floor stopped charging
+  unconditionally, off-peak window or not, a gap the README called "planned but
+  not implemented." It's implemented now: once the battery can no longer
+  contribute and an off-peak window is configured, charging switches to
+  grid-only for that window, still bound by both protection caps, and hands back
+  to solar/battery regulation once the battery recovers or the window closes. No
+  new setting, and no behaviour change for anyone without an off-peak window
+  configured.
+- **New: an external charge-allowed sensor.** Also from #31: a way to block
+  charging entirely on a condition the integration cannot see itself, such as an
+  inverter's on-grid/off-grid status during a power cut. Point **External
+  charge-allowed sensor** at a `binary_sensor`/`input_boolean`; it overrides even
+  a `force_charge_for` request, and fails *closed* (blocks) on a missing or
+  unavailable reading, since that is exactly when the protection matters most.
+- Suite: 489 → **509 tests**.
+
 ## 2.21.0
 
 - **Continuous mode's ceiling no longer follows a narrower preset list.** Reported

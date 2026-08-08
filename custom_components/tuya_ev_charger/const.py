@@ -113,6 +113,10 @@ CONF_TOTAL_LOAD_SENSOR_ENTITY_ID = "total_load_sensor_entity_id"
 # Entities that announce a large load before the meter sees it, as
 # "switch.hob: 3000, switch.oven: 2500". Bridges the sensor's latency.
 CONF_LOAD_RESERVATIONS = "load_reservations"
+# Optional external safety veto, e.g. an inverter's on-grid/off-grid status.
+# Not prefixed `surplus_`: it applies regardless of surplus mode.
+CONF_EXTERNAL_CHARGE_ALLOWED_SENSOR_ENTITY_ID = "external_charge_allowed_sensor_entity_id"
+CONF_EXTERNAL_CHARGE_ALLOWED_SENSOR_INVERTED = "external_charge_allowed_sensor_inverted"
 CONF_DEVICE_ID = "device_id"
 CONF_LOCAL_KEY = "local_key"
 CONF_MAC = "mac"
@@ -213,6 +217,8 @@ DEFAULT_MIN_CHARGE_CURRENT_A = 0
 DEFAULT_MAX_INVERTER_POWER_W = 0
 DEFAULT_TOTAL_LOAD_SENSOR_ENTITY_ID = ""
 DEFAULT_LOAD_RESERVATIONS = ""
+DEFAULT_EXTERNAL_CHARGE_ALLOWED_SENSOR_ENTITY_ID = ""
+DEFAULT_EXTERNAL_CHARGE_ALLOWED_SENSOR_INVERTED = False
 # The bounds of the form field, not of the applied limit: 0 disables it, and the
 # ceiling is the highest current any supported charger offers.
 MIN_CHARGE_CURRENT_LIMIT_A = 0

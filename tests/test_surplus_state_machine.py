@@ -150,6 +150,59 @@ def test_unavailable_grid_sensor(monkeypatch):
     assert h.tick() == "grid_sensor_unavailable"
 
 
+# --- external charge-allowed gate -------------------------------------------
+
+
+def test_no_external_sensor_configured_never_blocks(monkeypatch):
+    """Not configuring the sensor must never be why a charge fails to run."""
+    h = Harness(monkeypatch)
+    assert h.tick() != "external_charge_blocked"
+
+
+def test_external_charge_allowed_sensor_blocks_an_active_charge(monkeypatch):
+    h = _charging_harness(
+        monkeypatch,
+        sensors={"sensor.grid": -3000, "binary_sensor.on_grid": "off"},
+        options={"external_charge_allowed_sensor_entity_id": "binary_sensor.on_grid"},
+    )
+    assert h.tick() == "external_charge_blocked"
+    assert ("enabled", False) in h.writes
+
+
+def test_external_charge_allowed_sensor_inverted(monkeypatch):
+    """An off-grid indicator: 'on' means blocked, so the option inverts it."""
+    h = _charging_harness(
+        monkeypatch,
+        sensors={"sensor.grid": -3000, "binary_sensor.off_grid": "on"},
+        options={
+            "external_charge_allowed_sensor_entity_id": "binary_sensor.off_grid",
+            "external_charge_allowed_sensor_inverted": True,
+        },
+    )
+    assert h.tick() == "external_charge_blocked"
+
+
+def test_external_charge_allowed_sensor_unavailable_fails_closed(monkeypatch):
+    """Unlike the power sensors, a gap in this reading is exactly when the
+    safety veto matters most, so it must not fail open."""
+    h = _charging_harness(
+        monkeypatch,
+        sensors={"sensor.grid": -3000, "binary_sensor.on_grid": "unavailable"},
+        options={"external_charge_allowed_sensor_entity_id": "binary_sensor.on_grid"},
+    )
+    assert h.tick() == "external_charge_blocked"
+
+
+def test_the_external_charge_allowed_sensor_is_watched_for_state_changes(monkeypatch):
+    """Reacting the instant it switches is the entire point; without the
+    subscription an off-grid transition would wait for the next poll."""
+    h = Harness(
+        monkeypatch,
+        options={"external_charge_allowed_sensor_entity_id": "binary_sensor.on_grid"},
+    )
+    assert "binary_sensor.on_grid" in h.controller._tracked_sensor_entities()
+
+
 # --- start path ------------------------------------------------------------
 
 
@@ -345,6 +398,94 @@ def test_battery_hysteresis_holds_between_the_thresholds(monkeypatch):
     h.hass.set("sensor.soc", 55)
     h.tick(1)
     assert h.controller._battery_soc_hysteresis_enabled is False
+
+
+# --- battery-floor / off-peak fallback --------------------------------------
+
+
+def test_battery_floor_starts_a_grid_charge_inside_the_off_peak_window(monkeypatch):
+    from datetime import datetime
+
+    from tuya_ev_charger import solar_surplus
+
+    monkeypatch.setattr(solar_surplus.dt_util, "now", lambda: datetime(2024, 1, 1, 23, 0))
+    h = Harness(
+        monkeypatch,
+        sensors={"sensor.grid": -3000, "sensor.soc": 40},
+        options={
+            "surplus_battery_soc_sensor_entity_id": "sensor.soc",
+            "surplus_battery_soc_high_threshold_pct": 80,
+            "surplus_battery_soc_low_threshold_pct": 60,
+            "off_peak_windows": "22:00-06:00",
+        },
+    )
+    assert h.tick() == "battery_floor_off_peak_start"
+    assert ("enabled", True) in h.writes
+
+
+def test_battery_floor_still_hard_stops_without_an_off_peak_window(monkeypatch):
+    """Backward-compat pin at the state-machine level: nobody without an
+    off-peak window configured may see any behavioural change."""
+    h = Harness(
+        monkeypatch,
+        sensors={"sensor.grid": -3000, "sensor.soc": 40},
+        options={
+            "surplus_battery_soc_sensor_entity_id": "sensor.soc",
+            "surplus_battery_soc_high_threshold_pct": 80,
+            "surplus_battery_soc_low_threshold_pct": 60,
+        },
+    )
+    assert h.tick() == "battery_soc_below_threshold"
+    assert h.writes == []
+
+
+def test_battery_floor_grid_charge_stops_when_the_window_closes(monkeypatch):
+    from datetime import datetime
+
+    from tuya_ev_charger import solar_surplus
+    from tuya_ev_charger.solar_surplus import FIXED_STOP_DELAY_S
+
+    monkeypatch.setattr(solar_surplus.dt_util, "now", lambda: datetime(2024, 1, 1, 23, 0))
+    h = _charging_harness(
+        monkeypatch,
+        sensors={"sensor.grid": -3000, "sensor.soc": 40},
+        options={
+            "surplus_battery_soc_sensor_entity_id": "sensor.soc",
+            "surplus_battery_soc_high_threshold_pct": 80,
+            "surplus_battery_soc_low_threshold_pct": 60,
+            "off_peak_windows": "22:00-06:00",
+        },
+    )
+    assert h.tick() == "battery_floor_off_peak_charging"
+
+    # The window closes: the fallback hands control back to the ordinary
+    # battery-floor stop, which must run its own stop delay from scratch --
+    # the fallback reset the timer on every cycle it was in control.
+    monkeypatch.setattr(solar_surplus.dt_util, "now", lambda: datetime(2024, 1, 1, 8, 0))
+    assert h.tick() == "stop_delay_pending"
+    assert h.tick(FIXED_STOP_DELAY_S + 1) == "battery_soc_below_threshold"
+    assert ("enabled", False) in h.writes
+
+
+def test_the_battery_floor_fallback_does_not_need_a_grid_sensor(monkeypatch):
+    from datetime import datetime
+
+    from tuya_ev_charger import solar_surplus
+
+    monkeypatch.setattr(solar_surplus.dt_util, "now", lambda: datetime(2024, 1, 1, 23, 0))
+    h = Harness(
+        monkeypatch,
+        sensors={"sensor.soc": 40},
+        options={
+            "surplus_sensor_entity_id": "",
+            "surplus_battery_soc_sensor_entity_id": "sensor.soc",
+            "surplus_battery_soc_high_threshold_pct": 80,
+            "surplus_battery_soc_low_threshold_pct": 60,
+            "off_peak_windows": "22:00-06:00",
+        },
+    )
+    assert h.tick() == "battery_floor_off_peak_start"
+    assert ("enabled", True) in h.writes
 
 
 # --- protection caps ------------------------------------------------------

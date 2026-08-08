@@ -41,6 +41,8 @@ from .const import (
     CHARGER_PROFILE_DEPOW_V2,
     CONF_DEPARTURE_ENERGY_KWH,
     CONF_DEPARTURE_TIME,
+    CONF_EXTERNAL_CHARGE_ALLOWED_SENSOR_ENTITY_ID,
+    CONF_EXTERNAL_CHARGE_ALLOWED_SENSOR_INVERTED,
     CONF_LOAD_RESERVATIONS,
     CONF_MAX_HOUSE_POWER_W,
     CONF_MAX_INVERTER_POWER_W,
@@ -66,6 +68,8 @@ from .const import (
     CONF_TOTAL_LOAD_SENSOR_ENTITY_ID,
     DEFAULT_DEPARTURE_ENERGY_KWH,
     DEFAULT_DEPARTURE_TIME,
+    DEFAULT_EXTERNAL_CHARGE_ALLOWED_SENSOR_ENTITY_ID,
+    DEFAULT_EXTERNAL_CHARGE_ALLOWED_SENSOR_INVERTED,
     DEFAULT_LOAD_RESERVATIONS,
     DEFAULT_MAX_HOUSE_POWER_W,
     DEFAULT_MAX_INVERTER_POWER_W,
@@ -167,6 +171,8 @@ class SolarSurplusSettings:
     adjust_up_cooldown_s: int
     adjust_down_cooldown_s: int
     forecast_sensor_entity_id: str
+    external_charge_allowed_sensor_entity_id: str
+    external_charge_allowed_sensor_inverted: bool
 
 
 @dataclass(slots=True, frozen=True)
@@ -360,6 +366,7 @@ class SolarSurplusController:
             self._settings.battery_soc_sensor_entity_id,
             self._settings.battery_net_discharge_sensor_entity_id,
             self._settings.forecast_sensor_entity_id,
+            self._settings.external_charge_allowed_sensor_entity_id,
             # The announcing entities matter most of all: reacting to them the
             # instant they switch is the entire point of a reservation.
             *parse_reservations(self._settings.load_reservations),
@@ -482,15 +489,18 @@ class SolarSurplusController:
             if update_state:
                 self._last_target_current_a = target_current
 
+        # Computed unconditionally -- `_gate_tariff` still only acts on it when
+        # surplus mode is off, but `_gate_battery_floor_tariff_fallback` needs
+        # it while surplus mode is on, too. Harmless when mode is on and no
+        # windows are configured: `_plan_tariff` returns None either way.
         tariff_allowed: bool | None = None
         tariff_reason: DecisionReason | None = None
         tariff_is_deadline = False
-        if not self._settings.mode_enabled:
-            plan = self._plan_tariff(data, available_currents)
-            if plan is not None:
-                tariff_allowed = plan.allowed
-                tariff_reason = DecisionReason(f"tariff_{plan.window.value}")
-                tariff_is_deadline = plan.window is ChargeWindow.DEADLINE
+        plan = self._plan_tariff(data, available_currents)
+        if plan is not None:
+            tariff_allowed = plan.allowed
+            tariff_reason = DecisionReason(f"tariff_{plan.window.value}")
+            tariff_is_deadline = plan.window is ChargeWindow.DEADLINE
 
         return GateContext(
             now=now,
@@ -506,6 +516,7 @@ class SolarSurplusController:
             force_charge_active=self._is_force_charge_active(now),
             force_charge_current_a=self._force_charge_current_a,
             pause_active=self._is_pause_active(now),
+            external_charge_allowed=self._read_external_charge_allowed(),
             tariff_allowed=tariff_allowed,
             tariff_reason=tariff_reason,
             tariff_is_deadline=tariff_is_deadline,
@@ -1077,6 +1088,29 @@ class SolarSurplusController:
         )
         return self._battery_soc_hysteresis_enabled
 
+    def _read_external_charge_allowed(self) -> bool:
+        """Whether a configured external condition currently permits charging.
+
+        True when nothing is configured -- same discipline as every other
+        optional sensor here, this feature must never be why a charge fails
+        to start for someone who has not set it up. When configured, a
+        missing or unparsable reading fails *closed*, unlike the power
+        sensors below where a gap just means "no cap applied": what this
+        guards is a safety veto (e.g. an inverter's on-grid status), and a
+        gap in the reading is exactly when that protection matters most --
+        the same precedent `_is_battery_ready` already sets above.
+        """
+        entity_id = self._settings.external_charge_allowed_sensor_entity_id
+        if not entity_id:
+            return True
+        state = self._hass.states.get(entity_id)
+        if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            return False
+        value = _coerce_optional_bool(state.state)
+        if value is None:
+            return False
+        return (not value) if self._settings.external_charge_allowed_sensor_inverted else value
+
     def _read_sensor_power_w(self, entity_id: str) -> float | None:
         if not entity_id:
             return None
@@ -1342,6 +1376,16 @@ def _settings_from_entry(entry: ConfigEntry) -> SolarSurplusSettings:
             options,
             CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
             DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
+        ),
+        external_charge_allowed_sensor_entity_id=_option_str(
+            options,
+            CONF_EXTERNAL_CHARGE_ALLOWED_SENSOR_ENTITY_ID,
+            DEFAULT_EXTERNAL_CHARGE_ALLOWED_SENSOR_ENTITY_ID,
+        ),
+        external_charge_allowed_sensor_inverted=_option_bool(
+            options,
+            CONF_EXTERNAL_CHARGE_ALLOWED_SENSOR_INVERTED,
+            DEFAULT_EXTERNAL_CHARGE_ALLOWED_SENSOR_INVERTED,
         ),
     )
 

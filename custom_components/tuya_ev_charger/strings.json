@@ -108,6 +108,8 @@
               "max_house_power_w": "Maximum house power for load balancing (W, 0 = off)",
               "max_inverter_power_w": "Maximum inverter output (W, 0 = off) - protects a hybrid inverter; needs the total-load sensor below",
               "total_load_sensor_entity_id": "Total household load sensor (for the inverter limit) - total consumption, not the grid meter",
+              "external_charge_allowed_sensor_entity_id": "External charge-allowed sensor (binary_sensor/input_boolean, optional) - e.g. an inverter's on-grid status; blocks charging entirely when it says no",
+              "external_charge_allowed_sensor_inverted": "Invert external charge-allowed sensor (tick if 'on' means blocked, e.g. an off-grid indicator)",
               "load_reservations": "Entities announcing a large load (e.g. switch.hob: 3000, switch.oven: 2500)"
             }
           },
@@ -216,10 +218,13 @@
         "state": {
           "adjust_cooldown_active": "Waiting before changing the current again",
           "adjust_current": "Adjusting the current to the surplus",
+          "battery_floor_off_peak_charging": "Charging from the grid during off-peak hours \u2014 house battery is at its floor",
+          "battery_floor_off_peak_start": "House battery at its floor \u2014 starting a grid charge inside the off-peak window",
           "battery_soc_below_threshold": "Waiting: the house battery is too low",
           "below_start_threshold": "Surplus below the start threshold",
           "below_stop_threshold": "Stopped: surplus below the stop threshold",
           "evaluation_exception": "Evaluation failed \u2014 see the log",
+          "external_charge_blocked": "Blocked: an external condition (e.g. a grid outage) is preventing charging",
           "failed_set_startup_current": "The charger refused the starting current",
           "failed_start_charge": "The charger refused to start",
           "force_charge_adjust_current": "Forced charge \u2014 setting the current",

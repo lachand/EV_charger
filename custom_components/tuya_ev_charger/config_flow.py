@@ -28,6 +28,8 @@ from .const import (
     CONF_DEPARTURE_ENERGY_KWH,
     CONF_DEPARTURE_TIME,
     CONF_DEVICE_ID,
+    CONF_EXTERNAL_CHARGE_ALLOWED_SENSOR_ENTITY_ID,
+    CONF_EXTERNAL_CHARGE_ALLOWED_SENSOR_INVERTED,
     CONF_LOCAL_KEY,
     CONF_MAC,
     CONF_MAX_CHARGE_CURRENT_A,
@@ -64,6 +66,8 @@ from .const import (
     DEFAULT_CONTINUOUS_CURRENT,
     DEFAULT_DEPARTURE_ENERGY_KWH,
     DEFAULT_DEPARTURE_TIME,
+    DEFAULT_EXTERNAL_CHARGE_ALLOWED_SENSOR_ENTITY_ID,
+    DEFAULT_EXTERNAL_CHARGE_ALLOWED_SENSOR_INVERTED,
     DEFAULT_MAX_CHARGE_CURRENT_A,
     DEFAULT_MAX_HOUSE_POWER_W,
     DEFAULT_MAX_INVERTER_POWER_W,
@@ -145,6 +149,18 @@ OPTIONAL_ENTITY_OPTIONS: tuple[str, ...] = (
     CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
     CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
     CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
+    CONF_EXTERNAL_CHARGE_ALLOWED_SENSOR_ENTITY_ID,
+)
+
+# Optional free-text fields (kind "text"/"multiline"). Same omission behaviour
+# as the entity pickers above, and the same #30 bug when it isn't handled: the
+# frontend drops a blanked field's key from its section's payload, so an
+# absent key means "cleared" and must not fall back to the stored value.
+OPTIONAL_TEXT_OPTIONS: tuple[str, ...] = (
+    CONF_OFF_PEAK_WINDOWS,
+    CONF_DEPARTURE_TIME,
+    CONF_VEHICLES,
+    CONF_CHARGER_PROFILE_JSON,
 )
 
 
@@ -241,6 +257,18 @@ _OPTIONS_FORM: tuple[_Opt, ...] = (
         CONF_TOTAL_LOAD_SENSOR_ENTITY_ID,
         "entity",
         DEFAULT_TOTAL_LOAD_SENSOR_ENTITY_ID,
+        section=SECTION_PROTECTION,
+    ),
+    _Opt(
+        CONF_EXTERNAL_CHARGE_ALLOWED_SENSOR_ENTITY_ID,
+        "boolean_entity",
+        DEFAULT_EXTERNAL_CHARGE_ALLOWED_SENSOR_ENTITY_ID,
+        section=SECTION_PROTECTION,
+    ),
+    _Opt(
+        CONF_EXTERNAL_CHARGE_ALLOWED_SENSOR_INVERTED,
+        "bool",
+        DEFAULT_EXTERNAL_CHARGE_ALLOWED_SENSOR_INVERTED,
         section=SECTION_PROTECTION,
     ),
     _Opt(CONF_OFF_PEAK_WINDOWS, "text", DEFAULT_OFF_PEAK_WINDOWS, section=SECTION_TARIFF),
@@ -798,14 +826,17 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
         """
         fields: dict[Any, Any] = {}
         for opt in options_form:
-            if opt.kind == "entity":
+            if opt.kind in ("entity", "boolean_entity"):
                 # No voluptuous default here: an inserted None fails the entity
                 # selector, and wrapping the selector to tolerate it breaks the
                 # schema serialisation the frontend needs.
                 current = _option_entity(options, opt.key, opt.default)
-                fields[vol.Optional(opt.key, description={"suggested_value": current})] = (
-                    _sensor_selector()
+                picker = (
+                    _boolean_sensor_selector()
+                    if opt.kind == "boolean_entity"
+                    else _sensor_selector()
                 )
+                fields[vol.Optional(opt.key, description={"suggested_value": current})] = picker
                 continue
 
             default = computed.get(opt.key)
@@ -837,15 +868,19 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                     vol.Coerce(float), vol.Range(min=0, max=100)
                 )
             elif opt.kind == "multiline":
+                # No voluptuous default here either -- same reasoning as the
+                # entity branch above, and the same #30 bug otherwise: a
+                # default would let HA-core's own schema validation silently
+                # refill a field the frontend omitted because it was cleared.
                 if default is None:
                     default = _option_text(options, opt.key, opt.default)
-                fields[vol.Optional(opt.key, default=default)] = selector.TextSelector(
-                    selector.TextSelectorConfig(multiline=True)
+                fields[vol.Optional(opt.key, description={"suggested_value": default})] = (
+                    selector.TextSelector(selector.TextSelectorConfig(multiline=True))
                 )
             else:  # text
                 if default is None:
                     default = _option_text(options, opt.key, opt.default)
-                fields[vol.Optional(opt.key, default=default)] = str
+                fields[vol.Optional(opt.key, description={"suggested_value": default})] = str
         return vol.Schema(fields)
 
     async def async_step_init(
@@ -863,6 +898,14 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
             # names, so checking it here always looked "absent" and wiped every
             # entity-selector pick on every save.
             for key in OPTIONAL_ENTITY_OPTIONS:
+                if key not in flat_input:
+                    cleaned_input[key] = ""
+            # Same omission, same fix, for the free-text fields (#30): without
+            # this, the schema change above only stops HA-core from refilling
+            # the stale default -- `cleaned_input` still starts from
+            # `self._config_entry.options`, so an absent key must still be
+            # cleared explicitly here.
+            for key in OPTIONAL_TEXT_OPTIONS:
                 if key not in flat_input:
                     cleaned_input[key] = ""
             _normalize_optional_entity_value(cleaned_input, CONF_SURPLUS_SENSOR_ENTITY_ID)
@@ -883,12 +926,18 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                 cleaned_input,
                 CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
             )
+            _normalize_optional_entity_value(
+                cleaned_input,
+                CONF_EXTERNAL_CHARGE_ALLOWED_SENSOR_ENTITY_ID,
+            )
             _normalize_text_value(
                 cleaned_input,
                 CONF_CHARGER_PROFILE_JSON,
                 DEFAULT_CHARGER_PROFILE_JSON,
             )
             _normalize_text_value(cleaned_input, CONF_VEHICLES, DEFAULT_VEHICLES)
+            _normalize_text_value(cleaned_input, CONF_OFF_PEAK_WINDOWS, DEFAULT_OFF_PEAK_WINDOWS)
+            _normalize_text_value(cleaned_input, CONF_DEPARTURE_TIME, DEFAULT_DEPARTURE_TIME)
             _normalize_surplus_options(cleaned_input)
 
             # A bad custom mapping is otherwise accepted, logged, and silently
@@ -1092,6 +1141,15 @@ def _sensor_selector() -> selector.EntitySelector:
     return selector.EntitySelector(
         selector.EntitySelectorConfig(
             domain=["sensor"],
+            multiple=False,
+        )
+    )
+
+
+def _boolean_sensor_selector() -> selector.EntitySelector:
+    return selector.EntitySelector(
+        selector.EntitySelectorConfig(
+            domain=["binary_sensor", "input_boolean"],
             multiple=False,
         )
     )

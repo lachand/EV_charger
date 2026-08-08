@@ -373,7 +373,16 @@ def test_every_options_form_kind_is_handled():
     """
     from tuya_ev_charger.config_flow import _OPTIONS_FORM
 
-    handled = {"bool", "entity", "int", "price", "text", "choice", "multiline"}
+    handled = {
+        "bool",
+        "entity",
+        "boolean_entity",
+        "int",
+        "price",
+        "text",
+        "choice",
+        "multiline",
+    }
     assert {opt.kind for opt in _OPTIONS_FORM} <= handled
 
 
@@ -490,6 +499,52 @@ def test_flattening_tolerates_an_unsectioned_payload():
     assert _flatten_sections({"scan_interval": 30}) == {"scan_interval": 30}
 
 
+def _validated_submission(
+    schema: vol.Schema,
+    *,
+    overrides: dict[tuple[str, str], object] | None = None,
+    omit: frozenset[tuple[str, str]] = frozenset(),
+) -> dict[str, dict]:
+    """Build a nested options submission and run it *through the schema*.
+
+    A test that hand-builds a nested dict and hands it straight to
+    `async_step_init` skips the validation step Home Assistant's own flow
+    manager performs first (`data_schema(user_input)`, before the step ever
+    runs). That is exactly the step where both the 19.0 entity-selector bug
+    and #30 (text fields) actually happened: a field whose schema still
+    carries a voluptuous `default=` gets silently refilled from that stale
+    default right here, before the flow's own clear-if-absent logic gets a
+    chance to see the key was ever missing. `tests/conftest.py`'s `_Section`
+    stub genuinely calls `self.schema(value)`, so routing through the real
+    built schema (`flow._build_options_schema(...)`) reproduces this
+    faithfully.
+
+    Every field not named in `overrides`/`omit` is submitted at its current
+    schema value if the field carries one (every "bool"/"int"/"choice"/
+    "price" field always does), or omitted if it doesn't (every "entity"/
+    "text"/"multiline" field, post-#30-fix) -- the same shape a real
+    unmodified form submission has.
+    """
+    overrides = overrides or {}
+    submission: dict[str, dict] = {}
+    for section_marker, section_obj in schema.schema.items():
+        name = str(section_marker)
+        inner: dict[str, object] = {}
+        for field_marker in section_obj.schema.schema:
+            key = str(field_marker)
+            if (name, key) in omit:
+                continue
+            if (name, key) in overrides:
+                inner[key] = overrides[(name, key)]
+                continue
+            default = field_marker.default
+            if default is vol.UNDEFINED:
+                continue
+            inner[key] = default()
+        submission[name] = inner
+    return schema(submission)
+
+
 def test_options_flow_keeps_a_populated_entity_selector_alongside_numbers():
     """2.19.0 flattened the merge but left this loop reading the pre-flatten,
     still-nested dict, so every submit silently cleared every entity-selector
@@ -503,13 +558,15 @@ def test_options_flow_keeps_a_populated_entity_selector_alongside_numbers():
     flow = TuyaEVChargerOptionsFlow(entry)
     flow.async_create_entry = lambda data: {"type": "create_entry", "data": data}
 
-    nested = {
-        "protection": {
-            "max_inverter_power_w": 6000,
-            "total_load_sensor_entity_id": "sensor.total_load",
+    schema = flow._build_options_schema(entry.options, computed={})
+    submission = _validated_submission(
+        schema,
+        overrides={
+            ("protection", "max_inverter_power_w"): 6000,
+            ("protection", "total_load_sensor_entity_id"): "sensor.total_load",
         },
-    }
-    result = asyncio.run(flow.async_step_init(nested))
+    )
+    result = asyncio.run(flow.async_step_init(submission))
 
     assert result["data"]["max_inverter_power_w"] == 6000
     assert result["data"]["total_load_sensor_entity_id"] == "sensor.total_load"
@@ -531,9 +588,79 @@ def test_options_flow_still_clears_an_entity_selector_left_blank():
     flow = TuyaEVChargerOptionsFlow(entry)
     flow.async_create_entry = lambda data: {"type": "create_entry", "data": data}
 
-    result = asyncio.run(flow.async_step_init({"protection": {"max_inverter_power_w": 6000}}))
+    schema = flow._build_options_schema(entry.options, computed={})
+    submission = _validated_submission(
+        schema,
+        overrides={("protection", "max_inverter_power_w"): 6000},
+        omit=frozenset({("protection", "total_load_sensor_entity_id")}),
+    )
+    result = asyncio.run(flow.async_step_init(submission))
 
     assert result["data"]["total_load_sensor_entity_id"] == ""
+
+
+def test_options_form_declares_no_defaults_on_text_fields():
+    """The same #30 guard as `..._on_entity_pickers` above, for "text"/
+    "multiline" options: a voluptuous default here is what let HA-core's own
+    schema validation silently refill a field the user had just cleared."""
+    import types
+
+    from tuya_ev_charger.config_flow import (
+        OPTIONAL_TEXT_OPTIONS,
+        TuyaEVChargerOptionsFlow,
+    )
+
+    flow = TuyaEVChargerOptionsFlow(types.SimpleNamespace(data={}, options={}, entry_id="test"))
+    schema = flow._build_options_schema({}, computed={})
+
+    text_markers = []
+    for _section_marker, section_obj in schema.schema.items():
+        text_markers += [
+            marker for marker in section_obj.schema.schema if str(marker) in OPTIONAL_TEXT_OPTIONS
+        ]
+
+    assert len(text_markers) == len(OPTIONAL_TEXT_OPTIONS), (
+        "every optional text/multiline field must still be reachable in the schema"
+    )
+
+    for marker in text_markers:
+        assert marker.default is vol.UNDEFINED, (
+            f"{marker} carries a default; HA-core would silently refill it with the "
+            "stale stored value whenever the frontend omits a blanked field (#30)"
+        )
+
+
+def test_options_flow_clears_every_text_field_left_blank():
+    """#30: clearing e.g. "Off-peak windows" and submitting left the previous
+    value in place. Parametrized over `_OPTIONS_FORM` itself, not a hand-listed
+    set of keys, so a future text/multiline field added to the form is covered
+    automatically rather than needing a matching new test."""
+    import asyncio
+    import types
+
+    from tuya_ev_charger.config_flow import _OPTIONS_FORM, TuyaEVChargerOptionsFlow
+
+    stale = {
+        "off_peak_windows": "01:00-08:00",
+        "departure_time": "07:30",
+        "vehicles": "Zoe, Kangoo",
+        "charger_profile_json": '{"custom": true}',
+    }
+    for opt in _OPTIONS_FORM:
+        if opt.kind not in ("text", "multiline"):
+            continue
+
+        entry = types.SimpleNamespace(data={}, options=dict(stale), entry_id="test")
+        flow = TuyaEVChargerOptionsFlow(entry)
+        flow.async_create_entry = lambda data: {"type": "create_entry", "data": data}
+
+        schema = flow._build_options_schema(entry.options, computed={})
+        submission = _validated_submission(schema, omit=frozenset({(opt.section, opt.key)}))
+        result = asyncio.run(flow.async_step_init(submission))
+
+        assert result["data"][opt.key] == "", (
+            f"{opt.key} kept its stale value {stale.get(opt.key)!r} after being left blank"
+        )
 
 
 def test_every_option_belongs_to_a_declared_section():

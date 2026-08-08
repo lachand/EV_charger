@@ -57,6 +57,10 @@ class DecisionReason(StrEnum):
     NO_COORDINATOR_DATA = "no_coordinator_data"
     NO_ALLOWED_CURRENTS = "no_allowed_currents"
 
+    # An external condition (e.g. an inverter's on-grid/off-grid status) vetoes
+    # charging outright, ahead of every other reason to charge.
+    EXTERNAL_CHARGE_BLOCKED = "external_charge_blocked"
+
     # Protection limits. The prefix matches the limit that bound, so the user can
     # tell the breaker cap from the inverter cap.
     LOAD_LIMIT_NO_HEADROOM = "load_limit_no_headroom"
@@ -77,6 +81,11 @@ class DecisionReason(StrEnum):
     TARIFF_DEADLINE = "tariff_deadline"
     TARIFF_WAITING_FOR_OFF_PEAK = "tariff_waiting_for_off_peak"
     TARIFF_UNRESTRICTED = "tariff_unrestricted"
+
+    # Third tier: the house battery has hit its floor, so a configured
+    # off-peak window drives a grid-only charge instead of stopping outright.
+    BATTERY_FLOOR_OFF_PEAK_START = "battery_floor_off_peak_start"
+    BATTERY_FLOOR_OFF_PEAK_CHARGING = "battery_floor_off_peak_charging"
 
     MODE_DISABLED = "mode_disabled"
     SURPLUS_PAUSED = "surplus_paused"
@@ -160,6 +169,10 @@ class GateContext:
     force_charge_current_a: int | None = None
     pause_active: bool = False
 
+    # True when nothing is configured, same "not configured means never
+    # consult" discipline as every other optional gate here.
+    external_charge_allowed: bool = True
+
     # None when no off-peak window is configured, so tariffs are not consulted.
     tariff_allowed: bool | None = None
     tariff_reason: DecisionReason | None = None
@@ -184,6 +197,10 @@ class GateContext:
     @property
     def min_current(self) -> int:
         return min(self.available_currents) if self.available_currents else 0
+
+    @property
+    def max_current(self) -> int:
+        return max(self.available_currents) if self.available_currents else 0
 
 
 @dataclass(slots=True, frozen=True)
@@ -224,6 +241,26 @@ def _gate_no_currents(ctx: GateContext, timers: TimerState) -> Verdict | None:
     return Verdict(
         action=GateAction.IDLE,
         reason=DecisionReason.NO_ALLOWED_CURRENTS,
+        clear_debug=True,
+    )
+
+
+def _gate_external_charge_blocked(ctx: GateContext, timers: TimerState) -> Verdict | None:
+    """A configured external condition -- e.g. an inverter's on-grid/off-grid
+    status -- vetoes charging outright, ahead of even a force-charge request.
+
+    Placed right after `_gate_no_currents` (the one structural check that must
+    stay first) and before everything else, including `_gate_force_charge`:
+    the scenario this exists for -- protecting the house battery during a
+    grid outage -- has to win over every other reason the charger might
+    otherwise be told to run. Not gated on `surplus_mode_enabled`: a
+    tariff-only installation needs the same protection.
+    """
+    if ctx.external_charge_allowed:
+        return None
+    return Verdict(
+        action=GateAction.STOP_CHARGE,
+        reason=DecisionReason.EXTERNAL_CHARGE_BLOCKED,
         clear_debug=True,
     )
 
@@ -312,6 +349,63 @@ def _gate_pause(ctx: GateContext, timers: TimerState) -> Verdict | None:
         clear_debug=True,
         # A charge someone else started is not ours to stop.
         only_stop_own_session=True,
+    )
+
+
+def _gate_battery_floor_tariff_fallback(ctx: GateContext, timers: TimerState) -> Verdict | None:
+    """Third tier: solar, then the house battery to its floor, then a
+    configured off-peak window, instead of a hard stop.
+
+    Engages only once the battery has hit its floor (`battery_ready` False)
+    *and* an off-peak window is actually configured (`tariff_allowed is not
+    None` -- the same "None means don't consult" rule every optional feature
+    in this file follows). Any other case declines, letting the pre-existing
+    hard stop in `_gate_charging` / `_gate_start` fire unchanged -- that is
+    the backward-compatibility guarantee: nobody without an off-peak window
+    configured sees any behavioural change.
+
+    Placed before `_gate_grid_sensor` on purpose: this fallback is explicitly
+    the no-solar tier, so it must not require a grid sensor -- placing it
+    after would block exactly the installs (a nightly off-peak window with no
+    solar sensor wired up for surplus regulation) it exists for.
+    """
+    if not ctx.surplus_mode_enabled or ctx.battery_ready or ctx.tariff_allowed is None:
+        return None
+    if not ctx.tariff_allowed:
+        return None
+    if not ctx.available_currents:
+        return None  # _gate_no_currents already handled this
+
+    # Whichever gate is in control this cycle owns the delay timers; a stale
+    # one left over from surplus regulation must not fire once this tier
+    # hands control back to `_gate_charging` (e.g. once the window closes).
+    timers.start_candidate_since = None
+    timers.stop_candidate_since = None
+
+    if not ctx.is_charging:
+        return Verdict(
+            action=GateAction.START_CHARGE,
+            reason=DecisionReason.BATTERY_FLOOR_OFF_PEAK_START,
+            target_current=ctx.min_current,
+            regulation_active=True,
+        )
+
+    current = (
+        ctx.current_target if ctx.current_target in ctx.available_currents else ctx.min_current
+    )
+    ceiling = ctx.max_current
+    if current >= ceiling:
+        return Verdict(
+            action=GateAction.HOLD,
+            reason=DecisionReason.BATTERY_FLOOR_OFF_PEAK_CHARGING,
+            regulation_active=True,
+        )
+    next_current = _ramp(current, ceiling, ctx.available_currents, ctx.ramp_step)
+    return Verdict(
+        action=GateAction.SET_CURRENT,
+        reason=DecisionReason.BATTERY_FLOOR_OFF_PEAK_CHARGING,
+        target_current=next_current,
+        regulation_active=True,
     )
 
 
@@ -523,13 +617,21 @@ def battery_hysteresis(soc: float, *, high: float, low: float, enabled: bool | N
 #     it can never exceed a protection cap;
 #   * the protection reduce-write sits after force charge, so a forced charge
 #     does not produce two writes -- and two beeps -- in one cycle.
+# Two more recent placements, same rule -- data, not a story to re-derive:
+#   * the external block sits before even force charge, since it is a safety
+#     veto that must win over every other reason to charge;
+#   * the battery-floor/off-peak fallback sits before the grid sensor check,
+#     since it is the no-solar tier and must not require one, but after the
+#     tariff/mode/pause gates it depends on or must still lose to.
 GATES: tuple[Gate, ...] = (
     _gate_no_currents,
+    _gate_external_charge_blocked,
     _gate_force_charge,
     _gate_protection_reduce,
     _gate_tariff,
     _gate_mode_disabled,
     _gate_pause,
+    _gate_battery_floor_tariff_fallback,
     _gate_grid_sensor,
     _gate_charging,
     _gate_start,

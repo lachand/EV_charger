@@ -62,6 +62,16 @@ def test_the_gate_order_is_asserted_directly():
     assert names[0] == "_gate_no_currents"
     # The idle branch is the fallback, so it must be last.
     assert names[-1] == "_gate_start"
+    # The external safety veto must win over even a force-charge request.
+    assert names[1] == "_gate_external_charge_blocked"
+    assert names.index("_gate_external_charge_blocked") < names.index("_gate_force_charge")
+    # The battery-floor/off-peak fallback is the no-solar tier: it must not
+    # need a grid sensor, but must still lose to an explicit pause.
+    assert (
+        names.index("_gate_pause")
+        < names.index("_gate_battery_floor_tariff_fallback")
+        < names.index("_gate_grid_sensor")
+    )
 
 
 def test_the_narrowed_ladder_is_the_only_one_a_gate_can_see():
@@ -283,6 +293,32 @@ def test_a_pause_only_stops_our_own_session():
     )
 
 
+def test_external_charge_block_overrides_even_a_force_charge_request():
+    """The scenario this exists for -- protecting the house battery during a
+    grid outage -- must win over every other reason the charger might
+    otherwise be told to run."""
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    verdict = _run(
+        _ctx(
+            external_charge_allowed=False,
+            force_charge_active=True,
+            force_charge_current_a=16,
+            is_charging=True,
+        )
+    )
+    assert verdict.action is GateAction.STOP_CHARGE
+    assert verdict.reason is DecisionReason.EXTERNAL_CHARGE_BLOCKED
+
+
+def test_external_charge_allowed_by_default_when_unconfigured():
+    """Not configuring the sensor must never be why a charge fails to run."""
+    from tuya_ev_charger.charge_gates import DecisionReason
+
+    verdict = _run(_ctx(is_charging=True))
+    assert verdict.reason is not DecisionReason.EXTERNAL_CHARGE_BLOCKED
+
+
 def test_an_unavailable_grid_reading_forgets_both_delay_timers():
     from tuya_ev_charger.charge_gates import DecisionReason
 
@@ -329,6 +365,73 @@ def test_a_deadline_starts_the_charge_regardless_of_the_hour():
     verdict = _run(_ctx(surplus_mode_enabled=False, tariff_allowed=True, tariff_is_deadline=True))
     assert verdict.action is GateAction.START_CHARGE
     assert verdict.reason is DecisionReason.TARIFF_DEADLINE
+
+
+# --- battery-floor / off-peak fallback --------------------------------------
+
+
+def test_battery_floor_fallback_defers_when_no_window_is_configured():
+    """Backward-compat pin: nobody without an off-peak window configured may
+    see any behavioural change -- hitting the floor must still hard-stop."""
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    verdict = _run(_ctx(battery_ready=False))
+    assert verdict.action is GateAction.IDLE
+    assert verdict.reason is DecisionReason.BATTERY_SOC_BELOW_THRESHOLD
+
+
+def test_battery_floor_fallback_stops_hard_outside_the_window():
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    verdict = _run(_ctx(battery_ready=False, tariff_allowed=False))
+    assert verdict.action is GateAction.IDLE
+    assert verdict.reason is DecisionReason.BATTERY_SOC_BELOW_THRESHOLD
+
+
+def test_battery_floor_fallback_starts_charging_inside_the_window():
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    verdict = _run(_ctx(battery_ready=False, tariff_allowed=True))
+    assert verdict.action is GateAction.START_CHARGE
+    assert verdict.reason is DecisionReason.BATTERY_FLOOR_OFF_PEAK_START
+    assert verdict.target_current == 6, "starts at the snapped minimum, like solar surplus does"
+
+
+def test_battery_floor_fallback_ramps_towards_the_ceiling_while_charging():
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    verdict = _run(_charging(battery_ready=False, tariff_allowed=True, current_target=6))
+    assert verdict.action is GateAction.SET_CURRENT
+    assert verdict.reason is DecisionReason.BATTERY_FLOOR_OFF_PEAK_CHARGING
+    assert verdict.target_current == 7
+
+
+def test_battery_floor_fallback_holds_once_at_the_ceiling():
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    verdict = _run(_charging(battery_ready=False, tariff_allowed=True, current_target=32))
+    assert verdict.action is GateAction.HOLD
+    assert verdict.reason is DecisionReason.BATTERY_FLOOR_OFF_PEAK_CHARGING
+
+
+def test_battery_floor_fallback_does_not_need_a_grid_sensor():
+    """It is explicitly the no-solar tier; requiring a grid sensor would trap
+    the installs -- a nightly window, no solar sensor wired up -- it exists
+    for."""
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    verdict = _run(_ctx(battery_ready=False, tariff_allowed=True, grid_sensor_configured=False))
+    assert verdict.action is GateAction.START_CHARGE
+    assert verdict.reason is DecisionReason.BATTERY_FLOOR_OFF_PEAK_START
+
+
+def test_a_pause_still_wins_over_the_battery_floor_fallback():
+    from tuya_ev_charger.charge_gates import DecisionReason
+
+    verdict = _run(
+        _ctx(battery_ready=False, tariff_allowed=True, pause_active=True, is_charging=True)
+    )
+    assert verdict.reason is DecisionReason.SURPLUS_PAUSED_ACTIVE
 
 
 # --- battery hysteresis ---------------------------------------------------

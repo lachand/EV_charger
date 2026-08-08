@@ -77,6 +77,8 @@
               "max_house_power_w": "Puissance max de la maison pour le delestage (W, 0 = desactive)",
               "max_inverter_power_w": "Sortie max de l'onduleur (W, 0 = desactive) - protege un onduleur hybride ; requiert le capteur de charge totale ci-dessous",
               "total_load_sensor_entity_id": "Capteur de charge totale de la maison (pour la limite onduleur) - consommation totale, pas le compteur reseau",
+              "external_charge_allowed_sensor_entity_id": "Capteur d'autorisation de charge externe (binary_sensor/input_boolean, optionnel) - ex. le statut on-grid d'un onduleur ; bloque la charge entierement si la reponse est non",
+              "external_charge_allowed_sensor_inverted": "Inverser le capteur d'autorisation de charge externe (cocher si 'on' signifie bloque, ex. un indicateur hors-reseau)",
               "load_reservations": "Entites annoncant une grosse charge (ex. switch.hob: 3000, switch.oven: 2500)"
             }
           },
@@ -185,10 +187,13 @@
         "state": {
           "adjust_cooldown_active": "Attente avant de rechanger le courant",
           "adjust_current": "Ajustement du courant au surplus",
+          "battery_floor_off_peak_charging": "Charge sur le reseau en heures creuses - batterie maison au plancher",
+          "battery_floor_off_peak_start": "Batterie maison au plancher - demarrage d'une charge reseau en heures creuses",
           "battery_soc_below_threshold": "Attente : la batterie maison est trop basse",
           "below_start_threshold": "Surplus sous le seuil de demarrage",
           "below_stop_threshold": "Arret : surplus sous le seuil d'arret",
           "evaluation_exception": "Evaluation en echec - voir le journal",
+          "external_charge_blocked": "Bloque : une condition externe (ex. coupure reseau) empeche la charge",
           "failed_set_startup_current": "La borne a refuse le courant de demarrage",
           "failed_start_charge": "La borne a refuse de demarrer",
           "force_charge_adjust_current": "Charge forcee - reglage du courant",
