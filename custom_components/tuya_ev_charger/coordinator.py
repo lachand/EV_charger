@@ -77,6 +77,10 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         self.vehicle_tracker: Any = None
         self.session_history: Any = None
         self.vehicle_curves: Any = None
+        # Set by async_setup_entry once constructed; used to read the live
+        # off-peak tally for a just-completed session, see
+        # `_build_session_record`.
+        self.solar_surplus_controller: Any = None
         # The charger's stored last session is only logged from the *second*
         # sighting onward: see _async_log_completed_session.
         self._session_log_primed = False
@@ -373,9 +377,20 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         self, metrics: EVMetrics, duration_s: int, energy_kwh: float
     ) -> SessionRecord:
         options = self.entry.options
-        windows = parse_windows(_option_text(options, CONF_OFF_PEAK_WINDOWS))
         ended_at = dt_util.now()
-        split = split_session(ended_at=ended_at, duration_s=duration_s, off_peak_windows=windows)
+        # An off-peak sensor has no history to replay after the fact the way
+        # windows do, so its split is live-tallied by the controller while the
+        # session runs. Fall back to reconstructing from windows -- exactly as
+        # before this feature existed -- whenever there is nothing to read: no
+        # sensor configured, or a session the controller never sampled live.
+        split = None
+        if self.solar_surplus_controller is not None:
+            split = self.solar_surplus_controller.session_off_peak_split()
+        if split is None:
+            windows = parse_windows(_option_text(options, CONF_OFF_PEAK_WINDOWS))
+            split = split_session(
+                ended_at=ended_at, duration_s=duration_s, off_peak_windows=windows
+            )
         tracker = self.vehicle_tracker
         return SessionRecord(
             ended_at=ended_at.isoformat(timespec="seconds"),

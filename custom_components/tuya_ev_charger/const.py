@@ -96,6 +96,11 @@ CONF_CONTINUOUS_CURRENT = "continuous_current"
 CONF_VEHICLES = "vehicles"
 CONF_MAX_HOUSE_POWER_W = "max_house_power_w"
 CONF_OFF_PEAK_WINDOWS = "off_peak_windows"
+# Alternative to off-peak windows: an entity that already reports "off-peak now"
+# (e.g. a tariff sensor whose schedule depends on weekday/weekend/holiday and so
+# cannot be expressed as a fixed clock range). Authoritative over windows once set.
+CONF_OFF_PEAK_SENSOR_ENTITY_ID = "off_peak_sensor_entity_id"
+CONF_OFF_PEAK_SENSOR_INVERTED = "off_peak_sensor_inverted"
 CONF_DEPARTURE_TIME = "departure_time"
 CONF_DEPARTURE_ENERGY_KWH = "departure_energy_kwh"
 # Prices per kWh, in whatever currency the user thinks in; the integration never
@@ -202,6 +207,10 @@ MAX_MAX_HOUSE_POWER_W = 36000
 # tariff arbitration at all, so the feature can never block a charge for someone
 # who has not configured it.
 DEFAULT_OFF_PEAK_WINDOWS = ""
+# Alternative source of truth for "off-peak now"; empty means windows (if any)
+# decide instead. Once set, it is authoritative and windows stop gating.
+DEFAULT_OFF_PEAK_SENSOR_ENTITY_ID = ""
+DEFAULT_OFF_PEAK_SENSOR_INVERTED = False
 # Optional deadline: be at this time with this much energy delivered. Charging
 # is deferred to off-peak until waiting would miss it.
 DEFAULT_DEPARTURE_TIME = ""

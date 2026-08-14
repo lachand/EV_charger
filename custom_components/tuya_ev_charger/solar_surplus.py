@@ -27,6 +27,7 @@ from .charge_planner import (
     ChargeWindow,
     Plan,
     PlanRequest,
+    is_within_windows,
     parse_clock,
     parse_windows,
     plan_charge,
@@ -46,6 +47,8 @@ from .const import (
     CONF_LOAD_RESERVATIONS,
     CONF_MAX_HOUSE_POWER_W,
     CONF_MAX_INVERTER_POWER_W,
+    CONF_OFF_PEAK_SENSOR_ENTITY_ID,
+    CONF_OFF_PEAK_SENSOR_INVERTED,
     CONF_OFF_PEAK_WINDOWS,
     CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
     CONF_SURPLUS_ADJUST_UP_COOLDOWN_S,
@@ -73,6 +76,8 @@ from .const import (
     DEFAULT_LOAD_RESERVATIONS,
     DEFAULT_MAX_HOUSE_POWER_W,
     DEFAULT_MAX_INVERTER_POWER_W,
+    DEFAULT_OFF_PEAK_SENSOR_ENTITY_ID,
+    DEFAULT_OFF_PEAK_SENSOR_INVERTED,
     DEFAULT_OFF_PEAK_WINDOWS,
     DEFAULT_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
     DEFAULT_SURPLUS_ADJUST_UP_COOLDOWN_S,
@@ -117,6 +122,7 @@ from .preemption import (
     headroom_with_reservations,
     parse_reservations,
 )
+from .session_costing import SessionSplit
 from .surplus_decision import (
     DEFAULT_LINE_VOLTAGE_V,
     ForecastState,
@@ -154,6 +160,8 @@ class SolarSurplusSettings:
     total_load_sensor_entity_id: str
     load_reservations: str
     off_peak_windows: str
+    off_peak_sensor_entity_id: str
+    off_peak_sensor_inverted: bool
     departure_time: str
     departure_energy_kwh: int
     grid_sensor_inverted: bool
@@ -223,6 +231,12 @@ class SolarSurplusController:
         self._session_started_ts: float | None = None
         self._session_energy_kwh: float = 0.0
         self._last_energy_sample_ts: float | None = None
+        # Live off-peak/peak tally for the current session, sampled at the same
+        # cadence as the energy above. Only accumulated when an off-peak sensor
+        # is configured -- see `_update_session_energy` and
+        # `session_off_peak_split`.
+        self._session_total_s: float = 0.0
+        self._session_off_peak_s: float = 0.0
 
         self._regulation_active = False
         self._last_decision_reason = "startup"
@@ -367,6 +381,7 @@ class SolarSurplusController:
             self._settings.battery_net_discharge_sensor_entity_id,
             self._settings.forecast_sensor_entity_id,
             self._settings.external_charge_allowed_sensor_entity_id,
+            self._settings.off_peak_sensor_entity_id,
             # The announcing entities matter most of all: reacting to them the
             # instant they switch is the entire point of a reservation.
             *parse_reservations(self._settings.load_reservations),
@@ -833,12 +848,12 @@ class SolarSurplusController:
     ) -> Plan | None:
         """Whether the tariff schedule allows charging right now.
 
-        Returns None when no off-peak window is configured, so the caller can
-        skip the feature entirely rather than reason about an "always allowed"
-        plan.
+        Returns None when no tariff restriction is configured at all -- no
+        sensor and no off-peak window -- so the caller can skip the feature
+        entirely rather than reason about an "always allowed" plan.
         """
-        windows = parse_windows(self._settings.off_peak_windows)
-        if not windows:
+        is_off_peak_now = self._resolve_off_peak_now()
+        if is_off_peak_now is None:
             return None
 
         target_kwh = float(self._settings.departure_energy_kwh)
@@ -846,7 +861,7 @@ class SolarSurplusController:
         return plan_charge(
             PlanRequest(
                 now=dt_util.now(),
-                off_peak_windows=windows,
+                is_off_peak=is_off_peak_now,
                 departure=parse_clock(self._settings.departure_time),
                 # Only what is still missing counts towards the deadline.
                 energy_needed_kwh=needed_kwh,
@@ -1111,6 +1126,36 @@ class SolarSurplusController:
             return False
         return (not value) if self._settings.external_charge_allowed_sensor_inverted else value
 
+    def _resolve_off_peak_now(self) -> bool | None:
+        """Whether it is off-peak right now, from whichever source is configured.
+
+        None means no tariff restriction is configured at all, so `plan_charge`
+        arbitrates nothing and charging is unrestricted -- same discipline as
+        every other optional feature here.
+
+        Once an off-peak sensor entity is set it is the sole source of truth:
+        windows stop gating (they remain usable as the cost-split fallback, see
+        `consume_session_off_peak_split`). Unlike `_read_external_charge_allowed`,
+        this fails *open* on an unavailable or unparsable reading rather than
+        falling back to windows -- a silent second source would make "why is it
+        (not) charging" depend on sensor availability, and windows are only
+        skipped here in the first place because malformed ones are already
+        ignored rather than fatal (`parse_windows`).
+        """
+        entity_id = self._settings.off_peak_sensor_entity_id
+        if entity_id:
+            state = self._hass.states.get(entity_id)
+            if state is not None and state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+                value = _coerce_optional_bool(state.state)
+                if value is not None:
+                    return (not value) if self._settings.off_peak_sensor_inverted else value
+            return None
+
+        windows = parse_windows(self._settings.off_peak_windows)
+        if not windows:
+            return None
+        return is_within_windows(dt_util.now().time(), windows)
+
     def _read_sensor_power_w(self, entity_id: str) -> float | None:
         if not entity_id:
             return None
@@ -1155,6 +1200,12 @@ class SolarSurplusController:
         self._session_started_ts = now
         self._session_energy_kwh = 0.0
         self._last_energy_sample_ts = now
+        # Reset here, not in `_register_stop`: the coordinator reads the
+        # previous session's tally (`session_off_peak_split`) after the charge
+        # has already stopped, the same way it already reads
+        # `_session_energy_kwh` for the departure estimate across that gap.
+        self._session_total_s = 0.0
+        self._session_off_peak_s = 0.0
 
     def _register_stop(self, now: float) -> None:
         self._session_active = False
@@ -1188,6 +1239,39 @@ class SolarSurplusController:
         session_increment_kwh = power_kw * (elapsed_s / 3600.0)
         self._session_energy_kwh += max(0.0, session_increment_kwh)
         self._record_curve_sample(power_kw)
+
+        # Only worth tallying live when there is an off-peak sensor to sample --
+        # without one, `session_off_peak_split` returns None and the coordinator
+        # reconstructs the split from the configured windows exactly as before
+        # this feature existed.
+        if self._settings.off_peak_sensor_entity_id:
+            self._session_total_s += elapsed_s
+            if self._resolve_off_peak_now():
+                self._session_off_peak_s += elapsed_s
+
+    def session_off_peak_split(self) -> SessionSplit | None:
+        """The live-sampled off-peak/peak split for the session just ended.
+
+        None when there is nothing to report: no off-peak sensor configured, or
+        a session with no live-tracked seconds -- one that predates a Home
+        Assistant restart, or was started outside this controller (e.g. from
+        the Tuya app, which `_update_session_energy` never sees since
+        `_session_active` was never set for it). The caller
+        (`coordinator._build_session_record`) falls back to reconstructing the
+        split from the configured windows in that case, exactly as it did
+        before this feature existed.
+
+        Not reset here: like `_session_energy_kwh`, the tally is read after the
+        charge has already stopped (`_register_stop` runs first), so clearing
+        it happens at the start of the *next* session instead -- see
+        `_start_session`.
+        """
+        if not self._settings.off_peak_sensor_entity_id or self._session_total_s <= 0:
+            return None
+
+        total_minutes = max(0, int(self._session_total_s) // 60)
+        off_peak_minutes = min(total_minutes, round(self._session_off_peak_s / 60))
+        return SessionSplit(off_peak_minutes, total_minutes - off_peak_minutes)
 
     def _record_curve_sample(self, power_kw: float) -> None:
         """Feed one (delivered, power) reading into this car's charge curve.
@@ -1297,6 +1381,16 @@ def _settings_from_entry(entry: ConfigEntry) -> SolarSurplusSettings:
             DEFAULT_SURPLUS_MODE_ENABLED,
         ),
         off_peak_windows=_option_str(options, CONF_OFF_PEAK_WINDOWS, DEFAULT_OFF_PEAK_WINDOWS),
+        off_peak_sensor_entity_id=_option_str(
+            options,
+            CONF_OFF_PEAK_SENSOR_ENTITY_ID,
+            DEFAULT_OFF_PEAK_SENSOR_ENTITY_ID,
+        ),
+        off_peak_sensor_inverted=_option_bool(
+            options,
+            CONF_OFF_PEAK_SENSOR_INVERTED,
+            DEFAULT_OFF_PEAK_SENSOR_INVERTED,
+        ),
         departure_time=_option_str(options, CONF_DEPARTURE_TIME, DEFAULT_DEPARTURE_TIME),
         departure_energy_kwh=_option_int(
             options,

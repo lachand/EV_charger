@@ -92,9 +92,15 @@ def test_minutes_needed():
 
 
 def _request(**kwargs):
-    from tuya_ev_charger.charge_planner import PlanRequest, parse_windows
+    """A request against a fixed 22:00-06:00 window, resolved like a caller
+    would: `is_off_peak` derived from `now` unless a test overrides it
+    directly (e.g. to simulate a sensor-resolved state, or "not configured").
+    """
+    from tuya_ev_charger.charge_planner import PlanRequest, is_within_windows, parse_windows
 
-    base = {"now": _at(20, 0), "off_peak_windows": parse_windows("22:00-06:00")}
+    windows = parse_windows("22:00-06:00")
+    now = kwargs.get("now", _at(20, 0))
+    base = {"now": now, "is_off_peak": is_within_windows(now.time(), windows)}
     base.update(kwargs)
     return PlanRequest(**base)
 
@@ -103,7 +109,7 @@ def test_no_windows_configured_never_blocks():
     """This feature must not be why a charge fails for someone not using it."""
     from tuya_ev_charger.charge_planner import ChargeWindow, plan_charge
 
-    plan = plan_charge(_request(off_peak_windows=()))
+    plan = plan_charge(_request(is_off_peak=None))
     assert plan.allowed is True
     assert plan.window is ChargeWindow.UNRESTRICTED
 

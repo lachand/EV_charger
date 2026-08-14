@@ -488,6 +488,180 @@ def test_the_battery_floor_fallback_does_not_need_a_grid_sensor(monkeypatch):
     assert ("enabled", True) in h.writes
 
 
+# --- off-peak sensor ---------------------------------------------------------
+
+
+def test_no_off_peak_sensor_falls_back_to_windows(monkeypatch):
+    from datetime import datetime
+
+    from tuya_ev_charger import solar_surplus
+
+    monkeypatch.setattr(solar_surplus.dt_util, "now", lambda: datetime(2024, 1, 1, 23, 0))
+    h = Harness(monkeypatch, options={"off_peak_windows": "22:00-06:00"})
+    assert h.controller._resolve_off_peak_now() is True
+
+
+def test_off_peak_sensor_reports_on_as_off_peak(monkeypatch):
+    h = Harness(
+        monkeypatch,
+        sensors={"sensor.grid": -3000, "input_boolean.off_peak": "on"},
+        options={"off_peak_sensor_entity_id": "input_boolean.off_peak"},
+    )
+    assert h.controller._resolve_off_peak_now() is True
+
+
+def test_off_peak_sensor_inverted(monkeypatch):
+    """A peak-hours indicator: 'on' means peak, so the option inverts it."""
+    h = Harness(
+        monkeypatch,
+        sensors={"sensor.grid": -3000, "input_boolean.peak": "on"},
+        options={
+            "off_peak_sensor_entity_id": "input_boolean.peak",
+            "off_peak_sensor_inverted": True,
+        },
+    )
+    assert h.controller._resolve_off_peak_now() is False
+
+
+def test_off_peak_sensor_wins_over_windows(monkeypatch):
+    """Configuring both: the sensor is authoritative, windows stop gating."""
+    from datetime import datetime
+
+    from tuya_ev_charger import solar_surplus
+
+    # 23:00 falls inside the window, so a window-only reading would say True.
+    monkeypatch.setattr(solar_surplus.dt_util, "now", lambda: datetime(2024, 1, 1, 23, 0))
+    h = Harness(
+        monkeypatch,
+        sensors={"sensor.grid": -3000, "input_boolean.off_peak": "off"},
+        options={
+            "off_peak_windows": "22:00-06:00",
+            "off_peak_sensor_entity_id": "input_boolean.off_peak",
+        },
+    )
+    assert h.controller._resolve_off_peak_now() is False
+
+
+def test_off_peak_sensor_unavailable_fails_open_not_to_windows(monkeypatch):
+    """Unlike the external charge-allowed veto, a gap here must not block --
+    and must not silently fall back to windows either, since the sensor is
+    supposed to be authoritative once configured."""
+    from datetime import datetime
+
+    from tuya_ev_charger import solar_surplus
+
+    # Inside the window, so a fallback to windows would say True.
+    monkeypatch.setattr(solar_surplus.dt_util, "now", lambda: datetime(2024, 1, 1, 23, 0))
+    h = Harness(
+        monkeypatch,
+        sensors={"sensor.grid": -3000, "input_boolean.off_peak": "unavailable"},
+        options={
+            "off_peak_windows": "22:00-06:00",
+            "off_peak_sensor_entity_id": "input_boolean.off_peak",
+        },
+    )
+    assert h.controller._resolve_off_peak_now() is None
+
+
+def test_the_off_peak_sensor_is_watched_for_state_changes(monkeypatch):
+    h = Harness(
+        monkeypatch,
+        options={"off_peak_sensor_entity_id": "input_boolean.off_peak"},
+    )
+    assert "input_boolean.off_peak" in h.controller._tracked_sensor_entities()
+
+
+def test_off_peak_sensor_drives_the_battery_floor_fallback_like_a_window_would(monkeypatch):
+    """End-to-end: the sensor's reading reaches
+    `_gate_battery_floor_tariff_fallback` exactly the way an off-peak window
+    already does (see `test_battery_floor_starts_a_grid_charge_inside_the_off_peak_window`)."""
+    h = Harness(
+        monkeypatch,
+        sensors={"sensor.grid": -3000, "sensor.soc": 40, "input_boolean.off_peak": "on"},
+        options={
+            "surplus_battery_soc_sensor_entity_id": "sensor.soc",
+            "surplus_battery_soc_high_threshold_pct": 80,
+            "surplus_battery_soc_low_threshold_pct": 60,
+            "off_peak_sensor_entity_id": "input_boolean.off_peak",
+        },
+    )
+    assert h.tick() == "battery_floor_off_peak_start"
+    assert ("enabled", True) in h.writes
+
+
+# --- live off-peak/peak session tally ----------------------------------------
+
+
+def test_no_sensor_configured_never_tallies(monkeypatch):
+    """Without a sensor there is nothing to tally: the coordinator must keep
+    reconstructing the split from windows, exactly as before this feature."""
+    h = _charging_harness(monkeypatch, sensors={"sensor.grid": -5000})
+    h.controller._start_session(h.now)
+    h.tick(120)
+    assert h.controller.session_off_peak_split() is None
+
+
+def test_tally_accumulates_seconds_while_charging_off_peak(monkeypatch):
+    h = _charging_harness(
+        monkeypatch,
+        sensors={"sensor.grid": -5000, "input_boolean.off_peak": "on"},
+        options={"off_peak_sensor_entity_id": "input_boolean.off_peak"},
+    )
+    # `_start_session` primes `_last_energy_sample_ts`, so the very next tick's
+    # elapsed time is exactly the seconds advanced.
+    h.controller._start_session(h.now)
+    h.tick(120)
+
+    split = h.controller.session_off_peak_split()
+    assert split is not None
+    assert split.off_peak_minutes == 2
+    assert split.peak_minutes == 0
+
+
+def test_tally_tracks_a_switch_from_off_peak_to_peak(monkeypatch):
+    h = _charging_harness(
+        monkeypatch,
+        sensors={"sensor.grid": -5000, "input_boolean.off_peak": "on"},
+        options={"off_peak_sensor_entity_id": "input_boolean.off_peak"},
+    )
+    h.controller._start_session(h.now)
+    h.tick(60)  # 1 minute off-peak
+
+    h.hass.set("input_boolean.off_peak", "off")
+    h.tick(180)  # 3 minutes peak
+
+    split = h.controller.session_off_peak_split()
+    assert split is not None
+    assert split.off_peak_minutes == 1
+    assert split.peak_minutes == 3
+
+
+def test_tally_is_not_cleared_on_stop_only_on_the_next_session(monkeypatch):
+    """The coordinator reads the tally after the charge has already stopped,
+    mirroring how `_session_energy_kwh` already survives that gap."""
+    from tuya_ev_charger.solar_surplus import FIXED_STOP_DELAY_S
+
+    h = _charging_harness(
+        monkeypatch,
+        sensors={"sensor.grid": -5000, "input_boolean.off_peak": "on"},
+        options={"off_peak_sensor_entity_id": "input_boolean.off_peak"},
+    )
+    h.controller._start_session(h.now)
+    h.tick(120)
+
+    h.hass.set("sensor.grid", 2000)  # below the stop threshold
+    h.tick()  # arms the stop delay
+    h.tick(FIXED_STOP_DELAY_S + 1)  # elapses it: the actual stop write
+    assert ("enabled", False) in h.writes
+
+    split_after_stop = h.controller.session_off_peak_split()
+    assert split_after_stop is not None
+    assert split_after_stop.off_peak_minutes > 0
+
+    h.controller._start_session(h.now)
+    assert h.controller.session_off_peak_split() is None
+
+
 # --- protection caps ------------------------------------------------------
 
 

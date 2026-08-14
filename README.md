@@ -268,6 +268,32 @@ nothing, since there is no way to know how long the charge takes.
 Malformed windows are ignored rather than fatal, so a typo narrows the schedule
 instead of breaking the integration.
 
+### Off-peak sensor, as an alternative to windows
+
+Some tariffs cannot be written as a fixed clock range — a schedule that depends
+on weekday vs. weekend vs. public holiday, for instance. For those, point
+**Off-peak sensor** at a `binary_sensor.*` or `input_boolean.*` entity that
+already reports "off-peak now" (tick **Invert** if `on` means peak instead).
+
+Once set, the sensor is authoritative: **Off-peak windows** stops driving the
+charge/wait decision, even if both are configured. Windows remain useful as a
+fallback for session cost-splitting (below) and can stay filled in.
+
+A missing or unavailable reading fails **open** — charging is treated as
+unrestricted, the same as leaving the feature unconfigured — rather than
+falling back to the windows text. That fallback is deliberate: once you have
+pointed this at a sensor, that sensor is the one thing this feature consults,
+so "why is it (not) charging" always has one answer instead of depending on
+which of two sources happened to be reachable.
+
+Off-peak/peak session costing (see **Session history and cost**, below) has no
+history to replay for a live sensor the way it does for windows, so it is
+tallied live instead, sampled while a session the integration itself started
+is charging. A session with nothing tracked — none started before this was
+configured, one that predates a Home Assistant restart, or one started outside
+the integration (e.g. from the Tuya app) — falls back to reconstructing the
+split from **Off-peak windows**, exactly as before this option existed.
+
 The time needed is estimated from your car's own **charge curve**, learned from
 past sessions, not from the charger's rating. A vehicle limited to 3.7 kW on a 7.4 kW charger would
 otherwise have its charging time halved and be started hours too late to meet the
@@ -434,6 +460,7 @@ charging, instead of holding the last value.
 | `vehicles` | Comma-separated car names; enables per-vehicle tracking |
 | `max_house_power_w` | Subscribed power for load balancing; `0` disables it |
 | `off_peak_windows` | `22:00-06:00, 12:30-14:30`; empty charges at any hour |
+| `off_peak_sensor_entity_id`, `off_peak_sensor_inverted` | Optional binary_sensor/input_boolean; authoritative over `off_peak_windows` for scheduling when set |
 | `departure_time` / `departure_energy_kwh` | Deadline that overrides the off-peak wait |
 | `off_peak_price` / `peak_price` | Price per kWh; enables session cost estimation |
 | `surplus_mode_enabled` | Master switch for surplus mode |

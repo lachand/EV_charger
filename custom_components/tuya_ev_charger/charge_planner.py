@@ -1,11 +1,16 @@
-"""When to charge: off-peak windows and departure deadlines.
+"""When to charge: an off-peak state and a departure deadline.
 
-Pure, like `surplus_decision`: times and numbers in, a decision out, no Home
-Assistant. The controller supplies the clock and applies the result.
+Pure, like `surplus_decision`: values in, a decision out, no Home Assistant. The
+controller resolves *whether it is off-peak right now* -- from windows, from an
+external tariff sensor, or whatever else it is told to trust -- and supplies
+that plus the clock; this module only decides what to do once that is known.
 
-Off-peak windows are used rather than an hourly price feed because that is what
-most tariffs actually look like — a couple of fixed ranges, known in advance and
-printed on the bill — and it needs no external integration to work.
+Off-peak windows remain the default shape callers resolve from, since that is
+what most tariffs actually look like -- a couple of fixed ranges, known in
+advance and printed on the bill -- and it needs no external integration to
+work. `parse_windows`/`is_within_windows` below are the pure building blocks
+for that default; a caller with a live tariff sensor may resolve `is_off_peak`
+from it instead.
 """
 
 from __future__ import annotations
@@ -96,7 +101,10 @@ def minutes_needed(energy_kwh: float, power_kw: float) -> int:
 @dataclass(slots=True, frozen=True)
 class PlanRequest:
     now: datetime
-    off_peak_windows: tuple[tuple[time, time], ...] = ()
+    # Already resolved by the caller (windows, a sensor entity, ...). None means
+    # no tariff restriction is configured at all, so there is nothing to
+    # arbitrate.
+    is_off_peak: bool | None = None
     # Deadline and the energy still to deliver by then. Both are needed for the
     # deadline to mean anything.
     departure: time | None = None
@@ -117,14 +125,15 @@ class Plan:
 def plan_charge(request: PlanRequest) -> Plan:
     """Decide whether charging is allowed right now.
 
-    With no off-peak windows there is nothing to arbitrate and charging is
-    always allowed: this feature must never be the reason a charge fails to
-    start for someone who has not configured it.
+    With no tariff restriction configured (`is_off_peak` is None) there is
+    nothing to arbitrate and charging is always allowed: this feature must
+    never be the reason a charge fails to start for someone who has not
+    configured it.
     """
-    if not request.off_peak_windows:
+    if request.is_off_peak is None:
         return Plan(allowed=True, window=ChargeWindow.UNRESTRICTED)
 
-    if is_within_windows(request.now.time(), request.off_peak_windows):
+    if request.is_off_peak:
         return Plan(allowed=True, window=ChargeWindow.OFF_PEAK)
 
     # Peak hours. Only a deadline that can no longer be met by waiting justifies

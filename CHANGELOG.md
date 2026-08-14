@@ -7,6 +7,23 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.23.0
+
+- **New: an off-peak sensor, as an alternative to off-peak windows.** Requested
+  by @nilsburg (#32): some tariffs, such as Spain's, cannot be written as a
+  fixed clock range — the schedule depends on weekday vs. weekend vs. public
+  holiday. Point **Off-peak sensor** at a `binary_sensor`/`input_boolean` that
+  already reports "off-peak now"; once set, it drives the charge/wait decision
+  in place of **Off-peak windows**, including the departure-deadline override.
+  A missing or unavailable reading fails open (unrestricted) rather than
+  falling back to the windows text, so there is always exactly one source
+  deciding "why is it (not) charging." Session cost-splitting, which has no
+  history to replay for a live sensor the way it does for windows, is instead
+  tallied live while a session the integration itself started is charging, and
+  falls back to reconstructing from **Off-peak windows** for any session it has
+  nothing tracked for. No behaviour change for anyone who leaves the new option
+  unset.
+
 ## 2.22.0
 
 - **Off-peak windows (and every other free-text option) couldn't be cleared.**

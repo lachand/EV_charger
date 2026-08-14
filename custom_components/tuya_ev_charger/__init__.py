@@ -261,6 +261,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         client=client,
         coordinator=coordinator,
     )
+    coordinator.solar_surplus_controller = runtime_data.solar_surplus_controller
     await runtime_data.solar_surplus_controller.async_start()
     entry.runtime_data = runtime_data
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
