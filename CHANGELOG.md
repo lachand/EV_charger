@@ -7,6 +7,22 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.23.1
+
+- **L1 current kept the last reading after a session ended.** Reported by
+  @sailorontherocks (#35): the "hold the last power reading while not charging
+  is meaningless" reset introduced for `power_l1` only ever covered power, not
+  the current sub-field of the same DP, which some firmwares echo just as
+  stubbornly. Current is now reset the same way, on the same `charging` gate.
+  Does not address the separate freeze reported mid-session, still under
+  investigation.
+- **The "invalid credentials" message on an undecryptable reply was misleading
+  when the real cause was a transient session failure**, not a stale
+  `local_key`. Raised by @grinder1337 (#34): a charger that accepts one local
+  connection can look exactly like a rotated key when something else is
+  briefly holding that connection, or the handshake glitches for a moment.
+  The message now says so, instead of steering straight at re-pairing.
+
 ## 2.23.0
 
 - **New: an off-peak sensor, as an alternative to off-peak windows.** Requested

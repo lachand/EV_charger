@@ -69,7 +69,7 @@
       "no_devices_found": "No Tuya devices found on the network. Enter credentials manually.",
       "unknown": "Unexpected error.",
       "connection_refused": "The charger refused the connection. These chargers accept a single local connection at a time - close the Smart Life app and disable any other Tuya integration pointing at it, then retry.",
-      "invalid_credentials": "The charger answered but its replies could not be decrypted. Check the local key and the protocol version; re-pairing the charger changes the key."
+      "invalid_credentials": "The charger answered but its replies could not be decrypted. That usually means the local key or protocol version is wrong (re-pairing rotates the key) -- but the same message also shows up for a transient session hiccup, e.g. something else briefly holding the charger's single local connection. If you are confident the key has not changed, wait a minute and try again before re-pairing."
     },
     "abort": {
       "already_configured": "This charger is already configured.",

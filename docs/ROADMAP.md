@@ -11,11 +11,15 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 
 ## Resume here
 
-- **Current version:** 2.21.0
+- **Current version:** 2.23.1
 - **Phase in progress:** Phases 1–5 ✅ done. **A3 ✅ and A2 ✅** (2.20.0): quality_scale.yaml written,
   every entity platform tested. **2.21.0** was two field-reported bug fixes (continuous mode's
   ceiling ignoring a narrower preset list, PR #24; the options form dropping entity-selector picks
-  on save, #26), not a roadmap phase. Remaining roadmap items: **phase 6** (B8 carbon intensity, B9
+  on save, #26), **2.22.0** added the off-peak battery-floor chaining and the external
+  charge-allowed sensor (#31), **2.23.0** added the off-peak sensor alternative to windows (#32),
+  and **2.23.1** was two more field-reported bug fixes (L1 current not reset when idle, #35; a
+  misleading "invalid credentials" message on a transient session failure, #34) — none of these
+  patch releases were roadmap phases. Remaining roadmap items: **phase 6** (B8 carbon intensity, B9
   daily forecast, B10 Tempo/RTE) and **phase 7** (B11 phase imbalance, B14 session receipt, B15
   vehicle subentries).
 - **Next concrete action:** **B10 (Tempo/RTE)** is the most valuable remaining feature for French
@@ -63,6 +67,7 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 | **A5** | ✅ 2.16.1 | `VERSION = 1` with no `async_migrate_entry`. Any change to `entry.data` would break existing installs with no net. |
 | **A6** | ⬜ | `SERVICE_DRY_RUN_SURPLUS` declared in `const.py`, registered nowhere — it survived the 2.4.0 purge. Also `DP_DO_RESET`, `DP_EARCH_FREE_CFG`, `DP_HEARTBEAT`, declared and unused. Implement rather than delete the first (see B2). |
 | **A7** | ✅ 2.14.0 | The previous roadmap described finished work. This file replaces it. |
+| **A8** | ⬜ | `_async_update_listener` (`__init__.py`) reloads the *entire* integration on any config-entry update, including runtime-only flags stored in options: `switch.surplus_mode` (`switch.py`), every `number`/`select` option write, and the `profile_assistant`/`set_surplus_profile` services. Each flips every entity Unavailable for a couple of seconds. Surfaced investigating #36 (a manual `charge_session` toggle appearing to revert to off right after disabling surplus mode) — the revert itself wasn't pinned down, but the blanket reload is real and independently worth narrowing to actual `entry.data`/persisted-option changes.  |
 | — | ✅ 2.14.0 | Formatting was never enforced: 35 of 49 files had drifted, including stray 8/16/20-space indents in the surplus controller. `ruff format --check .` is now part of CI. |
 
 ---

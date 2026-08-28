@@ -38,7 +38,7 @@
       "no_devices_found": "Aucun appareil Tuya trouve sur le reseau. Saisissez les identifiants manuellement.",
       "unknown": "Erreur inattendue.",
       "connection_refused": "La borne a refuse la connexion. Ces bornes n'acceptent qu'une seule connexion locale a la fois : fermez l'appli Smart Life et desactivez toute autre integration Tuya qui la vise, puis reessayez.",
-      "invalid_credentials": "La borne a repondu mais ses reponses n'ont pas pu etre dechiffrees. Verifiez la local key et la version du protocole ; un re-appairage change la cle."
+      "invalid_credentials": "La borne a repondu mais ses reponses n'ont pas pu etre dechiffrees. Ca signifie generalement que la local key ou la version du protocole est fausse (un re-appairage change la cle) -- mais le meme message apparait aussi pour un accroc de session passager, par exemple si autre chose occupe brievement l'unique connexion locale de la borne. Si vous etes sur que la cle n'a pas change, attendez une minute et reessayez avant de re-appairer."
     },
     "abort": {
       "already_configured": "Cette borne est deja configuree.",
