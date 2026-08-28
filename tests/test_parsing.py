@@ -62,6 +62,13 @@ def test_power_resets_when_not_charging(charging_dps, state):
     assert data.voltage_l1 == 227.0
 
 
+@pytest.mark.parametrize("state", ["IDLEINS", "IDLE", "STOP", "PAUSE", "SLEEP"])
+def test_current_resets_when_not_charging(charging_dps, state):
+    """Some firmwares also keep echoing the last current reading (issue #35)."""
+    data = _metrics({**charging_dps, "109": state})
+    assert data.current_l1 == 0.0
+
+
 def test_session_counters(charging_dps):
     """DP 102 holds the running session: e in 0.1 kWh, d in 0.1 s."""
     data = _metrics(charging_dps)

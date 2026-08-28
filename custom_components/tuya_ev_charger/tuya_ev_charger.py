@@ -658,11 +658,15 @@ def _parse_phases(
         if name != "L1" and voltage == 0.0 and current == 0.0:
             # Phase not wired on this model.
             continue
+        # Some firmwares keep echoing the last current (and power) reading
+        # once a session ends, so treat both as zero outside an active
+        # session -- same reasoning as the existing power reset below.
+        metered_current = current if charging else 0.0
         phases[name] = PhaseMetrics(
             voltage=voltage,
-            current=current,
+            current=metered_current,
             # kW, to match the reported field's unit.
-            power=round(voltage * current / 1000.0, 3) if charging else 0.0,
+            power=round(voltage * metered_current / 1000.0, 3),
             raw_power=round(raw_power / 10.0, 2),
         )
     return phases
