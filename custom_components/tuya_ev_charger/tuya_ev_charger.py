@@ -241,6 +241,13 @@ class TuyaEVChargerClient:
             charger_profile_json,
         )
         self._device: tinytuya.Device | None = None
+        # The charger accepts a single local connection and tinytuya's Device is
+        # not thread-safe. A command runs on one worker thread while the
+        # coordinator's poll runs on another, both on this one Device object, so
+        # every access to `self._device` is serialised here. Without it a write
+        # that lands mid-poll corrupts the socket and tinytuya returns None,
+        # which used to read as "Command rejected for DP 140".
+        self._io_lock = asyncio.Lock()
 
     @property
     def device_id(self) -> str:
@@ -259,18 +266,19 @@ class TuyaEVChargerClient:
         return self._dp_profile
 
     async def async_connect(self) -> None:
-        if self._device is not None:
-            # Close the previous socket so it never lingers on the charger's
-            # single local-connection slot.
-            self._device.close()
-        device = tinytuya.Device(
-            dev_id=self._device_id,
-            address=self._host,
-            local_key=self._local_key,
-            version=self._protocol_version,
-        )
-        _configure_device(device)
-        self._device = device
+        async with self._io_lock:
+            if self._device is not None:
+                # Close the previous socket so it never lingers on the charger's
+                # single local-connection slot.
+                self._device.close()
+            device = tinytuya.Device(
+                dev_id=self._device_id,
+                address=self._host,
+                local_key=self._local_key,
+                version=self._protocol_version,
+            )
+            _configure_device(device)
+            self._device = device
 
     async def async_update_host(self, host: str) -> None:
         """Point the client at a new IP (after a DHCP change) and reconnect."""
@@ -330,9 +338,10 @@ class TuyaEVChargerClient:
         on unload/reload leaves a zombie socket that makes the device refuse
         every later connection (including our own next instance).
         """
-        if self._device is not None:
-            await asyncio.to_thread(self._device.close)
-            self._device = None
+        async with self._io_lock:
+            if self._device is not None:
+                await asyncio.to_thread(self._device.close)
+                self._device = None
 
     async def async_probe_host(self, host: str) -> bool:
         """Return True if our charger answers at ``host``.
@@ -416,7 +425,8 @@ class TuyaEVChargerClient:
         return False
 
     async def async_get_metrics(self) -> EVMetrics | None:
-        dps = await self._async_get_dps_payload()
+        async with self._io_lock:
+            dps = await self._async_get_dps_payload()
         if dps is None:
             return None
 
@@ -479,23 +489,49 @@ class TuyaEVChargerClient:
         return await self._async_send_command(DP_SCHEDULE, payload, verify=False)
 
     async def async_get_raw_dps(self) -> dict[str, Any] | None:
-        return await self._async_get_dps_payload()
+        async with self._io_lock:
+            return await self._async_get_dps_payload()
 
     async def _async_send_command(self, dp_id: str, value: Any, verify: bool = True) -> bool:
-        device = self._get_device()
-        response: Any = await asyncio.to_thread(device.set_value, dp_id, value)
-        if not (isinstance(response, dict) and "Error" not in response):
-            LOGGER.error("Command rejected for DP %s: %s", dp_id, response)
-            return False
+        """Write a DP and confirm it took, holding the charger's single slot throughout.
 
-        if not verify:
-            return True
+        tinytuya's ``set_value`` returns one of three things, and they mean
+        different things:
 
-        verdict = await self._async_verify_command(dp_id, value)
-        if verdict is not False:
-            return True
+        * a ``dict`` **with** an ``"Error"`` key -- a genuine transport failure
+          (offline, timeout, undecryptable). Every real failure looks like this.
+        * ``None`` -- the charger sent a bare 28-byte ACK and no ``dps`` echo.
+          This is the *normal* reply to a write-only DP on protocol 3.4/3.5
+          (DP 140 in particular), not a rejection. It used to be logged as
+          "Command rejected for DP 140: None" and fail the whole start.
+        * a ``dict`` without ``"Error"`` -- accepted with an echo.
 
-        LOGGER.error("Command accepted but not reflected in status for DP %s.", dp_id)
+        Only the first is a failure. The other two fall through to read-back
+        verification, which already tolerates a charger that never echoes the DP.
+        """
+        async with self._io_lock:
+            device = self._get_device()
+            response: Any = await asyncio.to_thread(device.set_value, dp_id, value)
+
+            if isinstance(response, dict) and "Error" in response:
+                LOGGER.warning("Command to DP %s failed: %s", dp_id, response["Error"])
+                return False
+
+            if response is None:
+                LOGGER.debug(
+                    "DP %s: charger acknowledged without echoing it back; verifying by read-back.",
+                    dp_id,
+                )
+
+            if not verify:
+                return True
+
+            verdict = await self._async_verify_command(dp_id, value)
+            if verdict is not False:
+                # True (echoed match) or None (this charger never reports the DP).
+                return True
+
+        LOGGER.warning("Command accepted but not reflected in status for DP %s.", dp_id)
         return False
 
     async def _async_verify_command(self, dp_id: str, expected: Any) -> bool | None:
@@ -506,14 +542,24 @@ class TuyaEVChargerClient:
         the write-only DPs their profile declares (for example DP 140 does not
         exist on the depow 3.5kW), so demanding an echo there would fail every
         command even though the charger obeyed it.
+
+        The full retry budget is kept for chargers that *do* report the DP but
+        echo it late; a charger that omits it from two clean reads is taken to
+        never report it, so the caller is not made to wait out all the retries.
+
+        Must be called with ``self._io_lock`` held.
         """
         saw_dp = False
+        reads_without_dp = 0
         for _ in range(COMMAND_VERIFY_RETRIES):
             await asyncio.sleep(COMMAND_VERIFY_DELAY_S)
             dps = await self._async_get_dps_payload()
             if dps is None:
                 continue
             if dp_id not in dps:
+                reads_without_dp += 1
+                if reads_without_dp >= 2:
+                    break
                 continue
             saw_dp = True
             if _values_match(dps.get(dp_id), expected):
@@ -528,6 +574,7 @@ class TuyaEVChargerClient:
         return False
 
     async def _async_get_dps_payload(self) -> dict[str, Any] | None:
+        """Read the charger's DPS. Must be called with ``self._io_lock`` held."""
         device = self._get_device()
         payload: Any = await asyncio.to_thread(device.status)
 
@@ -788,10 +835,13 @@ def _coerce_optional_bool(value: Any) -> bool | None:
 
 
 def _values_match(received: Any, expected: Any) -> bool:
-    expected_bool = _coerce_optional_bool(expected)
-    if expected_bool is not None:
+    # Compare on the type actually written. `expected` is a real bool for the
+    # on/off DPs and an int for the numeric ones (DP 101 work state, DP 150
+    # current) -- coercing an int like 300 through bool() first made it "match"
+    # a read-back of 200, so a write that never took looked verified.
+    if isinstance(expected, bool):
         received_bool = _coerce_optional_bool(received)
-        return received_bool is not None and received_bool == expected_bool
+        return received_bool is not None and received_bool == expected
 
     expected_int = _coerce_optional_int(expected)
     if expected_int is not None:
