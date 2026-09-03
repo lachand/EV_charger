@@ -437,11 +437,14 @@ class TuyaEVChargerClient:
 
         work_state_debug = _coerce_optional_text(dps.get(self._dp.work_state_debug)) or "UNKNOWN"
         work_state_debug = work_state_debug.strip().upper()
+        do_charge = _coerce_optional_bool(dps.get(self._dp.do_charge))
 
         # The charger keeps reporting the last power reading after a session
         # ends, which corrupts surplus regulation and "car full" detection, so
-        # treat anything but an active session as zero power.
-        charging = work_state_debug == WORK_STATE_CHARGING
+        # treat anything but an active session as zero power. A model that
+        # reports DP 140 counts as charging when it says so, even if its DP 109
+        # string is one we do not map to "charging" (#35).
+        charging = work_state_debug == WORK_STATE_CHARGING or do_charge is True
         phases = _parse_phases(metrics_dict, charging)
         l1 = phases.get("L1")
 
@@ -466,7 +469,7 @@ class TuyaEVChargerClient:
             plug_in_action=PLUG_IN_ACTION_MAP.get(
                 _coerce_optional_int(dps.get(self._dp.plug_in_action))
             ),
-            do_charge=_coerce_optional_bool(dps.get(self._dp.do_charge)),
+            do_charge=do_charge,
             current_target=_coerce_optional_int(dps.get(self._dp.current_target)),
             max_current_cfg=_coerce_optional_int(dps.get(self._dp.max_current_cfg)),
             nfc_enabled=_coerce_optional_bool(dps.get(self._dp.nfc_cfg)),

@@ -69,6 +69,19 @@ def test_current_resets_when_not_charging(charging_dps, state):
     assert data.current_l1 == 0.0
 
 
+def test_dp140_charging_keeps_the_readings_even_on_an_unmapped_state(charging_dps):
+    """#35: a model that reports DP 140 = true is charging, whatever DP 109 says.
+
+    Without this the reset gate (keyed on DP 109 == WORKING) would zero a live
+    session's current/power just because the firmware uses a state string we do
+    not map.
+    """
+    data = _metrics({**charging_dps, "109": "CHARGINGNOW", "140": True})
+    assert data.do_charge is True
+    assert data.current_l1 == 8.7
+    assert data.power_l1 == pytest.approx(1.975, abs=0.05)
+
+
 def test_session_counters(charging_dps):
     """DP 102 holds the running session: e in 0.1 kWh, d in 0.1 s."""
     data = _metrics(charging_dps)

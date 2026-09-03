@@ -7,6 +7,72 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.24.0
+
+- **Starting a charge failed with `Command rejected for DP 140: None`, and the
+  switch fell straight back to off.** Reported by @JNow01 (#38) and in #39 — the
+  reappearance of #3 one layer down. `_async_send_command` took the raw return of
+  tinytuya's `set_value`: a `dict` with an `"Error"` key is a real transport
+  failure, but a bare `None` just means the charger sent a 28-byte ACK and no DPS
+  echo, which is the *normal* reply to a write-only DP (DP 140 in particular) on
+  protocol 3.4/3.5. Both were treated as a rejection, and the check ran *before*
+  the read-back that already tolerates a charger which never echoes the DP. Now
+  only an `"Error"` dict is a failure; a bare ACK falls through to verification,
+  and `button.reboot_charger` no longer logs the same line up to three times.
+- **Commands and the background poll could collide on the charger's single
+  connection.** A write runs on one worker thread while the coordinator's poll
+  runs on another, both on the same non-thread-safe tinytuya `Device`. A command
+  landing mid-poll corrupted the socket, and tinytuya then returned `None` — the
+  same symptom as above. All access to the device is now serialised behind one
+  lock, so a command waits for an in-flight read instead of racing it.
+- **Read-back no longer waits out the full retry budget** when a charger simply
+  never reports the DP it was told to write: two clean reads without it is
+  enough to stop waiting. The budget is still there for chargers that echo the
+  DP late.
+- **Read-back verification of a numeric DP now compares the number, not its
+  truthiness.** A write of DP 101 = 200 (operating state) counted a read-back of
+  300 as a match, because both are truthy — so a write the charger ignored
+  looked confirmed. Bool DPs (on/off) are unchanged.
+- **`switch.charging_session` no longer flicks off then on right after you turn
+  it on**, on a charger with no DP 140. Those units report only their operating
+  state, and after a start command they step `PAUSE → IDLEINS → WORKING` over
+  several seconds — during which the raw state is not "charging" yet. The switch
+  now holds the commanded state until the charger's own state agrees, a
+  no-cable/fault state rules it out, or 90 s pass. A charger that does report
+  DP 140 is unaffected (its echo is immediate).
+- **A surplus setting change no longer reloads the whole integration.** Raised
+  investigating #36 (a manual `charge_session` toggle appearing to revert to off
+  right after disabling surplus mode) and tracked as roadmap **A8**: the
+  config-entry update listener reloaded *everything* on any option write —
+  `switch.surplus_mode`, every surplus `number`/`select` — and a reload drops the
+  charger's single local connection for a couple of seconds, long enough to lose
+  a `charge_session` write that lands in the gap. When a change touches only the
+  surplus runtime knobs (mode, profile, SOC thresholds, start/stop watts, battery
+  discharge budget, ramp cooldowns), the controller now re-reads them in place
+  and nothing else is disturbed. Every other option still reloads.
+- **A one-off undecryptable poll no longer throws up the "re-pair the charger"
+  banner.** Reported by @grinder1337 (#34): on protocol 3.4/3.5 a brief
+  session-handshake glitch looks exactly like a rotated `local_key` from the
+  outside — the port answers, the reply won't decrypt. The coordinator raised
+  `ConfigEntryAuthFailed` on the first one. It now waits for several consecutive
+  undecryptable polls before doing so; a single one just fails and the next poll
+  recovers on its own. The message says as much, instead of steering straight at
+  re-pairing.
+- **A live session's L1 current/power is no longer zeroed on a charger whose
+  DP 109 string we don't recognise**, as long as it reports DP 140 = true. The
+  "hold nothing while not charging" reset was keyed strictly on DP 109 ==
+  `WORKING`; a firmware that charges under a different state string had its
+  readings blanked (#35). The separate mid-session freeze in #35 still needs the
+  reporter's dumps.
+- **Diagnostics:** the surplus controller now logs (debug) which decision reason
+  stopped a session, to help pin down field reports of a charge ending on its
+  own (#39).
+
+The DP 140 command path was checked on the reference charger (which does not
+report DP 140): a start/stop now round-trips cleanly, and a poll fired against a
+command no longer corrupts the socket. Confirmation on the 3 kW and 11 kW models
+in #38/#39 is still welcome before those issues close.
+
 ## 2.23.1
 
 - **L1 current kept the last reading after a session ended.** Reported by

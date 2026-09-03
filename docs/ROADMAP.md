@@ -11,15 +11,23 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 
 ## Resume here
 
-- **Current version:** 2.23.1
+- **Current version:** 2.24.0
 - **Phase in progress:** Phases 1–5 ✅ done. **A3 ✅ and A2 ✅** (2.20.0): quality_scale.yaml written,
   every entity platform tested. **2.21.0** was two field-reported bug fixes (continuous mode's
   ceiling ignoring a narrower preset list, PR #24; the options form dropping entity-selector picks
   on save, #26), **2.22.0** added the off-peak battery-floor chaining and the external
   charge-allowed sensor (#31), **2.23.0** added the off-peak sensor alternative to windows (#32),
-  and **2.23.1** was two more field-reported bug fixes (L1 current not reset when idle, #35; a
-  misleading "invalid credentials" message on a transient session failure, #34) — none of these
-  patch releases were roadmap phases. Remaining roadmap items: **phase 6** (B8 carbon intensity, B9
+  **2.23.1** was two more field-reported bug fixes (L1 current not reset when idle, #35; a
+  misleading "invalid credentials" message on a transient session failure, #34), and **2.24.0**
+  fixed the charge-start path treating tinytuya's bare ACK (`set_value` → `None`) as
+  "Command rejected for DP 140" (#38, #39), stopped `switch.charging_session` flicking off then
+  on right after a start on a DP-140-less charger (optimistic hold until the operating state
+  agrees), serialised all charger I/O behind one lock so a command can no longer collide with
+  the background poll on the single connection, and did **A8** (below): a surplus-knob change
+  now applies in place instead of reloading the whole integration, made a one-off
+  undecryptable poll fail quietly instead of throwing the reauth banner (#34), and
+  stopped zeroing a live session's L1 readings on a charger with an unmapped DP 109
+  string (#35, partial). None of these were roadmap phases. Remaining roadmap items: **phase 6** (B8 carbon intensity, B9
   daily forecast, B10 Tempo/RTE) and **phase 7** (B11 phase imbalance, B14 session receipt, B15
   vehicle subentries).
 - **Next concrete action:** **B10 (Tempo/RTE)** is the most valuable remaining feature for French
@@ -34,11 +42,21 @@ Reading this file alone should be enough to resume without re-auditing the repo.
   in `const.py` and is registered nowhere (A6) — by building a `GateContext` from
   supplied values and running `evaluate()` without writing to the charger. The
   pure layer makes that nearly free.
-- **Suite:** 304 tests. CI green on all four jobs; `ruff format --check` now
+- **Suite:** 545 tests. CI green on all four jobs; `ruff format --check` now
   enforced.
-- **Hardware:** the charger was unreachable from the dev machine at the time of
-  writing ("No route to host" on 192.168.1.237). **The DP 101 write behind
-  `button.ready_to_charge` is still unvalidated** since it shipped.
+- **Hardware (2.24.0 pass, charger at 192.168.1.236, fw 1.9.7, no DP 140):**
+  `async_set_charge_enabled(False/True)` round-trips — `WORKING → PAUSE/204`,
+  then `→ IDLEINS → WORKING` — with the new DEBUG "assuming applied" line, no
+  ERROR; ~3.5 s each (read-back short-circuit). A poll fired concurrently with a
+  command returns cleanly (I/O lock). `async_reboot()` sent **one** DP 142
+  command (bare ACK), charger back in ~10 s and auto-resumed. **DP 101 = 300
+  starts/resumes a charge** on this unit (echoed, verified) — the start path for
+  a DP-140-less model; DP 101 = 200 is ignored while a car is drawing (stop still
+  needs DP 140 → false, or nothing on a unit without it — TBC on the 11 kW).
+  The `switch.charging_session` flicker was reproduced (raw state sits on
+  `IDLEINS` for a few seconds after a start) and is what the optimistic hold
+  fixes. **Still to check on real HA:** the switch no longer flicks off after
+  turn-on; `button.ready_to_charge` end to end.
 
 ---
 
@@ -67,7 +85,7 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 | **A5** | ✅ 2.16.1 | `VERSION = 1` with no `async_migrate_entry`. Any change to `entry.data` would break existing installs with no net. |
 | **A6** | ⬜ | `SERVICE_DRY_RUN_SURPLUS` declared in `const.py`, registered nowhere — it survived the 2.4.0 purge. Also `DP_DO_RESET`, `DP_EARCH_FREE_CFG`, `DP_HEARTBEAT`, declared and unused. Implement rather than delete the first (see B2). |
 | **A7** | ✅ 2.14.0 | The previous roadmap described finished work. This file replaces it. |
-| **A8** | ⬜ | `_async_update_listener` (`__init__.py`) reloads the *entire* integration on any config-entry update, including runtime-only flags stored in options: `switch.surplus_mode` (`switch.py`), every `number`/`select` option write, and the `profile_assistant`/`set_surplus_profile` services. Each flips every entity Unavailable for a couple of seconds. Surfaced investigating #36 (a manual `charge_session` toggle appearing to revert to off right after disabling surplus mode) — the revert itself wasn't pinned down, but the blanket reload is real and independently worth narrowing to actual `entry.data`/persisted-option changes.  |
+| **A8** | ✅ 2.24.0 | `_async_update_listener` (`__init__.py`) reloaded the *entire* integration on any config-entry update, including runtime-only flags stored in options: `switch.surplus_mode`, every `number`/`select` option write. Each flipped every entity Unavailable for a couple of seconds, and the reload drops the charger's single connection — a `charge_session` write in that gap is lost (#36). Fixed: a change confined to `LIVE_APPLIABLE_OPTION_KEYS` (`const.py` — surplus mode, profile, SOC thresholds, start/stop W, discharge budget, ramp cooldowns) now calls the new `SolarSurplusController.async_apply_settings()`, which re-reads `_settings_from_entry`, rebinds the tracked-sensor listeners, re-syncs config problems and forces one evaluation. Anything else still reloads. The `set_surplus_profile` service writes only allowlisted keys, so it rides the fast path too; `profile_assistant` writes `CONF_CHARGER_PROFILE` (not allowlisted) and still reloads, correctly, since it rebuilds the client. |
 | — | ✅ 2.14.0 | Formatting was never enforced: 35 of 49 files had drifted, including stray 8/16/20-space indents in the surplus controller. `ruff format --check .` is now part of CI. |
 
 ---
