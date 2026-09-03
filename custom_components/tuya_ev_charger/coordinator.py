@@ -28,6 +28,7 @@ from .const import (
     LOCAL_KEY_REFRESH_COOLDOWN_SECONDS,
     REDISCOVERY_COOLDOWN_SECONDS,
     REDISCOVERY_SCAN_SECONDS,
+    UNDECRYPTABLE_FAILURES_BEFORE_REAUTH,
     ConnectionFault,
 )
 from .discovery import async_scan_devices_by_id
@@ -146,10 +147,16 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         self._last_failure_at = dt_util.now()
 
         message = await self._async_failure_message()
-        if self._last_fault == ConnectionFault.UNDECRYPTABLE:
-            # The charger answers but nothing decrypts: the key was rotated by a
-            # re-pairing. ConfigEntryAuthFailed is what puts a "Reconfigure"
-            # banner in front of the user; UpdateFailed would just retry forever.
+        if (
+            self._last_fault == ConnectionFault.UNDECRYPTABLE
+            and self._consecutive_failures >= UNDECRYPTABLE_FAILURES_BEFORE_REAUTH
+        ):
+            # The charger answers but nothing decrypts, and has for several polls
+            # in a row: the local_key was rotated by a re-pairing.
+            # ConfigEntryAuthFailed is what puts a "Reconfigure" banner in front
+            # of the user; UpdateFailed would just retry forever. A one-off
+            # undecryptable poll is a transient handshake glitch (#34) and only
+            # gets an UpdateFailed, so the next poll can recover on its own.
             raise ConfigEntryAuthFailed(message)
         raise UpdateFailed(message)
 
@@ -178,8 +185,10 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
 
         if fault == ConnectionFault.UNDECRYPTABLE:
             return (
-                f"Charger at {host} answers but its replies cannot be decrypted; "
-                "the local_key was most likely changed by a re-pairing."
+                f"Charger at {host} answers but its replies cannot be decrypted. "
+                "Usually a rotated local_key (re-pair the charger to fix it), but "
+                "a brief session-handshake glitch looks identical and clears on "
+                "its own — give it a few minutes before assuming re-pairing is needed."
             )
         return f"Charger unreachable at {host} (nothing answers at that address)."
 

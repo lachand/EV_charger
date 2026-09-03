@@ -275,6 +275,13 @@ REDISCOVERY_COOLDOWN_SECONDS = 120
 # on every poll, forever.
 FAULT_DIAGNOSIS_COOLDOWN_SECONDS = 300
 
+# A single undecryptable poll is not enough to conclude the local_key was
+# rotated: a brief session-handshake glitch on protocol 3.4/3.5 looks identical
+# and clears on the next poll. Only after this many consecutive failures does the
+# coordinator raise ConfigEntryAuthFailed (the reauth banner); below it, the poll
+# just fails and retries. Reported in #34.
+UNDECRYPTABLE_FAILURES_BEFORE_REAUTH = 3
+
 # Optional Tuya Cloud assistance. Used only to fetch device credentials: at
 # setup time (config flow) and to re-download the local_key when the charger is
 # re-paired (which rotates the key and otherwise breaks local control). The

@@ -246,6 +246,48 @@ def test_success_clears_the_cached_fault():
     assert coordinator._last_fault is None
 
 
+def test_a_transient_undecryptable_poll_does_not_trigger_reauth():
+    """#34: one undecryptable poll is a handshake glitch, not a rotated key.
+
+    Only after several consecutive undecryptable polls does the coordinator raise
+    ConfigEntryAuthFailed (the reauth banner); before that it just fails and the
+    next poll can recover on its own.
+    """
+    import asyncio
+
+    from tuya_ev_charger.const import UNDECRYPTABLE_FAILURES_BEFORE_REAUTH, ConnectionFault
+    from tuya_ev_charger.coordinator import ConfigEntryAuthFailed, UpdateFailed
+
+    coordinator = _bare_coordinator()
+
+    async def _no_metrics():
+        return None
+
+    async def _no():
+        return False
+
+    async def _message():
+        coordinator._last_fault = ConnectionFault.UNDECRYPTABLE
+        return "undecryptable"
+
+    coordinator._async_fetch_metrics = _no_metrics
+    coordinator._async_try_rediscover_host = _no
+    coordinator._async_try_refresh_local_key = _no
+    coordinator._async_failure_message = _message
+
+    for i in range(1, UNDECRYPTABLE_FAILURES_BEFORE_REAUTH):
+        with pytest.raises(UpdateFailed):
+            asyncio.run(coordinator._async_update_data())
+        assert coordinator._consecutive_failures == i
+
+    with pytest.raises(ConfigEntryAuthFailed):
+        asyncio.run(coordinator._async_update_data())
+
+    # And a good poll wipes the streak, so a later blip starts from zero again.
+    coordinator._async_note_success()
+    assert coordinator._consecutive_failures == 0
+
+
 def test_connection_health_starts_unknown_not_perfect():
     """Before the first poll there is no rate; 100% would be a lie."""
     coordinator = _bare_coordinator()
