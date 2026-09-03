@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from time import monotonic
+
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -20,6 +22,15 @@ from .entity import TuyaEVChargerEntity
 from .tuya_ev_charger import WORK_STATE_CHARGING
 
 PARALLEL_UPDATES = 1  # The charger accepts one local connection; writes are serialised.
+
+# A charger without DP 140 reports only its operating state, and after a start
+# command it steps PAUSE -> IDLEINS -> WORKING over several seconds. Hold the
+# commanded state until the charger's own state agrees, so the switch does not
+# flick back off for those seconds right after the user turns it on.
+_PENDING_TIMEOUT_S = 90.0
+# Operating states (raw DP 109) that mean a pending "on" will not arrive -- no
+# cable, a fault, or a finished session. Stop waiting and show the real state.
+_NOT_STARTING_STATES = frozenset({"SLEEP", "IDLE", "STOP", "ERRORPAUSE"})
 
 
 async def async_setup_entry(
@@ -49,17 +60,43 @@ class TuyaEVChargerChargeSessionSwitch(TuyaEVChargerEntity, SwitchEntity):
             card_index=CARD_ROLE_INDEX[CARD_ROLE_CHARGE_SESSION],
         )
         self._attr_unique_id = f"{runtime_data.client.device_id}_charge_session"
+        self._pending_charge: bool | None = None
+        self._pending_since: float = 0.0
 
     @property
-    def is_on(self) -> bool:
+    def _reported_on(self) -> bool | None:
         data = self.coordinator.data
         if data is None:
-            return False
+            return None
         if data.do_charge is not None:
             return data.do_charge
         # Models that do not expose the do_charge DP (e.g. the depow 3.5kW has
         # no DP 140) only report the operating state.
         return data.work_state_debug == WORK_STATE_CHARGING
+
+    @property
+    def is_on(self) -> bool:
+        """The charger's reported state, or the commanded one while it catches up.
+
+        A charger with DP 140 echoes the change on the next poll; one without it
+        walks PAUSE -> IDLEINS -> WORKING first, and reporting the raw operating
+        state there flicks the switch back off for those seconds right after the
+        user turned it on. Hold the commanded state until they agree, a
+        no-cable/fault state rules it out, or it times out.
+        """
+        reported = self._reported_on
+        pending = self._pending_charge
+        if pending is None:
+            return bool(reported)
+
+        data = self.coordinator.data
+        stalled = bool(
+            pending and data is not None and data.work_state_debug in _NOT_STARTING_STATES
+        )
+        if reported == pending or stalled or monotonic() - self._pending_since > _PENDING_TIMEOUT_S:
+            self._pending_charge = None
+            return bool(reported)
+        return pending
 
     async def async_turn_on(self, **kwargs: object) -> None:
         await self._async_set_charging(True)
@@ -79,6 +116,8 @@ class TuyaEVChargerChargeSessionSwitch(TuyaEVChargerEntity, SwitchEntity):
                 if enabled
                 else "Unable to stop charging session."
             )
+        self._pending_charge = enabled
+        self._pending_since = monotonic()
         await self.coordinator.async_request_refresh()
 
 

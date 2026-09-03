@@ -37,6 +37,9 @@ def _switch(cls, *, data=None, client=None, **fields):
     entity.coordinator = types.SimpleNamespace(data=data, async_request_refresh=_refresh)
     entity._runtime_data = types.SimpleNamespace(client=client or _Client())
     entity.refreshes = refreshes
+    # __new__ skips __init__; the optimistic-state fields the real __init__ sets.
+    entity._pending_charge = None
+    entity._pending_since = 0.0
     for key, value in fields.items():
         setattr(entity, key, value)
     return entity
@@ -93,6 +96,61 @@ def test_a_failed_charge_write_raises():
     switch = _switch(S, data=_metrics(do_charge=False), client=_Client(ok=False))
     with pytest.raises(HomeAssistantError, match="start charging"):
         asyncio.run(switch.async_turn_on())
+
+
+# --- optimistic state on a charger without DP 140 (the switch used to flick off)
+
+
+def test_switch_holds_on_while_the_charger_walks_up_to_working():
+    """No DP 140: after turn_on the charger steps PAUSE -> IDLEINS -> WORKING."""
+    from tuya_ev_charger.switch import TuyaEVChargerChargeSessionSwitch as S
+
+    switch = _switch(S, data=_metrics(do_charge=None, work_state_debug="PAUSE"))
+    asyncio.run(switch.async_turn_on())
+
+    # Still transitioning -- the raw state is not WORKING yet, but the switch holds on.
+    switch.coordinator.data = _metrics(do_charge=None, work_state_debug="IDLEINS")
+    assert switch.is_on is True
+
+    # Charger reaches WORKING: optimism clears, still on, from the real state now.
+    switch.coordinator.data = _metrics(do_charge=None, work_state_debug="WORKING")
+    assert switch.is_on is True
+    assert switch._pending_charge is None
+
+
+def test_switch_gives_up_the_pending_on_when_no_cable():
+    from tuya_ev_charger.switch import TuyaEVChargerChargeSessionSwitch as S
+
+    switch = _switch(S, data=_metrics(do_charge=None, work_state_debug="IDLEINS"))
+    asyncio.run(switch.async_turn_on())
+    switch.coordinator.data = _metrics(do_charge=None, work_state_debug="IDLE")
+    assert switch.is_on is False
+    assert switch._pending_charge is None
+
+
+def test_pending_state_times_out(monkeypatch):
+    import tuya_ev_charger.switch as sw
+
+    monkeypatch.setattr(sw, "monotonic", lambda: 10_000.0)
+    switch = _switch(sw.TuyaEVChargerChargeSessionSwitch, data=_metrics(do_charge=None))
+    asyncio.run(switch.async_turn_on())
+    switch.coordinator.data = _metrics(do_charge=None, work_state_debug="IDLEINS")
+    assert switch.is_on is True  # within the window
+
+    monkeypatch.setattr(sw, "monotonic", lambda: 10_000.0 + sw._PENDING_TIMEOUT_S + 1)
+    assert switch.is_on is False
+    assert switch._pending_charge is None
+
+
+def test_dp140_charger_reconciles_on_the_next_poll():
+    """With DP 140 the echo is immediate, so the pending state clears at once."""
+    from tuya_ev_charger.switch import TuyaEVChargerChargeSessionSwitch as S
+
+    switch = _switch(S, data=_metrics(do_charge=False))
+    asyncio.run(switch.async_turn_on())
+    switch.coordinator.data = _metrics(do_charge=True)
+    assert switch.is_on is True
+    assert switch._pending_charge is None
 
 
 # --- NFC -------------------------------------------------------------------
