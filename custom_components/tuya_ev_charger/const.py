@@ -149,6 +149,29 @@ CONF_SURPLUS_ADJUST_UP_COOLDOWN_S = "surplus_adjust_up_cooldown_s"
 CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S = "surplus_adjust_down_cooldown_s"
 CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID = "surplus_forecast_sensor_entity_id"
 
+# Options the solar-surplus controller owns end to end: it re-reads them itself
+# on a config-entry update (`SolarSurplusController.async_apply_settings`), and
+# the switch / number / select entities that write them refresh themselves.
+# When a config-entry update changes *only* these, the integration must NOT do
+# its blanket reload -- a reload drops the charger's single local connection for
+# a couple of seconds, and a `charge_session` write landing in that window is
+# lost (#36). Every other option still reloads.
+LIVE_APPLIABLE_OPTION_KEYS: frozenset[str] = frozenset(
+    {
+        CONF_SURPLUS_MODE_ENABLED,
+        CONF_SURPLUS_PROFILE,
+        CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
+        CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
+        CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+        CONF_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
+        CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
+        CONF_SURPLUS_START_THRESHOLD_W,
+        CONF_SURPLUS_STOP_THRESHOLD_W,
+        CONF_SURPLUS_ADJUST_UP_COOLDOWN_S,
+        CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
+    }
+)
+
 SERVICE_FORCE_CHARGE_FOR = "force_charge_for"
 SERVICE_DRY_RUN_SURPLUS = "dry_run_surplus"
 SERVICE_PAUSE_SURPLUS = "pause_surplus"

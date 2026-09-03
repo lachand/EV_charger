@@ -32,6 +32,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL_SECONDS,
     DOMAIN,
     ENTITY_OPTION_AUTO_DISABLED,
+    LIVE_APPLIABLE_OPTION_KEYS,
     MAX_SCAN_INTERVAL_SECONDS,
     MIN_SCAN_INTERVAL_SECONDS,
     PLATFORMS,
@@ -143,6 +144,10 @@ class TuyaEVChargerRuntimeData:
     vehicle_tracker: VehicleEnergyTracker | None = None
     session_history: SessionHistory | None = None
     vehicle_curves: VehicleChargeCurves | None = None
+    # The options as they were when this entry was set up, so the update
+    # listener can tell an in-place-appliable surplus change from one that
+    # needs a full reload. Refreshed whenever a change is applied in place.
+    options_snapshot: dict[str, Any] | None = None
 
 
 def _scan_interval_seconds(entry: ConfigEntry) -> int:
@@ -238,7 +243,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Done before the update listener is registered so it does not trigger a reload.
     await _async_reconcile_network_info(hass, entry, coordinator)
 
-    runtime_data = TuyaEVChargerRuntimeData(client=client, coordinator=coordinator)
+    runtime_data = TuyaEVChargerRuntimeData(
+        client=client,
+        coordinator=coordinator,
+        options_snapshot=dict(entry.options),
+    )
 
     vehicle_tracker = VehicleEnergyTracker(hass, entry.entry_id)
     await vehicle_tracker.async_load()
@@ -354,6 +363,35 @@ def _normalized_mac(value: Any) -> str | None:
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """React to a config-entry update.
+
+    A full reload drops the charger's single local connection for a couple of
+    seconds, long enough to lose a `charge_session` write that lands in the gap
+    (#36). When the only thing that changed is a surplus runtime knob the
+    controller can re-read on its own, apply it in place instead of reloading.
+    """
+    runtime_data = getattr(entry, "runtime_data", None)
+    if isinstance(runtime_data, TuyaEVChargerRuntimeData):
+        controller = runtime_data.solar_surplus_controller
+        previous = runtime_data.options_snapshot
+    else:
+        controller = previous = None
+
+    if controller is not None and previous is not None:
+        current = dict(entry.options)
+        changed = {
+            key for key in previous.keys() | current.keys() if previous.get(key) != current.get(key)
+        }
+        if changed and changed <= LIVE_APPLIABLE_OPTION_KEYS:
+            runtime_data.options_snapshot = current
+            await controller.async_apply_settings()
+            async_sync_config_problems(hass, entry.entry_id, controller.config_problems())
+            runtime_data.coordinator.async_update_listeners()
+            LOGGER.debug(
+                "Applied %s in place for %s; no reload needed", sorted(changed), entry.title
+            )
+            return
+
     await hass.config_entries.async_reload(entry.entry_id)
 
 

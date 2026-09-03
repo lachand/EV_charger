@@ -296,6 +296,30 @@ class SolarSurplusController:
             )
         self._schedule_evaluation("startup")
 
+    async def async_apply_settings(self) -> None:
+        """Re-read the config entry after an options change, without a reload.
+
+        The controller snapshots ``_settings`` once in ``__init__``, so a surplus
+        option only ever took effect through the blanket reload the update
+        listener does -- which drops the charger's single local connection (#36).
+        This re-reads the snapshot, rebinds the tracked-sensor listeners in case
+        that set changed, and forces an evaluation against the new values.
+        """
+        self._settings = _settings_from_entry(self._entry)
+
+        if self._unsub_sensor is not None:
+            self._unsub_sensor()
+            self._unsub_sensor = None
+        sensor_entities = self._tracked_sensor_entities()
+        if sensor_entities:
+            self._unsub_sensor = async_track_state_change_event(
+                self._hass,
+                sensor_entities,
+                self._handle_sensor_update,
+            )
+
+        self._schedule_evaluation("options_updated")
+
     async def async_shutdown(self) -> None:
         if self._unsub_sensor is not None:
             self._unsub_sensor()
@@ -725,6 +749,15 @@ class SolarSurplusController:
         # ours to interrupt when merely pausing.
         if verdict.only_stop_own_session and not self._session_active:
             return
+        # Field reports (#39) of a session ending on its own need a way to see
+        # which gate stopped it -- a manual toggle plus off-peak windows lands
+        # here via _gate_tariff, which does not set only_stop_own_session.
+        LOGGER.debug(
+            "Stopping charge: reason=%s only_stop_own_session=%s session_active=%s",
+            getattr(verdict.reason, "value", verdict.reason),
+            verdict.only_stop_own_session,
+            self._session_active,
+        )
         if await self._client.async_set_charge_enabled(False):
             self._register_stop(now)
             await self._coordinator.async_request_refresh()
