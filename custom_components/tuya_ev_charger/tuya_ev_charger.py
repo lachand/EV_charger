@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import socket
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -52,6 +53,13 @@ COMMAND_VERIFY_DELAY_S = 1.0
 SOCKET_TIMEOUT_S = 5
 SOCKET_RETRY_LIMIT = 1
 SOCKET_RETRY_DELAY_S = 1
+
+# Some Wi-Fi modules (dé firmware 7.x, #35) only refresh the metrics DP from the
+# MCU on an explicit UPDATEDPS request or while a persistent subscriber (the Tuya
+# app) is connected. A plain status() otherwise returns a stale cache, sometimes
+# for ~10 minutes. Each poll asks for a refresh, then waits this long before
+# reading it back.
+METRICS_REFRESH_SETTLE_S = 0.5
 
 PHASE_NAMES: tuple[str, ...] = ("L1", "L2", "L3")
 # DP 109 states observed across models: SLEEP (standby), IDLE (ready, unplugged),
@@ -579,7 +587,7 @@ class TuyaEVChargerClient:
     async def _async_get_dps_payload(self) -> dict[str, Any] | None:
         """Read the charger's DPS. Must be called with ``self._io_lock`` held."""
         device = self._get_device()
-        payload: Any = await asyncio.to_thread(device.status)
+        payload: Any = await asyncio.to_thread(self._blocking_read, device)
 
         if not isinstance(payload, dict):
             LOGGER.error("Invalid status payload type: %s", type(payload).__name__)
@@ -594,6 +602,26 @@ class TuyaEVChargerClient:
             LOGGER.error("Missing or invalid DPS payload.")
             return None
         return dps
+
+    def _blocking_read(self, device: tinytuya.Device) -> Any:
+        """Nudge the metrics DP, then read the charger's DPS.
+
+        Runs on a worker thread. Over one short-lived persistent socket: ask the
+        module to refresh the metrics DP (UPDATEDPS), wait a beat, then query.
+        On modules that ignore UPDATEDPS this is a harmless extra packet; on the
+        ones that need it (#35) it is what unfreezes the live readings.
+        """
+        try:
+            device.set_socketPersistent(True)
+            try:
+                device.updatedps([int(self._dp.metrics)])
+                time.sleep(METRICS_REFRESH_SETTLE_S)
+            except Exception as err:
+                LOGGER.debug("Metrics DP refresh nudge failed (harmless): %s", err)
+            return device.status()
+        finally:
+            device.set_socketPersistent(False)
+            device.close()
 
     def _get_device(self) -> tinytuya.Device:
         if self._device is None:

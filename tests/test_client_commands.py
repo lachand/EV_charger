@@ -26,6 +26,8 @@ class _FakeDevice:
         self._status_result = status_result if status_result is not None else {"dps": {}}
         self.set_calls: list[tuple[str, object]] = []
         self.status_calls = 0
+        self.updatedps_calls: list[list[int]] = []
+        self.persistent: bool | None = None
 
     def set_value(self, dp_id, value):
         self.set_calls.append((dp_id, value))
@@ -37,6 +39,12 @@ class _FakeDevice:
         self.status_calls += 1
         result = self._status_result
         return result(self.status_calls) if callable(result) else result
+
+    def updatedps(self, index):
+        self.updatedps_calls.append(list(index))
+
+    def set_socketPersistent(self, persist):
+        self.persistent = persist
 
     def close(self):  # pragma: no cover - only the unload path calls this
         pass
@@ -51,10 +59,11 @@ def _client(device: _FakeDevice):
 
 
 @pytest.fixture(autouse=True)
-def _no_verify_sleep(monkeypatch):
+def _no_sleeps(monkeypatch):
     import tuya_ev_charger.tuya_ev_charger as tem
 
     monkeypatch.setattr(tem, "COMMAND_VERIFY_DELAY_S", 0)
+    monkeypatch.setattr(tem, "METRICS_REFRESH_SETTLE_S", 0)
 
 
 # --- a bare ACK is not a rejection ---------------------------------------------
@@ -111,6 +120,30 @@ def test_verify_stops_after_two_reads_without_the_dp():
 
     assert asyncio.run(client.async_set_charge_enabled(True)) is True
     assert device.status_calls == 2  # not COMMAND_VERIFY_RETRIES
+
+
+# --- metrics DP refresh nudge (#35) ----------------------------------------
+
+
+def test_every_poll_nudges_the_metrics_dp_before_reading():
+    device = _FakeDevice(status_result={"dps": {"102": "{}", "109": "WORKING"}})
+    client = _client(device)
+
+    assert asyncio.run(client.async_get_raw_dps()) == {"102": "{}", "109": "WORKING"}
+    assert device.updatedps_calls == [[102]]  # DP_METRICS, as an int
+    assert device.status_calls == 1
+    assert device.persistent is False  # reset so other commands are unaffected
+
+
+def test_a_charger_that_rejects_updatedps_still_gets_read():
+    def _boom(index):
+        raise RuntimeError("device does not support UPDATEDPS")
+
+    device = _FakeDevice(status_result={"dps": {"109": "WORKING"}})
+    device.updatedps = _boom
+    client = _client(device)
+
+    assert asyncio.run(client.async_get_raw_dps()) == {"109": "WORKING"}
 
 
 # --- reboot (verify=False) ----------------------------------------------------

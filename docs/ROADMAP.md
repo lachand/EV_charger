@@ -42,7 +42,16 @@ Reading this file alone should be enough to resume without re-auditing the repo.
   in `const.py` and is registered nowhere (A6) — by building a `GateContext` from
   supplied values and running `evaluate()` without writing to the charger. The
   pure layer makes that nearly free.
-- **Suite:** 545 tests. CI green on all four jobs; `ruff format --check` now
+- **In progress (branch `feat/updatedps-metrics-refresh`):** #35. The dé fv 7.x Wi-Fi
+  module only refreshes the metrics DP (102) every ~10 min unless a persistent
+  subscriber (the Tuya app) is connected; three `profile_assistant` dumps seconds
+  apart came back byte-identical. Each poll now sends UPDATEDPS for the metrics DP
+  over a short-lived persistent socket, waits `METRICS_REFRESH_SETTLE_S` (0.5 s),
+  then reads. Harmless on modules that ignore it. **Awaiting @sailorontherocks
+  confirmation** that it unfreezes DP 102 on `deWB07B07BAU`. Open question for
+  merge: gate it behind a config option, or leave it always-on (+0.5 s/poll for
+  everyone). No manifest bump.
+- **Suite:** 547 tests. CI green on all four jobs; `ruff format --check` now
   enforced.
 - **Hardware (2.24.0 pass, charger at 192.168.1.236, fw 1.9.7, no DP 140):**
   `async_set_charge_enabled(False/True)` round-trips — `WORKING → PAUSE/204`,
