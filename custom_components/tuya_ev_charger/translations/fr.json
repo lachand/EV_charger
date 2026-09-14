@@ -329,6 +329,9 @@
       "charge_session": {
         "name": "Session de charge"
       },
+      "force_charge": {
+        "name": "Forcer la charge"
+      },
       "nfc_enabled": {
         "name": "NFC"
       },

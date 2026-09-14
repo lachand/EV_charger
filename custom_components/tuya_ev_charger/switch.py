@@ -1,17 +1,20 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from time import monotonic
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TuyaEVChargerRuntimeData
 from .const import (
+    ALLOWED_CURRENTS,
     CARD_ROLE_CHARGE_SESSION,
+    CARD_ROLE_FORCE_CHARGE,
     CARD_ROLE_INDEX,
     CARD_ROLE_SCHEDULE_ENABLED,
     CARD_ROLE_SURPLUS_MODE,
@@ -32,6 +35,11 @@ _PENDING_TIMEOUT_S = 90.0
 # cable, a fault, or a finished session. Stop waiting and show the real state.
 _NOT_STARTING_STATES = frozenset({"SLEEP", "IDLE", "STOP", "ERRORPAUSE"})
 
+# Same ceiling as SERVICE_FORCE_CHARGE_SCHEMA's duration_minutes (__init__.py):
+# a safety cap in case the switch is left on, not a target duration -- turning
+# it off is the real way to end a forced session.
+_FORCE_CHARGE_MAX_DURATION_S = 24 * 60 * 60
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -42,6 +50,7 @@ async def async_setup_entry(
     async_add_entities(
         [
             TuyaEVChargerChargeSessionSwitch(entry, runtime_data),
+            TuyaEVChargerForceChargeSwitch(entry, runtime_data),
             TuyaEVChargerNfcSwitch(entry, runtime_data),
             TuyaEVChargerSurplusModeSwitch(entry, runtime_data),
             TuyaEVChargerScheduleSwitch(entry, runtime_data),
@@ -119,6 +128,67 @@ class TuyaEVChargerChargeSessionSwitch(TuyaEVChargerEntity, SwitchEntity):
         self._pending_charge = enabled
         self._pending_since = monotonic()
         await self.coordinator.async_request_refresh()
+
+
+class TuyaEVChargerForceChargeSwitch(TuyaEVChargerEntity, SwitchEntity):
+    """A more discoverable front for the `force_charge_for` service (#22, #36).
+
+    On starts a forced session at the highest current the installation,
+    inverter and charger caps allow (the same "as fast as you can" clamp
+    `_gate_force_charge` already does); off cancels it. Scheduling (off-peak
+    windows, surplus mode) is bypassed, the physical caps are not -- exactly
+    what the service already guarantees, just without a Developer Tools trip.
+    """
+
+    _attr_translation_key = "force_charge"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
+        super().__init__(
+            entry=entry,
+            runtime_data=runtime_data,
+            card_role=CARD_ROLE_FORCE_CHARGE,
+            card_index=CARD_ROLE_INDEX[CARD_ROLE_FORCE_CHARGE],
+        )
+        self._attr_unique_id = f"{runtime_data.client.device_id}_force_charge"
+        self._unsub_listener: Callable[[], None] | None = None
+
+    @property
+    def is_on(self) -> bool:
+        controller = self._runtime_data.solar_surplus_controller
+        if controller is None:
+            return False
+        return controller.snapshot.force_charge_active
+
+    async def async_turn_on(self, **kwargs: object) -> None:
+        controller = self._runtime_data.solar_surplus_controller
+        if controller is None:
+            raise HomeAssistantError("Solar surplus controller is unavailable.")
+        await controller.async_force_charge_for(_FORCE_CHARGE_MAX_DURATION_S, max(ALLOWED_CURRENTS))
+
+    async def async_turn_off(self, **kwargs: object) -> None:
+        controller = self._runtime_data.solar_surplus_controller
+        if controller is None:
+            return
+        await controller.async_force_charge_for(0)
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        controller = self._runtime_data.solar_surplus_controller
+        if controller is None:
+            return
+
+        @callback
+        def _handle_update() -> None:
+            self.async_write_ha_state()
+
+        self._unsub_listener = controller.async_add_update_listener(_handle_update)
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._unsub_listener is not None:
+            self._unsub_listener()
+            self._unsub_listener = None
+        await super().async_will_remove_from_hass()
 
 
 class TuyaEVChargerNfcSwitch(TuyaEVChargerEntity, SwitchEntity):

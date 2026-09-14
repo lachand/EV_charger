@@ -27,7 +27,23 @@ class _Client:
         return self._ok
 
 
-def _switch(cls, *, data=None, client=None, **fields):
+class _Controller:
+    """Stands in for SolarSurplusController, as far as the force-charge switch sees it."""
+
+    def __init__(self, *, force_charge_active=False):
+        self.calls: list[tuple[int, int | None]] = []
+        self.snapshot = types.SimpleNamespace(force_charge_active=force_charge_active)
+        self.listeners: list = []
+
+    async def async_force_charge_for(self, duration_s, current_a=None):
+        self.calls.append((duration_s, current_a))
+
+    def async_add_update_listener(self, listener):
+        self.listeners.append(listener)
+        return lambda: self.listeners.remove(listener)
+
+
+def _switch(cls, *, data=None, client=None, controller=None, **fields):
     entity = cls.__new__(cls)
     refreshes: list[int] = []
 
@@ -35,11 +51,14 @@ def _switch(cls, *, data=None, client=None, **fields):
         refreshes.append(1)
 
     entity.coordinator = types.SimpleNamespace(data=data, async_request_refresh=_refresh)
-    entity._runtime_data = types.SimpleNamespace(client=client or _Client())
+    entity._runtime_data = types.SimpleNamespace(
+        client=client or _Client(), solar_surplus_controller=controller
+    )
     entity.refreshes = refreshes
     # __new__ skips __init__; the optimistic-state fields the real __init__ sets.
     entity._pending_charge = None
     entity._pending_since = 0.0
+    entity._unsub_listener = None
     for key, value in fields.items():
         setattr(entity, key, value)
     return entity
@@ -87,6 +106,86 @@ def test_turning_on_when_already_on_writes_nothing():
     switch = _switch(S, data=_metrics(do_charge=True), client=client)
     asyncio.run(switch.async_turn_on())
     assert client.calls == []
+
+
+# --- force charge (#22, #36) ------------------------------------------------
+
+
+def test_force_charge_reads_the_controllers_snapshot():
+    from tuya_ev_charger.switch import TuyaEVChargerForceChargeSwitch as S
+
+    assert _switch(S, controller=_Controller(force_charge_active=True)).is_on is True
+    assert _switch(S, controller=_Controller(force_charge_active=False)).is_on is False
+
+
+def test_force_charge_reads_false_without_a_controller():
+    from tuya_ev_charger.switch import TuyaEVChargerForceChargeSwitch as S
+
+    assert _switch(S, controller=None).is_on is False
+
+
+def test_turning_on_force_charge_requests_the_highest_current():
+    from tuya_ev_charger.const import ALLOWED_CURRENTS
+    from tuya_ev_charger.switch import TuyaEVChargerForceChargeSwitch as S
+
+    controller = _Controller()
+    switch = _switch(S, controller=controller)
+    asyncio.run(switch.async_turn_on())
+
+    assert len(controller.calls) == 1
+    duration_s, current_a = controller.calls[0]
+    assert duration_s > 0
+    assert current_a == max(ALLOWED_CURRENTS)
+
+
+def test_turning_off_force_charge_clears_it():
+    from tuya_ev_charger.switch import TuyaEVChargerForceChargeSwitch as S
+
+    controller = _Controller(force_charge_active=True)
+    switch = _switch(S, controller=controller)
+    asyncio.run(switch.async_turn_off())
+
+    assert controller.calls == [(0, None)]
+
+
+def test_turning_on_force_charge_without_a_controller_raises():
+    from tuya_ev_charger.switch import HomeAssistantError
+    from tuya_ev_charger.switch import TuyaEVChargerForceChargeSwitch as S
+
+    switch = _switch(S, controller=None)
+    with pytest.raises(HomeAssistantError):
+        asyncio.run(switch.async_turn_on())
+
+
+def test_force_charge_subscribes_and_unsubscribes_to_the_controller():
+    """The subscription is what updates the switch the instant force charge is
+    requested or expires, not the next poll; the unsubscribe stops a leak."""
+    import tuya_ev_charger.switch as mod
+    from tuya_ev_charger.switch import TuyaEVChargerForceChargeSwitch as S
+
+    controller = _Controller()
+    switch = _switch(S, controller=controller)
+    switch.async_write_ha_state = lambda: None
+
+    async def _super():
+        return None
+
+    # Bypass the HA Entity base methods the stub does not provide.
+    monkey = mod.TuyaEVChargerEntity
+    orig_added = getattr(monkey, "async_added_to_hass", None)
+    orig_remove = getattr(monkey, "async_will_remove_from_hass", None)
+    monkey.async_added_to_hass = lambda self: _super()
+    monkey.async_will_remove_from_hass = lambda self: _super()
+    try:
+        asyncio.run(switch.async_added_to_hass())
+        assert switch._unsub_listener is not None
+        asyncio.run(switch.async_will_remove_from_hass())
+        assert controller.listeners == []
+    finally:
+        if orig_added:
+            monkey.async_added_to_hass = orig_added
+        if orig_remove:
+            monkey.async_will_remove_from_hass = orig_remove
 
 
 def test_a_failed_charge_write_raises():

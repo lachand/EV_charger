@@ -360,6 +360,9 @@
       "charge_session": {
         "name": "Charging session"
       },
+      "force_charge": {
+        "name": "Force charge"
+      },
       "nfc_enabled": {
         "name": "NFC"
       },
