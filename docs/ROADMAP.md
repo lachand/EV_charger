@@ -14,7 +14,12 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 - **Current version:** 2.25.0
 - **2.25.0**: `switch.force_charge`, a discoverable front for `force_charge_for`
   (requested on #22 and #36 — the service was "the hardest one to find"). On
-  forces the highest current the caps allow; off cancels it. #38 closed
+  forces the highest current the caps allow; off cancels it. Also fixed:
+  `force_charge_for` called with no `current_a` charged at the *minimum*
+  available current instead of the documented maximum (`requested = ... or 0`
+  sent an omitted request through the same "nothing affordable" path as an
+  explicit request below the ladder) — found while building the switch, which
+  always passes an explicit current and so never hit it. #38 closed
   (`Command rejected for DP 140` confirmed fixed by 3 reporters on 2.24.0).
   #34 narrowed to a charger-side Wi-Fi/module wedge (grinder1337's timing log +
   a `tuya_autodetect_test.py` before/after with the *same* local_key) — not a
@@ -22,6 +27,17 @@ Reading this file alone should be enough to resume without re-auditing the repo.
   outage and that only a power-cycle clears it, nothing built (no blueprint,
   by choice, for now). #35 and #39 still waiting on reporter data for the two
   branches below.
+- **Roadmap correction (2026-09-14):** chasing "next concrete action: B3" found
+  it already shipped — **B2 and B3 were both done in 2.15.0** (`eb14c62`,
+  "the surplus decision explains itself, and can be asked in advance"; the
+  CHANGELOG's 2.15.0 entry documents the `dry_run_surplus` half). The Phases
+  table still had phase 2 at "🔄 next" and the proposals table at ⬜ for both —
+  never corrected after landing. Fixed below. Left alone for now: phase 6's
+  own row still lists A3 (already ✅ 2.20.0) alongside the genuinely open
+  B8/B9/B10, and A6 mixes a done item (`dry_run_surplus`) with still-unused
+  constants (`DP_DO_RESET`, `DP_EARCH_FREE_CFG`, `DP_HEARTBEAT`, verified
+  unused again today) — both are noted where they are rather than a full
+  re-audit nobody asked for.
 - **Phase in progress:** Phases 1–5 ✅ done. **A3 ✅ and A2 ✅** (2.20.0): quality_scale.yaml written,
   every entity platform tested. **2.21.0** was two field-reported bug fixes (continuous mode's
   ceiling ignoring a narrower preset list, PR #24; the options form dropping entity-selector picks
@@ -44,15 +60,9 @@ Reading this file alone should be enough to resume without re-auditing the repo.
   users — a red Tempo day makes peak power prohibitive, and `charge_planner.py` already accepts
   windows, so it is a matter of deriving them from a colour sensor. B8 (carbon intensity) and B9
   (daily forecast) follow the same shape. The `todo`s left in `quality_scale.yaml` (services in
-  `async_setup`, strict typing, translated service exceptions) are the route to gold.
-- **Next concrete action:** **B3, decision traceability.** `charge_gates.py` now
-  enumerates every reason as `DecisionReason`, so translating them (en/fr) and
-  attaching a structured trace to `sensor.surplus_last_decision_reason` is
-  mostly plumbing. Then **B2**: implement `dry_run_surplus` — the constant exists
-  in `const.py` and is registered nowhere (A6) — by building a `GateContext` from
-  supplied values and running `evaluate()` without writing to the charger. The
-  pure layer makes that nearly free.
-- **Suite:** 551 tests. CI green on all four jobs; `ruff format --check` now
+  `async_setup`, strict typing, translated service exceptions) are the route to gold. Both B2 and
+  B3, previously listed here as next, already shipped in 2.15.0 — see the correction above.
+- **Suite:** 552 tests. CI green on all four jobs; `ruff format --check` now
   enforced.
 - **Hardware (2.24.0 pass, charger at 192.168.1.236, fw 1.9.7, no DP 140):**
   `async_set_charge_enabled(False/True)` round-trips — `WORKING → PAUSE/204`,
@@ -75,7 +85,7 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 | Phase | Contents | Target | State |
 |---|---|---|---|
 | **1** | A1 decision layer + A2 partial + formatting | 2.14.0 | ✅ done |
-| 2 | B3 traceability + B2 simulation + A6 leftovers | 2.15.0 | 🔄 next |
+| 2 | B3 traceability + B2 simulation + A6 leftovers | 2.15.0 | ✅ done (B2/B3; A6's DP constants still unused) |
 | 3 | B5 proactive repairs (2.16.0) + A4 form sections + A5 entry migration (2.16.1) | 2.16.x | ✅ done |
 | 4 | **B1 predictive pre-emption** + B6 adaptive polling + B7 Smart Life coexistence | 2.17.0 | ✅ done |
 | 5 | B4 learned curve (2.18.0) + taper, B12 anomalies, B13 statistics (2.19.0) | 2.19.0 | ✅ done |
@@ -93,7 +103,7 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 | **A3** | ✅ 2.20.0 | `manifest.json` declares `quality_scale: silver` but `quality_scale.yaml` is absent — the file Home Assistant checks the claim against. Writing it honestly (marking `todo`/`exempt`) reveals the gaps mechanically and maps a route to gold. |
 | **A4** | ✅ 2.16.1 | 30 options in one flat screen. HA has supported collapsible `section`s since 2024.6; the data-driven `_OPTIONS_FORM` only needs a `section` field on `_Opt`. |
 | **A5** | ✅ 2.16.1 | `VERSION = 1` with no `async_migrate_entry`. Any change to `entry.data` would break existing installs with no net. |
-| **A6** | ⬜ | `SERVICE_DRY_RUN_SURPLUS` declared in `const.py`, registered nowhere — it survived the 2.4.0 purge. Also `DP_DO_RESET`, `DP_EARCH_FREE_CFG`, `DP_HEARTBEAT`, declared and unused. Implement rather than delete the first (see B2). |
+| **A6** | ◐ 2.15.0 (partial) | `SERVICE_DRY_RUN_SURPLUS` declared in `const.py`, registered nowhere — it survived the 2.4.0 purge. Also `DP_DO_RESET`, `DP_EARCH_FREE_CFG`, `DP_HEARTBEAT`, declared and unused. Implement rather than delete the first (see B2). **The service half shipped in 2.15.0** (see B2) — registered, schema'd, documented in `services.yaml`. The three DP constants are still declared and unused (checked again 2026-09-14); no plan to implement them, kept as documentation per the original note. |
 | **A7** | ✅ 2.14.0 | The previous roadmap described finished work. This file replaces it. |
 | **A8** | ✅ 2.24.0 | `_async_update_listener` (`__init__.py`) reloaded the *entire* integration on any config-entry update, including runtime-only flags stored in options: `switch.surplus_mode`, every `number`/`select` option write. Each flipped every entity Unavailable for a couple of seconds, and the reload drops the charger's single connection — a `charge_session` write in that gap is lost (#36). Fixed: a change confined to `LIVE_APPLIABLE_OPTION_KEYS` (`const.py` — surplus mode, profile, SOC thresholds, start/stop W, discharge budget, ramp cooldowns) now calls the new `SolarSurplusController.async_apply_settings()`, which re-reads `_settings_from_entry`, rebinds the tracked-sensor listeners, re-syncs config problems and forces one evaluation. Anything else still reloads. The `set_surplus_profile` service writes only allowlisted keys, so it rides the fast path too; `profile_assistant` writes `CONF_CHARGER_PROFILE` (not allowlisted) and still reloads, correctly, since it rebuilds the client. |
 | — | ✅ 2.14.0 | Formatting was never enforced: 35 of 49 files had drifted, including stray 8/16/20-space indents in the surplus controller. `ruff format --check .` is now part of CI. |
@@ -105,8 +115,8 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 | # | State | Proposal |
 |---|---|---|
 | **B1** ⭐⭐ | ✅ 2.17.0 | **Predictive pre-emption of the inverter cap.** 2.13.1 documented an honest limit: a cap is only as fast as its sensor, and a hob is +2 kW in under a second. But HA often knows *before* the meter — a hob switch, a smart plug turning on. Let the user name entities that announce a large load, with a wattage to reserve for each, and reduce the car immediately on the state change rather than on the measurement. Turns a physical limit into a solvable problem; nothing in the HA ecosystem does it. |
-| **B2** ⭐⭐ | ⬜ | **Simulation and replay.** Implement `dry_run_surplus` (A6): "given these sensor values, what would regulation do?", answered without writing to the charger. Plus a recording mode that logs decision inputs for offline replay. Turns "surplus won't start" reports into reproducible scenarios. Cheap now that the layer is pure. |
-| **B3** ⭐⭐ | ⬜ | **Decision traceability.** 39 reasons exist; the user sees one, last, untranslated (`load_limit_no_headroom`). Add a structured trace attribute — which gates ran, which one bound, with values — and translate the reasons. Makes surplus self-diagnosing instead of requiring a code read. |
+| **B2** ⭐⭐ | ✅ 2.15.0 | **Simulation and replay.** Implement `dry_run_surplus` (A6): "given these sensor values, what would regulation do?", answered without writing to the charger. Shipped as the `dry_run_surplus` service (`__init__.py::_handle_dry_run_surplus`, calling `SolarSurplusController.async_dry_run()`), documented in `services.yaml`. The recording-mode-for-offline-replay half was not built and is not currently planned. |
+| **B3** ⭐⭐ | ✅ 2.15.0 | **Decision traceability.** 39 reasons exist; the user sees one, last, untranslated (`load_limit_no_headroom`). Add a structured trace attribute — which gates ran, which one bound, with values — and translate the reasons. Shipped: `Verdict.consulted`/`decided_by` (`charge_gates.py`) feed `_record_decision_trace` (`solar_surplus.py`), exposed as `sensor.surplus_last_decision_reason`'s attributes; all 45 `DecisionReason` values have en/fr translations in `strings.json`/`translations/*.json` (verified complete 2026-09-14) via the sensor's `device_class: enum` + `options`. |
 | **B4** ⭐⭐ | ✅ 2.18.0 | **Learned charge curve.** `_estimate_charge_power_kw` is deliberately pessimistic for want of anything better, so departure deadlines start charges too early. Session history (2.10.0) already stores duration, energy and power: derive the vehicle's real curve, taper included, per vehicle. No new data collection. |
 | **B5** ⭐ | ✅ 2.16.0 | **Proactive config repairs.** `repairs.py` exists. Detect the silent misconfigurations: an **inverted grid sensor sign** (detectable by correlation — car power up while the meter goes down), an inverter cap with no total-load sensor (protection inert), a price of 0 with the cost sensor enabled, a malformed off-peak window (skipped by design, invisibly), a departure time with no energy target. Each currently produces a user convinced the feature is broken. |
 | **B6** ⭐ | ✅ 2.17.0 | **Adaptive polling.** One local connection, polled every 30 s whether charging or asleep. Fast while charging (10 s, where regulation needs it), slow at rest, suspended in `SLEEP`. Less contention with the Smart Life app; `update_interval` is already adjustable at runtime. |
