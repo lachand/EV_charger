@@ -7,6 +7,16 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.25.0
+
+- **New: `switch.force_charge`.** Requested on #22 and #36: `force_charge_for`
+  overrides scheduling (off-peak windows, surplus mode) while still respecting
+  the installation, inverter and house-power caps, but the only way to reach it
+  was a Developer Tools action. On now starts a forced session at the highest
+  current the caps allow; off cancels it, the same as calling the service with
+  a duration of 0. The service stays for anyone scripting a specific duration
+  or current.
+
 ## 2.24.0
 
 - **Starting a charge failed with `Command rejected for DP 140: None`, and the

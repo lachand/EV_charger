@@ -11,7 +11,17 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 
 ## Resume here
 
-- **Current version:** 2.24.0
+- **Current version:** 2.25.0
+- **2.25.0**: `switch.force_charge`, a discoverable front for `force_charge_for`
+  (requested on #22 and #36 — the service was "the hardest one to find"). On
+  forces the highest current the caps allow; off cancels it. #38 closed
+  (`Command rejected for DP 140` confirmed fixed by 3 reporters on 2.24.0).
+  #34 narrowed to a charger-side Wi-Fi/module wedge (grinder1337's timing log +
+  a `tuya_autodetect_test.py` before/after with the *same* local_key) — not a
+  code fix, replied explaining the reauth banner will still fire on a long
+  outage and that only a power-cycle clears it, nothing built (no blueprint,
+  by choice, for now). #35 and #39 still waiting on reporter data for the two
+  branches below.
 - **Phase in progress:** Phases 1–5 ✅ done. **A3 ✅ and A2 ✅** (2.20.0): quality_scale.yaml written,
   every entity platform tested. **2.21.0** was two field-reported bug fixes (continuous mode's
   ceiling ignoring a narrower preset list, PR #24; the options form dropping entity-selector picks
@@ -42,7 +52,7 @@ Reading this file alone should be enough to resume without re-auditing the repo.
   in `const.py` and is registered nowhere (A6) — by building a `GateContext` from
   supplied values and running `evaluate()` without writing to the charger. The
   pure layer makes that nearly free.
-- **Suite:** 545 tests. CI green on all four jobs; `ruff format --check` now
+- **Suite:** 551 tests. CI green on all four jobs; `ruff format --check` now
   enforced.
 - **Hardware (2.24.0 pass, charger at 192.168.1.236, fw 1.9.7, no DP 140):**
   `async_set_charge_enabled(False/True)` round-trips — `WORKING → PAUSE/204`,

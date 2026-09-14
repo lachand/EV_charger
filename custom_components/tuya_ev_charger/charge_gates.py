@@ -271,13 +271,25 @@ def _gate_force_charge(ctx: GateContext, timers: TimerState) -> Verdict | None:
     It runs on the already-narrowed ladder, and clamps a request that is not on
     it down to the highest current still offered -- answering "as fast as you
     can" with the minimum would invert the intent (fixed in 2.13.3).
+
+    No requested current at all -- the service's `current_a` is documented as
+    optional, defaulting to the fastest available -- must not fall into the
+    same bucket as a requested value the ladder cannot afford: `None or 0` used
+    to do exactly that, so the documented default silently charged at the
+    *minimum* instead of the maximum (`_gate_no_currents` already guarantees
+    `available_currents` is non-empty here, or evaluation would have stopped
+    before this gate).
     """
     if not ctx.force_charge_active:
         return None
 
-    requested = ctx.force_charge_current_a or 0
-    affordable = [value for value in ctx.available_currents if value <= requested]
-    target = max(affordable) if affordable else ctx.min_current
+    if ctx.force_charge_current_a is None:
+        target = max(ctx.available_currents)
+    else:
+        affordable = [
+            value for value in ctx.available_currents if value <= ctx.force_charge_current_a
+        ]
+        target = max(affordable) if affordable else ctx.min_current
     return Verdict(
         action=GateAction.FORCE_CHARGE,
         reason=DecisionReason.FORCE_CHARGE_HOLDING,

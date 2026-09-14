@@ -109,6 +109,25 @@ def test_force_charge_below_the_ladder_falls_back_to_the_minimum():
     assert verdict.target_current == 6
 
 
+def test_force_charge_with_no_requested_current_uses_the_fastest_available():
+    """`current_a` is documented as optional, defaulting to the fastest current.
+
+    `force_charge_current_a or 0` used to send an omitted request through the
+    same "nothing is affordable" path as an explicit request below the ladder,
+    so leaving it out silently charged at the minimum instead.
+    """
+    verdict = _run(
+        _ctx(
+            available_currents=tuple(range(6, 16)),
+            protection_cap=15,
+            cap_source="inverter_limit",
+            force_charge_active=True,
+            force_charge_current_a=None,
+        )
+    )
+    assert verdict.target_current == 15
+
+
 # --- no usable current ----------------------------------------------------
 
 
