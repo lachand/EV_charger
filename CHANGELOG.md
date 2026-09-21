@@ -7,6 +7,18 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.25.1
+
+- **Off-peak windows and the off-peak sensor had no effect with surplus mode
+  off.** Reported by @nilsburg (#43). `_gate_tariff` only ever stopped a charge
+  outside the window or force-started one for an urgent departure deadline;
+  the plain "we are inside the window, no deadline configured" case fell
+  through to the mode-disabled gate and nothing happened, even though
+  off-peak windows have started charges without any surplus involvement since
+  2.7.0. `_gate_tariff` now also starts the charge for that plain case. Added
+  regression tests at both the gate level and the controller level so this
+  scenario cannot silently regress again.
+
 ## 2.25.0
 
 - **New: `switch.force_charge`.** Requested on #22 and #36: `force_charge_for`

@@ -11,7 +11,18 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 
 ## Resume here
 
-- **Current version:** 2.25.0
+- **Current version:** 2.25.1
+- **2.25.1**: off-peak windows and the off-peak sensor had no effect with surplus
+  mode off (#43, reported by @nilsburg). `_gate_tariff` handled two cases —
+  stop outside the window, force-start for an urgent departure deadline — but
+  never started a charge for the plain "inside the window, no deadline" case,
+  so evaluation fell through to the mode-disabled gate and did nothing, even
+  though off-peak windows have started charges without surplus since 2.7.0.
+  Neither `test_charge_gates.py` (3 tariff tests, none on this case) nor
+  `test_surplus_state_machine.py` (8 off-peak-resolution tests, none on this
+  tier) caught it. Fixed with a third branch in `_gate_tariff`, plus 3 new
+  gate-level tests and 1 new controller-level end-to-end test reproducing the
+  report directly.
 - **2.25.0**: `switch.force_charge`, a discoverable front for `force_charge_for`
   (requested on #22 and #36 — the service was "the hardest one to find"). On
   forces the highest current the caps allow; off cancels it. Also fixed:
@@ -62,7 +73,7 @@ Reading this file alone should be enough to resume without re-auditing the repo.
   (daily forecast) follow the same shape. The `todo`s left in `quality_scale.yaml` (services in
   `async_setup`, strict typing, translated service exceptions) are the route to gold. Both B2 and
   B3, previously listed here as next, already shipped in 2.15.0 — see the correction above.
-- **Suite:** 552 tests. CI green on all four jobs; `ruff format --check` now
+- **Suite:** 556 tests. CI green on all four jobs; `ruff format --check` now
   enforced.
 - **Hardware (2.24.0 pass, charger at 192.168.1.236, fw 1.9.7, no DP 140):**
   `async_set_charge_enabled(False/True)` round-trips — `WORKING → PAUSE/204`,
