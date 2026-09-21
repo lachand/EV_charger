@@ -30,6 +30,8 @@ class ChargeWindow(StrEnum):
     OFF_PEAK = "off_peak"
     # Peak hours, but the deadline no longer leaves room to wait.
     DEADLINE = "deadline"
+    # Peak hours, flagged critically expensive: no deadline may override this.
+    CRITICAL_PEAK = "critical_peak"
     # Peak hours and no deadline pressure: wait.
     WAITING_FOR_OFF_PEAK = "waiting_for_off_peak"
     # No tariff configured at all, so nothing to arbitrate.
@@ -110,6 +112,11 @@ class PlanRequest:
     departure: time | None = None
     energy_needed_kwh: float = 0.0
     charge_power_kw: float = 0.0
+    # Resolved by the caller from whatever it is told to trust (a template on
+    # a Tempo colour sensor, a spot-price threshold, ...). True means today's
+    # peak-hour price is exceptional enough that even a departure deadline
+    # should not silently pull from the grid.
+    critical_peak: bool = False
 
 
 @dataclass(slots=True, frozen=True)
@@ -136,8 +143,15 @@ def plan_charge(request: PlanRequest) -> Plan:
     if request.is_off_peak:
         return Plan(allowed=True, window=ChargeWindow.OFF_PEAK)
 
-    # Peak hours. Only a deadline that can no longer be met by waiting justifies
-    # charging now.
+    # Peak hours. A critical-peak reading overrides even a deadline: a
+    # departure that would otherwise justify charging now must still wait,
+    # since this is specifically the worst possible time to draw from the
+    # grid. Force charge remains available as an explicit override.
+    if request.critical_peak:
+        return Plan(allowed=False, window=ChargeWindow.CRITICAL_PEAK)
+
+    # Otherwise, only a deadline that can no longer be met by waiting
+    # justifies charging now.
     if request.departure is None or request.energy_needed_kwh <= 0:
         return Plan(allowed=False, window=ChargeWindow.WAITING_FOR_OFF_PEAK)
 

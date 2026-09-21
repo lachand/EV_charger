@@ -163,6 +163,37 @@ def test_a_tight_deadline_overrides_the_tariff():
     assert plan.window is ChargeWindow.DEADLINE
 
 
+def test_a_tight_deadline_is_suppressed_on_a_critical_peak():
+    """B10: the same deadline that would otherwise override the tariff must
+    not do so when today's peak hours are flagged critically expensive --
+    that is specifically the worst time to draw from the grid, and force
+    charge remains the explicit way around it."""
+    from tuya_ev_charger.charge_planner import ChargeWindow, plan_charge
+
+    plan = plan_charge(
+        _request(
+            now=_at(20, 0),
+            departure=time(22, 0),
+            energy_needed_kwh=22.2,
+            charge_power_kw=7.4,
+            critical_peak=True,
+        )
+    )
+    assert plan.allowed is False
+    assert plan.window is ChargeWindow.CRITICAL_PEAK
+
+
+def test_critical_peak_does_not_affect_off_peak_hours():
+    """Off-peak pricing is untouched by this signal in any tariff scheme it
+    is meant to model -- only the peak-hour price is ever the "critical"
+    one."""
+    from tuya_ev_charger.charge_planner import ChargeWindow, plan_charge
+
+    plan = plan_charge(_request(now=_at(23, 0), critical_peak=True))
+    assert plan.allowed is True
+    assert plan.window is ChargeWindow.OFF_PEAK
+
+
 def test_the_safety_margin_starts_the_charge_early():
     """Exactly enough time is not enough: ramp-up and pauses eat into it."""
     from tuya_ev_charger.charge_planner import plan_charge

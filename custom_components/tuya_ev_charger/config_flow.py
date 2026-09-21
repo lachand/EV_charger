@@ -25,6 +25,8 @@ from .const import (
     CONF_CLOUD_API_SECRET,
     CONF_CLOUD_REGION,
     CONF_CONTINUOUS_CURRENT,
+    CONF_CRITICAL_PEAK_SENSOR_ENTITY_ID,
+    CONF_CRITICAL_PEAK_SENSOR_INVERTED,
     CONF_DEPARTURE_ENERGY_KWH,
     CONF_DEPARTURE_TIME,
     CONF_DEVICE_ID,
@@ -66,6 +68,8 @@ from .const import (
     DEFAULT_CHARGER_PROFILE_JSON,
     DEFAULT_CLOUD_REGION,
     DEFAULT_CONTINUOUS_CURRENT,
+    DEFAULT_CRITICAL_PEAK_SENSOR_ENTITY_ID,
+    DEFAULT_CRITICAL_PEAK_SENSOR_INVERTED,
     DEFAULT_DEPARTURE_ENERGY_KWH,
     DEFAULT_DEPARTURE_TIME,
     DEFAULT_EXTERNAL_CHARGE_ALLOWED_SENSOR_ENTITY_ID,
@@ -287,6 +291,18 @@ _OPTIONS_FORM: tuple[_Opt, ...] = (
         CONF_OFF_PEAK_SENSOR_INVERTED,
         "bool",
         DEFAULT_OFF_PEAK_SENSOR_INVERTED,
+        section=SECTION_TARIFF,
+    ),
+    _Opt(
+        CONF_CRITICAL_PEAK_SENSOR_ENTITY_ID,
+        "boolean_entity",
+        DEFAULT_CRITICAL_PEAK_SENSOR_ENTITY_ID,
+        section=SECTION_TARIFF,
+    ),
+    _Opt(
+        CONF_CRITICAL_PEAK_SENSOR_INVERTED,
+        "bool",
+        DEFAULT_CRITICAL_PEAK_SENSOR_INVERTED,
         section=SECTION_TARIFF,
     ),
     _Opt(CONF_DEPARTURE_TIME, "text", DEFAULT_DEPARTURE_TIME, section=SECTION_TARIFF),
@@ -950,6 +966,10 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
             _normalize_optional_entity_value(
                 cleaned_input,
                 CONF_OFF_PEAK_SENSOR_ENTITY_ID,
+            )
+            _normalize_optional_entity_value(
+                cleaned_input,
+                CONF_CRITICAL_PEAK_SENSOR_ENTITY_ID,
             )
             _normalize_text_value(
                 cleaned_input,

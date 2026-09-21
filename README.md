@@ -322,6 +322,39 @@ extra setting: it reuses **Off-peak windows** / **Departure time** / **Energy
 needed by departure** as-is. Without an off-peak window configured, hitting
 the floor still stops the charge outright, exactly as before.
 
+### Critical peak pricing (e.g. a red Tempo day)
+
+**Departure time** exists to override the off-peak wait when waiting any
+longer would miss it — but that override pulls from the grid regardless of
+price. Some tariffs have days where the peak-hour price is not just higher
+but prohibitive: French **RTE Tempo**'s red days are the common case, priced
+many times a normal peak hour.
+
+Point **Critical peak sensor** at a `binary_sensor.*` or `input_boolean.*`
+entity that reports "today's peak hours are exceptionally expensive" (tick
+**Invert** if `on` means normal pricing instead). When it is on during peak
+hours, the departure deadline no longer overrides the wait — the charge
+keeps waiting for off-peak, same as with no deadline configured at all.
+`switch.force_charge` (or the `force_charge_for` service) remains available
+as an explicit override if the car genuinely has to charge right then.
+
+This integration has no built-in notion of Tempo, or of any other specific
+tariff — it only understands one boolean. For Tempo, build it with a
+[template binary sensor](https://www.home-assistant.io/integrations/template/)
+over whichever Tempo integration you use, for instance
+[`hekmon/rtetempo`](https://github.com/hekmon/rtetempo):
+
+```yaml
+template:
+  - binary_sensor:
+      - name: "Tempo critical peak"
+        state: "{{ is_state('sensor.rte_tempo_couleur_actuelle', 'Rouge') }}"
+```
+
+The same mechanism works identically for a day-ahead spot-price threshold or
+any other signal your utility exposes — template whatever "today is
+exceptionally expensive" means for you into one boolean.
+
 ---
 
 ## Blocking charging on an external condition
@@ -462,6 +495,7 @@ charging, instead of holding the last value.
 | `off_peak_windows` | `22:00-06:00, 12:30-14:30`; empty charges at any hour |
 | `off_peak_sensor_entity_id`, `off_peak_sensor_inverted` | Optional binary_sensor/input_boolean; authoritative over `off_peak_windows` for scheduling when set |
 | `departure_time` / `departure_energy_kwh` | Deadline that overrides the off-peak wait |
+| `critical_peak_sensor_entity_id`, `critical_peak_sensor_inverted` | Optional binary_sensor/input_boolean; when on during peak hours, suppresses the departure-deadline override above |
 | `off_peak_price` / `peak_price` | Price per kWh; enables session cost estimation |
 | `surplus_mode_enabled` | Master switch for surplus mode |
 | `surplus_sensor_entity_id`, `surplus_sensor_inverted` | Grid power sensor and its sign |

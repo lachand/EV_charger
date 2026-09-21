@@ -648,6 +648,99 @@ def test_off_peak_sensor_drives_the_battery_floor_fallback_like_a_window_would(m
     assert ("enabled", True) in h.writes
 
 
+# --- critical peak (B10) ----------------------------------------------------
+
+
+def _critical_peak_harness(monkeypatch, *, sensors=None, options=None):
+    """20:00, peak hours, a deadline at 22:00 tight enough to normally
+    override the wait -- see test_a_tight_deadline_overrides_the_tariff in
+    test_charge_planner.py for the same numbers at the pure-planner level."""
+    from datetime import datetime
+
+    from tuya_ev_charger import solar_surplus
+
+    monkeypatch.setattr(solar_surplus.dt_util, "now", lambda: datetime(2024, 1, 1, 20, 0))
+    return Harness(
+        monkeypatch,
+        sensors=sensors or {},
+        options={
+            "surplus_mode_enabled": False,
+            "off_peak_windows": "22:00-06:00",
+            "departure_time": "22:00",
+            "departure_energy_kwh": 20,
+            **(options or {}),
+        },
+    )
+
+
+def test_a_departure_deadline_still_overrides_peak_hours_without_a_critical_peak_sensor_configured(
+    monkeypatch,
+):
+    """Baseline: nobody who has not configured the new sensor sees any
+    change. Closes a pre-existing gap too -- this exact scenario was only
+    ever tested at the pure planner level (test_a_tight_deadline_overrides_the_tariff),
+    never end to end through the controller."""
+    h = _critical_peak_harness(monkeypatch)
+    assert h.tick() == "tariff_deadline"
+    assert ("enabled", True) in h.writes
+
+
+def test_a_critical_peak_sensor_suppresses_the_deadline_override_during_peak_hours(monkeypatch):
+    h = _critical_peak_harness(
+        monkeypatch,
+        sensors={"input_boolean.critical_peak": "on"},
+        options={"critical_peak_sensor_entity_id": "input_boolean.critical_peak"},
+    )
+    assert h.tick() == "tariff_critical_peak"
+    assert ("enabled", True) not in h.writes
+
+
+def test_critical_peak_sensor_off_does_not_suppress_the_deadline_override(monkeypatch):
+    h = _critical_peak_harness(
+        monkeypatch,
+        sensors={"input_boolean.critical_peak": "off"},
+        options={"critical_peak_sensor_entity_id": "input_boolean.critical_peak"},
+    )
+    assert h.tick() == "tariff_deadline"
+    assert ("enabled", True) in h.writes
+
+
+def test_the_critical_peak_sensor_can_be_inverted(monkeypatch):
+    """A "normal pricing" indicator: 'off' means critical, so the option
+    inverts it -- same shape as test_off_peak_sensor_inverted."""
+    h = _critical_peak_harness(
+        monkeypatch,
+        sensors={"input_boolean.normal_pricing": "off"},
+        options={
+            "critical_peak_sensor_entity_id": "input_boolean.normal_pricing",
+            "critical_peak_sensor_inverted": True,
+        },
+    )
+    assert h.tick() == "tariff_critical_peak"
+    assert ("enabled", True) not in h.writes
+
+
+def test_a_critical_peak_reading_is_ignored_during_off_peak_hours(monkeypatch):
+    """Off-peak pricing is untouched by this signal, so a critical reading
+    must not block the ordinary off-peak charge."""
+    from datetime import datetime
+
+    from tuya_ev_charger import solar_surplus
+
+    monkeypatch.setattr(solar_surplus.dt_util, "now", lambda: datetime(2024, 1, 1, 23, 0))
+    h = Harness(
+        monkeypatch,
+        sensors={"input_boolean.critical_peak": "on"},
+        options={
+            "surplus_mode_enabled": False,
+            "off_peak_windows": "22:00-06:00",
+            "critical_peak_sensor_entity_id": "input_boolean.critical_peak",
+        },
+    )
+    assert h.tick() == "tariff_off_peak"
+    assert ("enabled", True) in h.writes
+
+
 # --- live off-peak/peak session tally ----------------------------------------
 
 

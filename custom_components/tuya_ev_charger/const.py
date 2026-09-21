@@ -103,6 +103,13 @@ CONF_OFF_PEAK_WINDOWS = "off_peak_windows"
 # cannot be expressed as a fixed clock range). Authoritative over windows once set.
 CONF_OFF_PEAK_SENSOR_ENTITY_ID = "off_peak_sensor_entity_id"
 CONF_OFF_PEAK_SENSOR_INVERTED = "off_peak_sensor_inverted"
+# Optional boolean: "today's peak hours are exceptionally expensive right now"
+# (e.g. a template on a Tempo colour sensor, or a spot-price threshold). When
+# true during peak hours, a departure deadline no longer overrides the wait.
+# Source-agnostic on purpose -- the integration has no notion of any specific
+# tariff scheme, only of this one boolean.
+CONF_CRITICAL_PEAK_SENSOR_ENTITY_ID = "critical_peak_sensor_entity_id"
+CONF_CRITICAL_PEAK_SENSOR_INVERTED = "critical_peak_sensor_inverted"
 CONF_DEPARTURE_TIME = "departure_time"
 CONF_DEPARTURE_ENERGY_KWH = "departure_energy_kwh"
 # Prices per kWh, in whatever currency the user thinks in; the integration never
@@ -236,6 +243,10 @@ DEFAULT_OFF_PEAK_WINDOWS = ""
 # decide instead. Once set, it is authoritative and windows stop gating.
 DEFAULT_OFF_PEAK_SENSOR_ENTITY_ID = ""
 DEFAULT_OFF_PEAK_SENSOR_INVERTED = False
+# Empty means the deadline override is never suppressed -- today's pre-B10
+# behaviour, unaffected until this is explicitly pointed at a sensor.
+DEFAULT_CRITICAL_PEAK_SENSOR_ENTITY_ID = ""
+DEFAULT_CRITICAL_PEAK_SENSOR_INVERTED = False
 # Optional deadline: be at this time with this much energy delivered. Charging
 # is deferred to off-peak until waiting would miss it.
 DEFAULT_DEPARTURE_TIME = ""

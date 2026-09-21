@@ -40,6 +40,8 @@ from .config_diagnosis import (
 )
 from .const import (
     CHARGER_PROFILE_DEPOW_V2,
+    CONF_CRITICAL_PEAK_SENSOR_ENTITY_ID,
+    CONF_CRITICAL_PEAK_SENSOR_INVERTED,
     CONF_DEPARTURE_ENERGY_KWH,
     CONF_DEPARTURE_TIME,
     CONF_EXTERNAL_CHARGE_ALLOWED_SENSOR_ENTITY_ID,
@@ -69,6 +71,8 @@ from .const import (
     CONF_SURPLUS_START_THRESHOLD_W,
     CONF_SURPLUS_STOP_THRESHOLD_W,
     CONF_TOTAL_LOAD_SENSOR_ENTITY_ID,
+    DEFAULT_CRITICAL_PEAK_SENSOR_ENTITY_ID,
+    DEFAULT_CRITICAL_PEAK_SENSOR_INVERTED,
     DEFAULT_DEPARTURE_ENERGY_KWH,
     DEFAULT_DEPARTURE_TIME,
     DEFAULT_EXTERNAL_CHARGE_ALLOWED_SENSOR_ENTITY_ID,
@@ -162,6 +166,8 @@ class SolarSurplusSettings:
     off_peak_windows: str
     off_peak_sensor_entity_id: str
     off_peak_sensor_inverted: bool
+    critical_peak_sensor_entity_id: str
+    critical_peak_sensor_inverted: bool
     departure_time: str
     departure_energy_kwh: int
     grid_sensor_inverted: bool
@@ -406,6 +412,7 @@ class SolarSurplusController:
             self._settings.forecast_sensor_entity_id,
             self._settings.external_charge_allowed_sensor_entity_id,
             self._settings.off_peak_sensor_entity_id,
+            self._settings.critical_peak_sensor_entity_id,
             # The announcing entities matter most of all: reacting to them the
             # instant they switch is the entire point of a reservation.
             *parse_reservations(self._settings.load_reservations),
@@ -899,6 +906,7 @@ class SolarSurplusController:
                 # Only what is still missing counts towards the deadline.
                 energy_needed_kwh=needed_kwh,
                 charge_power_kw=self._planning_power_kw(data, available_currents, needed_kwh),
+                critical_peak=self._resolve_critical_peak_now(is_off_peak_now),
             )
         )
 
@@ -1189,6 +1197,31 @@ class SolarSurplusController:
             return None
         return is_within_windows(dt_util.now().time(), windows)
 
+    def _resolve_critical_peak_now(self, is_off_peak: bool | None) -> bool:
+        """Whether right now is worth treating as exceptionally expensive.
+
+        Only matters during peak hours -- off-peak pricing is untouched by
+        this signal in any tariff scheme this is meant to model, so a
+        critical reading during an off-peak window must not block the
+        battery-floor grid charge (#43's tier). Source-agnostic on purpose:
+        point this at a template built from a Tempo colour sensor, a
+        day-ahead spot-price threshold, or any other signal -- the
+        integration does not need to know which. Fails to False (the pre-B10
+        behaviour) if unconfigured or the sensor is unavailable: a stale
+        reading should not become a new way to surprise someone relying on
+        their departure deadline.
+        """
+        entity_id = self._settings.critical_peak_sensor_entity_id
+        if not entity_id or is_off_peak is not False:
+            return False
+        state = self._hass.states.get(entity_id)
+        if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            return False
+        value = _coerce_optional_bool(state.state)
+        if value is None:
+            return False
+        return (not value) if self._settings.critical_peak_sensor_inverted else value
+
     def _read_sensor_power_w(self, entity_id: str) -> float | None:
         if not entity_id:
             return None
@@ -1423,6 +1456,16 @@ def _settings_from_entry(entry: ConfigEntry) -> SolarSurplusSettings:
             options,
             CONF_OFF_PEAK_SENSOR_INVERTED,
             DEFAULT_OFF_PEAK_SENSOR_INVERTED,
+        ),
+        critical_peak_sensor_entity_id=_option_str(
+            options,
+            CONF_CRITICAL_PEAK_SENSOR_ENTITY_ID,
+            DEFAULT_CRITICAL_PEAK_SENSOR_ENTITY_ID,
+        ),
+        critical_peak_sensor_inverted=_option_bool(
+            options,
+            CONF_CRITICAL_PEAK_SENSOR_INVERTED,
+            DEFAULT_CRITICAL_PEAK_SENSOR_INVERTED,
         ),
         departure_time=_option_str(options, CONF_DEPARTURE_TIME, DEFAULT_DEPARTURE_TIME),
         departure_energy_kwh=_option_int(

@@ -79,6 +79,7 @@ class DecisionReason(StrEnum):
     # Tariff planning.
     TARIFF_OFF_PEAK = "tariff_off_peak"
     TARIFF_DEADLINE = "tariff_deadline"
+    TARIFF_CRITICAL_PEAK = "tariff_critical_peak"
     TARIFF_WAITING_FOR_OFF_PEAK = "tariff_waiting_for_off_peak"
     TARIFF_UNRESTRICTED = "tariff_unrestricted"
 
