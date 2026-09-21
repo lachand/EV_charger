@@ -386,6 +386,59 @@ def test_a_deadline_starts_the_charge_regardless_of_the_hour():
     assert verdict.reason is DecisionReason.TARIFF_DEADLINE
 
 
+def test_an_off_peak_window_starts_the_charge_without_a_deadline():
+    """#43: off-peak windows/sensor had no effect with surplus mode off --
+    the tariff gate only ever stopped or forced a deadline start, never
+    started for the plain "we are in the window" case, so evaluation fell
+    through to the mode-disabled gate and nothing happened."""
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    verdict = _run(
+        _ctx(
+            surplus_mode_enabled=False,
+            tariff_allowed=True,
+            tariff_is_deadline=False,
+            tariff_reason=DecisionReason.TARIFF_OFF_PEAK,
+        )
+    )
+    assert verdict.action is GateAction.START_CHARGE
+    assert verdict.reason is DecisionReason.TARIFF_OFF_PEAK
+
+
+def test_an_off_peak_window_does_not_re_issue_start_once_charging():
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    verdict = _run(
+        _charging(
+            surplus_mode_enabled=False,
+            tariff_allowed=True,
+            tariff_is_deadline=False,
+            tariff_reason=DecisionReason.TARIFF_OFF_PEAK,
+        )
+    )
+    assert verdict.action is GateAction.IDLE
+    assert verdict.reason is DecisionReason.MODE_DISABLED
+
+
+def test_off_peak_wins_over_a_simultaneously_configured_deadline():
+    """plan_charge() always resolves to the OFF_PEAK window once inside it,
+    never DEADLINE, so tariff_is_deadline is already False here -- this pins
+    that the two START branches cannot both fire for the same tick."""
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    verdict = _run(
+        _ctx(
+            surplus_mode_enabled=False,
+            tariff_allowed=True,
+            tariff_is_deadline=False,
+            tariff_reason=DecisionReason.TARIFF_OFF_PEAK,
+        )
+    )
+    assert verdict.action is GateAction.START_CHARGE
+    assert verdict.reason is DecisionReason.TARIFF_OFF_PEAK
+    assert verdict.reason is not DecisionReason.TARIFF_DEADLINE
+
+
 # --- battery-floor / off-peak fallback --------------------------------------
 
 

@@ -423,6 +423,29 @@ def test_battery_floor_starts_a_grid_charge_inside_the_off_peak_window(monkeypat
     assert ("enabled", True) in h.writes
 
 
+def test_off_peak_window_starts_the_charge_with_surplus_mode_off(monkeypatch):
+    """#43: with surplus mode off, an off-peak window had no effect at all --
+    the tariff gate never started a charge for the plain "off-peak, no
+    deadline" case, so evaluation fell through to the mode-disabled gate.
+    This reproduces nilsburg's report end to end through the real
+    controller, not just the isolated gate."""
+    from datetime import datetime
+
+    from tuya_ev_charger import solar_surplus
+
+    monkeypatch.setattr(solar_surplus.dt_util, "now", lambda: datetime(2024, 1, 1, 23, 0))
+    h = Harness(
+        monkeypatch,
+        sensors={"sensor.grid": -3000},
+        options={
+            "surplus_mode_enabled": False,
+            "off_peak_windows": "22:00-06:00",
+        },
+    )
+    assert h.tick() == "tariff_off_peak"
+    assert ("enabled", True) in h.writes
+
+
 def test_battery_floor_still_hard_stops_without_an_off_peak_window(monkeypatch):
     """Backward-compat pin at the state-machine level: nobody without an
     off-peak window configured may see any behavioural change."""

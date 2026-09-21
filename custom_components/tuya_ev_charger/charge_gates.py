@@ -339,6 +339,12 @@ def _gate_tariff(ctx: GateContext, timers: TimerState) -> Verdict | None:
             action=GateAction.START_CHARGE,
             reason=DecisionReason.TARIFF_DEADLINE,
         )
+    if not ctx.is_charging:
+        # Plain off-peak window, no deadline pressure: still a green light to charge.
+        return Verdict(
+            action=GateAction.START_CHARGE,
+            reason=ctx.tariff_reason or DecisionReason.TARIFF_OFF_PEAK,
+        )
     return None
 
 
