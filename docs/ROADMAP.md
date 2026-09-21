@@ -11,7 +11,29 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 
 ## Resume here
 
-- **Current version:** 2.26.1
+- **Current version:** 2.26.2
+- **2.26.2**: follow-up to #41, two points raised before replying to the
+  reporter. (1) "Triphase isn't 220V" — verified false concern, French
+  triphase is 3×230V phase-to-neutral, same nominal as single-phase; but
+  `_parse_phases` (`tuya_ev_charger.py`) already decodes a real L1 voltage
+  every poll regardless of charging state, so using it instead of a fixed
+  230 is a genuine accuracy win — solar-heavy grids commonly run above
+  nominal from PV export, so a real-vs-assumed gap specifically risks the
+  protection caps overshooting. New `_line_voltage(data)` helper
+  (`solar_surplus.py`), threaded into the same four call sites 2.26.1
+  touched. (2) "Can't L1/L2/L3 auto-detect 3-phase?" — partially, but the
+  risk is asymmetric: a 3-phase-*capable* charger wired to only one phase
+  could report a spurious reading on the unused phase, and a single-phase
+  install misdetected as three-phase would divide by 3x too little — the
+  same over-draw risk as #41 itself, whereas the reverse mistake is merely
+  suboptimal. So detection now drives a **Repairs suggestion only**
+  (`ConfigProblem.INSTALLATION_PHASES_LIKELY_THREE`, same shape as the
+  existing grid-sign-inversion check in `config_problems()`), never the
+  calculation — `Installation phases` stays the sole authority.
+  `async_sync_config_problems` already iterates every `ConfigProblem`, so
+  the new enum value needed no new `repairs.py` code, only its translation.
+  8 new tests; two of them spot-verified by reverting the fix and
+  confirming they caught it.
 - **2.26.1**: surplus targeting and both protection caps
   (`max_house_power_w`/`max_inverter_power_w`) assumed a single-phase
   charger — every watts-to-amps conversion in `surplus_decision.py` divided
@@ -129,7 +151,7 @@ Reading this file alone should be enough to resume without re-auditing the repo.
   one from a sensor. The `todo`s left in `quality_scale.yaml` (services in
   `async_setup`, strict typing, translated service exceptions) are the route
   to gold.
-- **Suite:** 607 tests. CI green on all four jobs; `ruff format --check` now
+- **Suite:** 615 tests. CI green on all four jobs; `ruff format --check` now
   enforced.
 - **Hardware (2.24.0 pass, charger at 192.168.1.236, fw 1.9.7, no DP 140):**
   `async_set_charge_enabled(False/True)` round-trips — `WORKING → PAUSE/204`,

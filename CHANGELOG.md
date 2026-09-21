@@ -7,6 +7,21 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.26.2
+
+- **Follow-up to #41: uses the charger's own measured voltage, and suggests
+  Installation phases via Repairs.** Every watts-to-amps conversion (surplus
+  target, both protection caps, the deadline power estimate) now uses the
+  charger's real L1 voltage when it has one instead of a fixed 230V — more
+  accurate against real grid variance, and specifically relevant for
+  solar-heavy grids, which commonly run above nominal from PV export. If the
+  charger reports more than one phase while **Installation phases** is still
+  at its default of 1, a new Repairs notice suggests setting it to 3 — it
+  only suggests, never applies the change itself, since a false positive
+  (a 3-phase-capable charger wired to only one phase, with a spurious
+  reading on the unused phase) would overshoot the protection caps rather
+  than just under-use the surplus.
+
 ## 2.26.1
 
 - **Surplus targeting and both protection caps assumed a single-phase
