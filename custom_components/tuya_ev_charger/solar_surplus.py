@@ -130,7 +130,6 @@ from .preemption import (
 )
 from .session_costing import SessionSplit
 from .surplus_decision import (
-    DEFAULT_LINE_VOLTAGE_V,
     ForecastState,
     SurplusInputs,
     apply_forecast,
@@ -531,7 +530,7 @@ class SolarSurplusController:
             max_supported_current = _current_supported_by_surplus(
                 available_currents,
                 available_surplus_w,
-                FIXED_LINE_VOLTAGE_V,
+                _line_voltage(data),
                 self._settings.installation_phases,
             )
             min_current = min(available_currents) if available_currents else 0
@@ -612,6 +611,9 @@ class SolarSurplusController:
         values = [problem.value for problem in problems]
         if self._grid_sign.inverted:
             values.append(ConfigProblem.GRID_SENSOR_SIGN_INVERTED.value)
+        data = self._coordinator.data
+        if settings.installation_phases == 1 and data is not None and len(data.phases) >= 2:
+            values.append(ConfigProblem.INSTALLATION_PHASES_LIKELY_THREE.value)
         return values
 
     def async_dry_run(self) -> dict[str, Any]:
@@ -978,7 +980,7 @@ class SolarSurplusController:
 
         theoretical_kw = (
             max(available_currents)
-            * DEFAULT_LINE_VOLTAGE_V
+            * _line_voltage(data)
             * self._settings.installation_phases
             / 1000.0
         )
@@ -1050,7 +1052,10 @@ class SolarSurplusController:
             house_limit_w=float(limit_w),
         )
         return cap_to_available_power(
-            available_currents, headroom_w, phases=self._settings.installation_phases
+            available_currents,
+            headroom_w,
+            line_voltage=_line_voltage(data),
+            phases=self._settings.installation_phases,
         )
 
     def _inverter_limit_current(
@@ -1090,7 +1095,10 @@ class SolarSurplusController:
             reserved_w=self._reserved_power_w(),
         )
         return cap_to_available_power(
-            available_currents, headroom_w, phases=self._settings.installation_phases
+            available_currents,
+            headroom_w,
+            line_voltage=_line_voltage(data),
+            phases=self._settings.installation_phases,
         )
 
     def _reserved_power_w(self) -> float:
@@ -1644,6 +1652,25 @@ def _ev_power_w(data: EVMetrics) -> float:
     very overload it exists to prevent.
     """
     return max(0.0, (data.total_power or 0.0) * 1000.0)
+
+
+def _line_voltage(data: EVMetrics | None) -> int:
+    """The charger's own measured line voltage, when it looks sane, else the
+    nominal fallback.
+
+    Solar-heavy grids commonly run a few percent above nominal from PV export
+    raising local voltage -- a fixed 230 V would then under-estimate real power
+    draw for a given current, letting the protection caps overshoot their
+    configured limit by roughly that same percentage. The reading already
+    exists (DP 102, L1) at no extra cost to poll. Only L1 is read: L2/L3 can be
+    ambiguous between "not wired" and "wired but idle" (#41), but that
+    ambiguity does not apply to L1, which is always decoded whenever the
+    charger answers at all.
+    """
+    l1 = data.phases.get("L1") if data is not None else None
+    if l1 is None or l1.voltage < 100.0:
+        return FIXED_LINE_VOLTAGE_V
+    return round(l1.voltage)
 
 
 def _current_supported_by_surplus(

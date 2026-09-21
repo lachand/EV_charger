@@ -29,6 +29,10 @@ class ConfigProblem(StrEnum):
     DEPARTURE_WITHOUT_ENERGY = "departure_without_energy"
     # The grid sensor appears to report the opposite sign to the one expected.
     GRID_SENSOR_SIGN_INVERTED = "grid_sensor_sign_inverted"
+    # The charger is reporting more than L1, but Installation phases is still
+    # at its default of 1 -- a suggestion only, never applied automatically
+    # (#41: a false positive here would overshoot the protection caps).
+    INSTALLATION_PHASES_LIKELY_THREE = "installation_phases_likely_three"
 
 
 @dataclass(slots=True, frozen=True)

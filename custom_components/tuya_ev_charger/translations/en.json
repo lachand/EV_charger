@@ -442,6 +442,10 @@
       "title": "The grid sensor's sign looks inverted",
       "description": "The grid reading consistently falls when the car draws more, which is the opposite of what an import-positive meter does. Left as is, surplus regulation chases its own tail and load balancing computes more headroom than your supply has. Tick **Invert grid sensor sign** in the integration's options. If your setup is genuinely unusual and the reading is correct, this notice can be ignored."
     },
+    "installation_phases_likely_three": {
+      "title": "Installation phases may need to be set to 3",
+      "description": "The charger is reporting readings on more than one phase (L2/L3), but Installation phases is still at its default of 1. If your charger is wired on three phases, surplus targeting and the protection caps are currently computed as if it were single-phase, which can significantly overshoot both. Set Installation phases to 3 in the integration's options. If your charger genuinely is single-phase and this is a spurious reading, this notice can be ignored."
+    },
     "charging_slower_than_usual": {
       "title": "Charging slower than this car usually does",
       "description": "Several recent sessions have charged well below the fastest rate this car has demonstrated before. That can mean a connector or cable making poorer contact, a derating contactor, or a plug heating up. Worth checking the cable and the connector; the notice clears itself once a normal-speed session is recorded. If you have simply been charging on solar surplus lately, it is nothing to worry about."

@@ -32,10 +32,11 @@ class _States:
 class _Metrics:
     """Only the fields the cap helpers read."""
 
-    def __init__(self, *, total_power_kw=5.0, current_target=None):
+    def __init__(self, *, total_power_kw=5.0, current_target=None, phases=None):
         self.total_power = total_power_kw
         self.power_l1 = total_power_kw / 3.0  # as if only L1 were read
         self.current_target = current_target
+        self.phases = phases or {}
 
 
 def _controller(options, sensor_values):
@@ -79,6 +80,17 @@ def test_the_total_load_cap_sees_the_real_overload():
     cap = ctrl._inverter_limit_current(_Metrics(total_power_kw=5.0), LADDER)
     # Budget = 5500 - (7000 - 5000) = 3500 W -> 3500/230 = 15 A.
     assert cap == 15
+
+
+def test_the_cap_uses_the_charger_s_own_measured_voltage():
+    """A solar-heavy grid commonly runs above the 230 V nominal (PV export
+    raises local voltage) -- assuming nominal here would let the cap
+    overshoot its configured limit rather than under-shoot it."""
+    ctrl, _ = _controller(INVERTER_OPTS, {"sensor.total_load": 7000})
+    metrics = _Metrics(total_power_kw=5.0, phases={"L1": types.SimpleNamespace(voltage=253.0)})
+    cap = ctrl._inverter_limit_current(metrics, LADDER)
+    # Same 3500 W budget, but 3500/253 = 13 A -- lower than the 15 A at nominal.
+    assert cap == 13
 
 
 def test_the_cap_stops_charging_when_no_headroom_remains():

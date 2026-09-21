@@ -66,7 +66,9 @@ class _Coordinator:
         self.refreshes += 1
 
 
-def _metrics(*, charging=False, current_target=None, total_power_kw=0.0, max_current=32):
+def _metrics(
+    *, charging=False, current_target=None, total_power_kw=0.0, max_current=32, phases=None
+):
     """Only the EVMetrics fields the evaluation path reads."""
     return types.SimpleNamespace(
         do_charge=charging,
@@ -77,6 +79,7 @@ def _metrics(*, charging=False, current_target=None, total_power_kw=0.0, max_cur
         max_current_cfg=max_current,
         adjust_current_options=[],
         session_energy_kwh=0.0,
+        phases=phases or {},
     )
 
 
@@ -913,6 +916,76 @@ def test_three_phase_charge_power_estimate(monkeypatch):
     h = Harness(monkeypatch, options={"surplus_mode_enabled": False, "installation_phases": "3"})
     ladder = tuple(range(6, 33))
     assert h.controller._estimate_charge_power_kw(_metrics(), ladder) == pytest.approx(22.08)
+
+
+# --- measured line voltage ---------------------------------------------------
+
+
+def test_line_voltage_falls_back_without_a_measurement():
+    from tuya_ev_charger.solar_surplus import FIXED_LINE_VOLTAGE_V, _line_voltage
+
+    assert _line_voltage(None) == FIXED_LINE_VOLTAGE_V
+    assert _line_voltage(_metrics()) == FIXED_LINE_VOLTAGE_V  # phases is empty
+
+
+def test_line_voltage_ignores_an_implausible_reading():
+    """A charger that has never reported (or a genuinely disconnected supply)
+    can leave L1's voltage at 0 -- must not become a division by zero, or by
+    something meaninglessly small."""
+    from tuya_ev_charger.solar_surplus import FIXED_LINE_VOLTAGE_V, _line_voltage
+
+    data = _metrics(phases={"L1": types.SimpleNamespace(voltage=0.0)})
+    assert _line_voltage(data) == FIXED_LINE_VOLTAGE_V
+
+
+def test_line_voltage_uses_the_real_reading():
+    from tuya_ev_charger.solar_surplus import _line_voltage
+
+    data = _metrics(phases={"L1": types.SimpleNamespace(voltage=253.4)})
+    assert _line_voltage(data) == 253
+
+
+def test_a_measured_voltage_shifts_the_surplus_target(monkeypatch):
+    """Not just the isolated helper -- the real evaluation path actually uses
+    the reading. Solar-heavy grids commonly run above nominal, so this is the
+    direction that matters for the protection caps: assuming 230 V when the
+    grid is really higher lets them overshoot their configured limit."""
+    h = Harness(monkeypatch, sensors={"sensor.grid": -4140})
+    h.coordinator.data = _metrics(phases={"L1": types.SimpleNamespace(voltage=253.0)})
+    h.tick()
+    # 4140 W // 253 V = 16 A, vs 4140 // 230 = 18 A at the nominal voltage.
+    assert h.controller.snapshot.target_current_a == 16
+
+
+# --- installation-phases repair suggestion (#41) -----------------------------
+
+
+def test_config_problems_suggests_three_phases_when_more_than_l1_is_wired(monkeypatch):
+    h = Harness(monkeypatch)
+    h.coordinator.data = _metrics(
+        phases={
+            "L1": types.SimpleNamespace(voltage=230.0),
+            "L2": types.SimpleNamespace(voltage=230.0),
+        }
+    )
+    assert "installation_phases_likely_three" in h.controller.config_problems()
+
+
+def test_config_problems_does_not_suggest_when_already_configured(monkeypatch):
+    h = Harness(monkeypatch, options={"installation_phases": "3"})
+    h.coordinator.data = _metrics(
+        phases={
+            "L1": types.SimpleNamespace(voltage=230.0),
+            "L2": types.SimpleNamespace(voltage=230.0),
+        }
+    )
+    assert "installation_phases_likely_three" not in h.controller.config_problems()
+
+
+def test_config_problems_does_not_suggest_on_single_phase_data(monkeypatch):
+    h = Harness(monkeypatch)
+    h.coordinator.data = _metrics(phases={"L1": types.SimpleNamespace(voltage=230.0)})
+    assert "installation_phases_likely_three" not in h.controller.config_problems()
 
 
 # --- pause and force charge ----------------------------------------------

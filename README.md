@@ -175,13 +175,22 @@ of your wiring, not a live measurement.
 **Installation phases** (1 or 3) is the other fixed wiring property, and the
 one that matters most if you skip it: a charger applies the same current
 setpoint to every phase it is wired on, so the power it actually draws is
-`phases × 230 V × current`, not just `230 V × current`. Every watts-to-amps
-conversion — the surplus target, **and** both protection caps below — assumes
-single-phase until you set this to 3. On a 3-phase charger left at the default,
-surplus mode targets roughly 3× the correct current, which imports from the
-grid instead of using only the surplus (#41), and both protection caps let
-through roughly 3× their configured limit. There is no reliable way to detect
-this automatically, so a 3-phase installation must set it explicitly.
+`phases × line voltage × current`, not just `line voltage × current` (line
+voltage is the charger's own measured reading when available, 230 V
+otherwise). Every watts-to-amps conversion — the surplus target, **and** both
+protection caps below — assumes single-phase until you set this to 3. On a
+3-phase charger left at the default, surplus mode targets roughly 3× the
+correct current, which imports from the grid instead of using only the
+surplus (#41), and both protection caps let through roughly 3× their
+configured limit.
+
+There is no *reliable* way to detect this automatically — a charger model
+capable of three phases but wired to only one can report a spurious reading
+on the unwired phases, and treating that as "three phases" would be the
+dangerous direction (overshooting the caps), unlike the reverse mistake —
+so a 3-phase installation must set this explicitly. If the charger reports
+readings on more than one phase while this is still at its default, a
+Repairs notice suggests setting it to 3; it never changes it for you.
 
 ---
 
