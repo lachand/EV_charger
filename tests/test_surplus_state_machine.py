@@ -858,6 +858,63 @@ def test_protection_cap_stops_when_even_the_minimum_will_not_fit(monkeypatch):
     assert ("enabled", False) in h.writes
 
 
+# --- three-phase installations (#41) ----------------------------------------
+
+
+def test_installation_phases_defaults_to_one(monkeypatch):
+    """Nobody who has not configured this sees any change -- the one thing
+    every existing install implicitly assumed before this option existed."""
+    h = Harness(monkeypatch)
+    assert h.controller._settings.installation_phases == 1
+
+
+def test_a_malformed_installation_phases_value_falls_back_to_one(monkeypatch):
+    """A legacy or hand-edited options entry narrows to the safe default
+    rather than dividing by a nonsensical phase count."""
+    h = Harness(monkeypatch, options={"installation_phases": "2"})
+    assert h.controller._settings.installation_phases == 1
+
+
+def test_three_phase_surplus_target_matches_the_report(monkeypatch):
+    """Reproduces #41 directly: ~4.5 kW of surplus on a 3-phase charger must
+    target ~6 A, not up to whatever the ladder offers."""
+    h = Harness(
+        monkeypatch,
+        sensors={"sensor.grid": -4500},
+        options={"installation_phases": "3"},
+    )
+    h.tick()
+    assert h.controller.snapshot.target_current_a == 6
+
+
+def test_three_phase_inverter_cap(monkeypatch):
+    """The inverter-output cap uses the same watts<->amps conversion as the
+    surplus target -- it was just as wrong on a 3-phase install, and this
+    one is a protection limit, not just a comfort/cost setting."""
+    h = _charging_harness(
+        monkeypatch,
+        sensors={"sensor.grid": -5000, "sensor.total_load": 7000},
+        options={
+            "max_inverter_power_w": 6140,
+            "total_load_sensor_entity_id": "sensor.total_load",
+            "installation_phases": "3",
+        },
+    )
+    h.coordinator.data = _metrics(charging=True, current_target=32, total_power_kw=5.0)
+    # Budget 6140 - (7000 - 5000) = 4140 W -> 6 A at 3 phases (230 V * 3 = 690 W/A).
+    reason = h.tick()
+    assert ("current", 6) in h.writes
+    assert reason == "inverter_limit_reduced"
+
+
+def test_three_phase_charge_power_estimate(monkeypatch):
+    """The departure-deadline planning estimate has the same bug: a 3-phase
+    charger's theoretical rating was computed as if single-phase."""
+    h = Harness(monkeypatch, options={"surplus_mode_enabled": False, "installation_phases": "3"})
+    ladder = tuple(range(6, 33))
+    assert h.controller._estimate_charge_power_kw(_metrics(), ladder) == pytest.approx(22.08)
+
+
 # --- pause and force charge ----------------------------------------------
 
 

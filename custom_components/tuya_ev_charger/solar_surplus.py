@@ -46,6 +46,7 @@ from .const import (
     CONF_DEPARTURE_TIME,
     CONF_EXTERNAL_CHARGE_ALLOWED_SENSOR_ENTITY_ID,
     CONF_EXTERNAL_CHARGE_ALLOWED_SENSOR_INVERTED,
+    CONF_INSTALLATION_PHASES,
     CONF_LOAD_RESERVATIONS,
     CONF_MAX_HOUSE_POWER_W,
     CONF_MAX_INVERTER_POWER_W,
@@ -77,6 +78,7 @@ from .const import (
     DEFAULT_DEPARTURE_TIME,
     DEFAULT_EXTERNAL_CHARGE_ALLOWED_SENSOR_ENTITY_ID,
     DEFAULT_EXTERNAL_CHARGE_ALLOWED_SENSOR_INVERTED,
+    DEFAULT_INSTALLATION_PHASES,
     DEFAULT_LOAD_RESERVATIONS,
     DEFAULT_MAX_HOUSE_POWER_W,
     DEFAULT_MAX_INVERTER_POWER_W,
@@ -162,6 +164,9 @@ class SolarSurplusSettings:
     max_house_power_w: int
     max_inverter_power_w: int
     total_load_sensor_entity_id: str
+    # How many phases the charger is wired on -- one setpoint applies to
+    # every phase, so this scales every watts<->amps conversion (#41).
+    installation_phases: int
     load_reservations: str
     off_peak_windows: str
     off_peak_sensor_entity_id: str
@@ -524,7 +529,10 @@ class SolarSurplusController:
             if update_state:
                 self._last_available_surplus_w = available_surplus_w
             max_supported_current = _current_supported_by_surplus(
-                available_currents, available_surplus_w, FIXED_LINE_VOLTAGE_V
+                available_currents,
+                available_surplus_w,
+                FIXED_LINE_VOLTAGE_V,
+                self._settings.installation_phases,
             )
             min_current = min(available_currents) if available_currents else 0
             target_current = (
@@ -968,7 +976,12 @@ class SolarSurplusController:
         if not available_currents:
             return 0.0
 
-        theoretical_kw = max(available_currents) * DEFAULT_LINE_VOLTAGE_V / 1000.0
+        theoretical_kw = (
+            max(available_currents)
+            * DEFAULT_LINE_VOLTAGE_V
+            * self._settings.installation_phases
+            / 1000.0
+        )
         return planning_power_kw(
             theoretical_kw=theoretical_kw,
             learned_kw=self._learned_power_kw(),
@@ -1036,7 +1049,9 @@ class SolarSurplusController:
             ev_power_w=_ev_power_w(data),
             house_limit_w=float(limit_w),
         )
-        return cap_to_available_power(available_currents, headroom_w)
+        return cap_to_available_power(
+            available_currents, headroom_w, phases=self._settings.installation_phases
+        )
 
     def _inverter_limit_current(
         self,
@@ -1074,7 +1089,9 @@ class SolarSurplusController:
             ev_power_w=_ev_power_w(data),
             reserved_w=self._reserved_power_w(),
         )
-        return cap_to_available_power(available_currents, headroom_w)
+        return cap_to_available_power(
+            available_currents, headroom_w, phases=self._settings.installation_phases
+        )
 
     def _reserved_power_w(self) -> float:
         """Watts held back for appliances that have announced themselves."""
@@ -1489,6 +1506,11 @@ def _settings_from_entry(entry: ConfigEntry) -> SolarSurplusSettings:
             MIN_MAX_HOUSE_POWER_W,
             MAX_MAX_HOUSE_POWER_W,
         ),
+        installation_phases=_option_installation_phases(
+            options,
+            CONF_INSTALLATION_PHASES,
+            DEFAULT_INSTALLATION_PHASES,
+        ),
         total_load_sensor_entity_id=_option_str(
             options,
             CONF_TOTAL_LOAD_SENSOR_ENTITY_ID,
@@ -1597,6 +1619,16 @@ def _option_int(
     return max(min_value, min(max_value, parsed))
 
 
+def _option_installation_phases(options: Any, key: str, default: str) -> int:
+    """1 or 3 only -- a malformed or legacy value narrows to the single-phase
+    default rather than dividing by a nonsensical phase count."""
+    try:
+        parsed = int(options.get(key, default))
+    except (TypeError, ValueError):
+        return 1
+    return parsed if parsed == 3 else 1
+
+
 def _is_charging(data: EVMetrics) -> bool:
     if data.do_charge is not None:
         return data.do_charge
@@ -1618,8 +1650,11 @@ def _current_supported_by_surplus(
     available_currents: tuple[int, ...],
     effective_surplus_w: float,
     line_voltage: int,
+    phases: int,
 ) -> int:
-    return current_supported_by(effective_surplus_w, available_currents, line_voltage=line_voltage)
+    return current_supported_by(
+        effective_surplus_w, available_currents, line_voltage=line_voltage, phases=phases
+    )
 
 
 def _parse_end_time(raw: str) -> int | None:

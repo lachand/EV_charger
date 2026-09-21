@@ -120,6 +120,12 @@ CONF_PEAK_PRICE = "peak_price"
 # wired to a smaller breaker. 0 means "no override", i.e. trust the charger.
 CONF_MAX_CHARGE_CURRENT_A = "max_charge_current_a"
 CONF_MIN_CHARGE_CURRENT_A = "min_charge_current_a"
+# How many phases the charger is wired on. One current setpoint applies to
+# every phase, so this scales every watts<->amps conversion the surplus
+# regulator and the load/inverter caps do (#41) -- a fixed choice, not a free
+# integer, since 2-phase is not a residential wiring option.
+CONF_INSTALLATION_PHASES = "installation_phases"
+INSTALLATION_PHASE_CHOICES: tuple[str, ...] = ("1", "3")
 # Total inverter output cap, for hybrid inverters whose battery hides a sudden
 # household draw from the grid meter. Read against total load, not the grid.
 CONF_MAX_INVERTER_POWER_W = "max_inverter_power_w"
@@ -259,6 +265,9 @@ DEFAULT_OFF_PEAK_PRICE = 0.0
 DEFAULT_PEAK_PRICE = 0.0
 DEFAULT_MAX_CHARGE_CURRENT_A = 0
 DEFAULT_MIN_CHARGE_CURRENT_A = 0
+# Single-phase: what every install implicitly assumed before this option
+# existed, so nobody sees a behaviour change without opting in.
+DEFAULT_INSTALLATION_PHASES = "1"
 DEFAULT_MAX_INVERTER_POWER_W = 0
 DEFAULT_TOTAL_LOAD_SENSOR_ENTITY_ID = ""
 DEFAULT_LOAD_RESERVATIONS = ""

@@ -67,7 +67,8 @@
             "data": {
               "continuous_current": "Regulation continue de l'intensite (1A)",
               "max_charge_current_a": "Courant de charge maximal (A, 0 = limite de la borne) - le calibre de ton circuit, pas celui de la borne",
-              "min_charge_current_a": "Courant de charge minimal (A, 0 = limite de la borne)"
+              "min_charge_current_a": "Courant de charge minimal (A, 0 = limite de la borne)",
+              "installation_phases": "Phases de l'installation (1 ou 3) - nombre de phases sur lesquelles le chargeur est cable ; sert a convertir la puissance disponible en courant pour la regulation surplus et les plafonds charge/onduleur"
             }
           },
           "protection": {

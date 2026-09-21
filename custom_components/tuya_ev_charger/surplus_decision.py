@@ -114,15 +114,21 @@ def current_supported_by(
     available_currents: tuple[int, ...],
     *,
     line_voltage: int = DEFAULT_LINE_VOLTAGE_V,
+    phases: int = 1,
 ) -> int:
     """Highest offered current the surplus can actually sustain.
+
+    The charger applies one current setpoint to every phase it is wired on,
+    so the power it draws is ``phases * line_voltage * current`` -- a
+    three-phase install needs the surplus divided by three times the
+    per-phase voltage, not just the voltage (#41).
 
     Rounds down: drawing more than the surplus would import from the grid, which
     is the one thing surplus mode exists to avoid.
     """
-    if line_voltage <= 0 or surplus_w <= 0:
+    if line_voltage <= 0 or phases <= 0 or surplus_w <= 0:
         return 0
-    affordable = int(surplus_w // line_voltage)
+    affordable = int(surplus_w // (line_voltage * phases))
     candidates = [current for current in available_currents if current <= affordable]
     return max(candidates) if candidates else 0
 
@@ -183,10 +189,13 @@ def cap_to_available_power(
     headroom_w: float,
     *,
     line_voltage: int = DEFAULT_LINE_VOLTAGE_V,
+    phases: int = 1,
 ) -> int:
     """Largest offered current that fits within a power budget.
 
     Used by load balancing to stay under the main breaker: unlike
     ``current_supported_by`` a zero budget means "stop", not "no surplus".
     """
-    return current_supported_by(max(0.0, headroom_w), available_currents, line_voltage=line_voltage)
+    return current_supported_by(
+        max(0.0, headroom_w), available_currents, line_voltage=line_voltage, phases=phases
+    )

@@ -93,6 +93,37 @@ def test_current_is_zero_without_a_usable_voltage():
     assert current_supported_by(5000.0, LADDER, line_voltage=0) == 0
 
 
+def test_current_is_zero_without_a_usable_phase_count():
+    from tuya_ev_charger.surplus_decision import current_supported_by
+
+    assert current_supported_by(5000.0, LADDER, phases=0) == 0
+
+
+@pytest.mark.parametrize(
+    ("surplus_w", "expected"),
+    [
+        (0.0, 0),
+        (-500.0, 0),
+        (3000.0, 0),  # below the 6 A minimum at 3 phases (6 * 230 * 3 = 4140)
+        (4140.0, 6),  # exactly 6 A at 230 V * 3 phases
+        (4500.0, 6),  # #41's own report: ~4.5 kW of surplus on a 3-phase charger
+        (6900.0, 10),
+        (7000.0, 10),  # rounds down: never import to top up
+        (11_040.0, 16),
+        (30_000.0, 16),  # capped by what the charger offers
+    ],
+)
+def test_current_supported_by_surplus_on_three_phases(surplus_w, expected):
+    """#41: a charger applies one current setpoint to every wired phase, so
+    the power it draws is phases * line_voltage * current -- not just
+    line_voltage * current. Every case above is the single-phase case from
+    test_current_supported_by_surplus scaled by 3, confirming the divisor
+    scales with phases and not just with the input."""
+    from tuya_ev_charger.surplus_decision import current_supported_by
+
+    assert current_supported_by(surplus_w, LADDER, phases=3) == expected
+
+
 # --- ramping --------------------------------------------------------------
 
 
@@ -213,6 +244,17 @@ def test_power_budget_caps_the_current():
     # No headroom means stop, and a negative budget must not wrap around.
     assert cap_to_available_power(LADDER, 0.0) == 0
     assert cap_to_available_power(LADDER, -1000.0) == 0
+
+
+def test_power_budget_caps_the_current_on_three_phases():
+    """#41: this is what the load-balancing and inverter-output caps use --
+    both were as wrong as the surplus target on a 3-phase install, not just
+    the reported surplus-to-current conversion."""
+    from tuya_ev_charger.surplus_decision import cap_to_available_power
+
+    assert cap_to_available_power(LADDER, 6900.0, phases=3) == 10
+    assert cap_to_available_power(LADDER, 0.0, phases=3) == 0
+    assert cap_to_available_power(LADDER, -1000.0, phases=3) == 0
 
 
 # --- load balancing -------------------------------------------------------

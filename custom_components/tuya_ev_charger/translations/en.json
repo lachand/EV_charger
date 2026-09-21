@@ -98,7 +98,8 @@
             "data": {
               "continuous_current": "Adjust current in 1A steps",
               "max_charge_current_a": "Maximum charging current (A, 0 = charger limit) - your circuit's rating, not the charger's",
-              "min_charge_current_a": "Minimum charging current (A, 0 = charger limit)"
+              "min_charge_current_a": "Minimum charging current (A, 0 = charger limit)",
+              "installation_phases": "Installation phases (1 or 3) - how many phases the charger is wired on; used to convert available power into current for surplus regulation and the load/inverter caps"
             }
           },
           "protection": {

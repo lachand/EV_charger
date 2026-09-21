@@ -150,8 +150,9 @@ Everything else — battery thresholds, forecast, curtailment — is optional.
   - `eco` — conservative, avoids battery discharge
   - `balanced` — default
   - `fast` — reacts sooner, starts on less surplus
-- The rest (line voltage, ramp, delays, cooldowns, protections) is fixed
-  internally.
+- The rest (ramp, delays, cooldowns, protections) is fixed internally. Line
+  voltage is fixed at 230 V; scale it for your installation with
+  **Installation phases** below.
 
 ### Installation limit
 
@@ -170,6 +171,17 @@ below 8 A.
 
 Unlike load balancing below, this needs no grid sensor: it is a fixed property
 of your wiring, not a live measurement.
+
+**Installation phases** (1 or 3) is the other fixed wiring property, and the
+one that matters most if you skip it: a charger applies the same current
+setpoint to every phase it is wired on, so the power it actually draws is
+`phases × 230 V × current`, not just `230 V × current`. Every watts-to-amps
+conversion — the surplus target, **and** both protection caps below — assumes
+single-phase until you set this to 3. On a 3-phase charger left at the default,
+surplus mode targets roughly 3× the correct current, which imports from the
+grid instead of using only the surplus (#41), and both protection caps let
+through roughly 3× their configured limit. There is no reliable way to detect
+this automatically, so a 3-phase installation must set it explicitly.
 
 ---
 
@@ -488,6 +500,7 @@ charging, instead of holding the last value.
 | `charger_profile` / `charger_profile_json` | DP mapping; custom JSON overrides, validated on save |
 | `continuous_current` | 1 A steps (default **on**) |
 | `max_charge_current_a` / `min_charge_current_a` | Your circuit's rating; `0` uses the charger's |
+| `installation_phases` | `1` or `3`; scales every watts-to-amps conversion (surplus target, both protection caps) |
 | `max_inverter_power_w` / `total_load_sensor_entity_id` | Cap total load under a hybrid inverter's rating; `0` disables |
 | `external_charge_allowed_sensor_entity_id`, `external_charge_allowed_sensor_inverted` | Optional binary_sensor/input_boolean gate; blocks charging entirely, even `force_charge_for`, when it says no |
 | `vehicles` | Comma-separated car names; enables per-vehicle tracking |
