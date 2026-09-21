@@ -176,6 +176,117 @@ def test_the_reported_value_tracks_the_charger():
     assert entity.native_value is None
 
 
+# --- surplus option thresholds (SOC/power cross-adjustment) -----------------
+#
+# TuyaEVChargerSurplusOptionNumber -- a different class from the one above --
+# had no tests at all. Its write path silently rewrites four option keys per
+# call to keep the SOC high/low pair and the start/stop power pair coherent; a
+# regression here writes a low >= high or a stop > start that nothing else
+# catches.
+
+
+def _option_entity(option_key, *, options=None):
+    from tuya_ev_charger.number import SURPLUS_OPTION_NUMBER_DESCRIPTIONS
+    from tuya_ev_charger.number import TuyaEVChargerSurplusOptionNumber as S
+
+    description = next(d for d in SURPLUS_OPTION_NUMBER_DESCRIPTIONS if d.option_key == option_key)
+    entity = S.__new__(S)
+    updates: list[dict] = []
+    entity.entity_description = description
+    entity._entry = types.SimpleNamespace(options=dict(options or {}))
+    entity.hass = types.SimpleNamespace(
+        config_entries=types.SimpleNamespace(
+            async_update_entry=lambda e, options: updates.append(options)
+        )
+    )
+    entity.async_write_ha_state = lambda: None
+    entity.updates = updates
+    return entity
+
+
+def test_native_value_dispatches_by_option_key():
+    from tuya_ev_charger.const import (
+        CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
+        CONF_SURPLUS_START_THRESHOLD_W,
+        CONF_SURPLUS_STOP_THRESHOLD_W,
+    )
+
+    soc = _option_entity(
+        CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
+        options={CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT: 92},
+    )
+    assert soc.native_value == 92.0
+
+    power = _option_entity(
+        CONF_SURPLUS_START_THRESHOLD_W,
+        options={CONF_SURPLUS_START_THRESHOLD_W: 1800, CONF_SURPLUS_STOP_THRESHOLD_W: 1000},
+    )
+    assert power.native_value == 1800.0
+
+
+def test_lowering_the_high_soc_threshold_pulls_the_low_one_down_too():
+    from tuya_ev_charger.const import (
+        CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
+        CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
+    )
+
+    entity = _option_entity(
+        CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
+        options={
+            CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT: 95,
+            CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT: 90,
+        },
+    )
+    asyncio.run(entity.async_set_native_value(85))
+    written = entity.updates[-1]
+    assert written[CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT] == 85
+    assert written[CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT] == 84, "must stay below the new high"
+
+
+def test_raising_the_low_soc_threshold_pushes_the_high_one_up_too():
+    from tuya_ev_charger.const import (
+        CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
+        CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
+    )
+
+    entity = _option_entity(
+        CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
+        options={
+            CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT: 95,
+            CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT: 90,
+        },
+    )
+    asyncio.run(entity.async_set_native_value(97))
+    written = entity.updates[-1]
+    assert written[CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT] == 97
+    assert written[CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT] == 98, "must stay above the new low"
+
+
+def test_lowering_the_start_threshold_pulls_the_stop_threshold_down_too():
+    from tuya_ev_charger.const import CONF_SURPLUS_START_THRESHOLD_W, CONF_SURPLUS_STOP_THRESHOLD_W
+
+    entity = _option_entity(
+        CONF_SURPLUS_START_THRESHOLD_W,
+        options={CONF_SURPLUS_START_THRESHOLD_W: 1600, CONF_SURPLUS_STOP_THRESHOLD_W: 1200},
+    )
+    asyncio.run(entity.async_set_native_value(1000))
+    written = entity.updates[-1]
+    assert written[CONF_SURPLUS_START_THRESHOLD_W] == 1000
+    assert written[CONF_SURPLUS_STOP_THRESHOLD_W] == 1000, "stop must never exceed start"
+
+
+def test_raising_the_stop_threshold_above_start_is_clamped_to_start():
+    from tuya_ev_charger.const import CONF_SURPLUS_START_THRESHOLD_W, CONF_SURPLUS_STOP_THRESHOLD_W
+
+    entity = _option_entity(
+        CONF_SURPLUS_STOP_THRESHOLD_W,
+        options={CONF_SURPLUS_START_THRESHOLD_W: 1600, CONF_SURPLUS_STOP_THRESHOLD_W: 1200},
+    )
+    asyncio.run(entity.async_set_native_value(2000))
+    written = entity.updates[-1]
+    assert written[CONF_SURPLUS_STOP_THRESHOLD_W] == 1600, "stop must never exceed start"
+
+
 # --- long-term statistics eligibility (B13) --------------------------------
 
 

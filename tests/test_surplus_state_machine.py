@@ -303,6 +303,27 @@ def test_recovering_surplus_disarms_the_stop_timer(monkeypatch):
     assert ("enabled", False) not in h.writes
 
 
+def test_a_failed_stop_write_does_not_end_the_tracked_session(monkeypatch):
+    """Asymmetric with the start path (a failed start surfaces
+    failed_start_charge explicitly): a failed stop write neither raises nor
+    is reported, and -- checked here -- does not mark the session as ended,
+    which would desync the integration's own bookkeeping from a charger that
+    never actually stopped."""
+    from tuya_ev_charger.solar_surplus import FIXED_STOP_DELAY_S
+
+    h = _charging_harness(
+        monkeypatch,
+        sensors={"sensor.grid": 2000},
+        client=_Client(set_enabled_ok=False),
+    )
+    h.controller._session_active = True
+
+    assert h.tick() == "stop_delay_pending"
+    assert h.tick(FIXED_STOP_DELAY_S) == "below_stop_threshold"
+    assert ("enabled", False) in h.writes
+    assert h.controller._session_active is True
+
+
 # --- ramp and cooldowns ----------------------------------------------------
 
 
@@ -326,6 +347,21 @@ def test_ramp_moves_one_step_and_then_waits_for_the_cooldown(monkeypatch):
     # Once elapsed, one more step.
     assert h.tick(60) == "adjust_current"
     assert [v for kind, v in h.writes if kind == "current"] == [11, 12]
+
+
+def test_a_failed_ramp_write_is_not_surfaced_as_a_failure(monkeypatch):
+    """Pins a real asymmetry: unlike a start or a force charge, a plain
+    regulation write's outcome is never checked at all -- the reported reason
+    stays "adjust_current" whether or not the charger actually accepted it.
+    Documented so a future fix to surface it has a test to update rather than
+    a silent behaviour to rediscover."""
+    h = _charging_harness(
+        monkeypatch,
+        sensors={"sensor.grid": -5000},
+        client=_Client(set_current_ok=False),
+    )
+    assert h.tick() == "adjust_current"
+    assert [v for kind, v in h.writes if kind == "current"] == [11]
 
 
 def test_up_and_down_cooldowns_are_independent(monkeypatch):
@@ -762,6 +798,34 @@ def test_force_charge_is_clamped_to_the_cap_not_dropped_to_the_minimum(monkeypat
     assert written, "force charge should set a current"
     assert max(written) <= 15, f"force charge exceeded the 15 A cap: {written}"
     assert written[-1] == 15, f"force charge should use the whole cap, wrote {written}"
+
+
+def test_a_failed_force_charge_current_write_is_reported(monkeypatch):
+    """Unlike a plain ramp adjustment, force charge does check its write and
+    surfaces the failure -- every existing force-charge test uses a client
+    that always succeeds, so this path had never actually run."""
+    h = Harness(
+        monkeypatch,
+        sensors={"sensor.grid": -3000},
+        metrics=_metrics(charging=True, current_target=10, total_power_kw=2.3),
+        client=_Client(set_current_ok=False),
+    )
+    asyncio.run(h.controller.async_force_charge_for(duration_s=600, current_a=32))
+    assert h.tick() == "force_charge_failed_set_current"
+
+
+def test_a_failed_force_charge_start_is_reported(monkeypatch):
+    """The current is already at the requested target, so only the
+    enable-charge write is exercised here -- the other untested force-charge
+    failure branch."""
+    h = Harness(
+        monkeypatch,
+        sensors={"sensor.grid": -3000},
+        metrics=_metrics(charging=False, current_target=32),
+        client=_Client(set_enabled_ok=False),
+    )
+    asyncio.run(h.controller.async_force_charge_for(duration_s=600, current_a=32))
+    assert h.tick() == "force_charge_failed_start"
 
 
 # --- dry run and traceability ---------------------------------------------

@@ -146,6 +146,25 @@ def test_an_empty_ladder_without_a_cap_is_a_different_reason():
     assert verdict.reason is DecisionReason.NO_ALLOWED_CURRENTS
 
 
+def test_a_cap_with_headroom_reduces_the_current_in_one_write():
+    """Every existing protection-cap test pairs the cap with either an empty
+    ladder or an active force charge, so this write -- the actual reduce-to-
+    cap step, straight to the value with no ramp -- had never run."""
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    verdict = _run(
+        _charging(
+            current_target=20,
+            target_current=20,
+            protection_cap=10,
+            cap_source="inverter_limit",
+        )
+    )
+    assert verdict.action is GateAction.SET_CURRENT
+    assert verdict.target_current == 10
+    assert verdict.reason is DecisionReason.INVERTER_LIMIT_REDUCED
+
+
 # --- start delay ----------------------------------------------------------
 
 
@@ -247,6 +266,53 @@ def test_stop_reasons_are_prioritised(kwargs, expected):
     assert verdict.reason.value == expected
 
 
+def test_a_session_limit_outranks_every_other_stop_reason():
+    """No test set session_limit_reason before: confirm it wins even over
+    battery_ready, which _stop_reason itself checks second."""
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    timers = _timers(stop_candidate_since=900.0)  # delay already served
+    verdict = _run(
+        _charging(session_limit_reason=DecisionReason.SESSION_LIMIT_ENERGY, battery_ready=False),
+        timers,
+    )
+    assert verdict.action is GateAction.STOP_CHARGE
+    assert verdict.reason is DecisionReason.SESSION_LIMIT_ENERGY
+
+
+def test_a_short_session_holds_through_an_ordinary_stop_instead_of_ending():
+    """min_run_time_s is never > 0 in any other test, so this guard -- meant to
+    ride out a very young session's surplus dip -- had never actually fired."""
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    verdict = _run(
+        _charging(
+            min_run_time_s=300.0,
+            available_surplus_w=500.0,
+            max_supported_current=2,
+        )
+    )
+    assert verdict.action is GateAction.HOLD
+    assert verdict.reason is DecisionReason.MIN_RUNTIME_GUARD
+
+
+def test_the_minimum_runtime_never_guards_a_session_limit():
+    """Hard limits (duration/energy/end time) are never guarded -- only the
+    ordinary surplus oscillation is."""
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    timers = _timers(stop_candidate_since=900.0)  # delay already served
+    verdict = _run(
+        _charging(
+            min_run_time_s=300.0,
+            session_limit_reason=DecisionReason.SESSION_LIMIT_DURATION,
+        ),
+        timers,
+    )
+    assert verdict.action is GateAction.STOP_CHARGE
+    assert verdict.reason is DecisionReason.SESSION_LIMIT_DURATION
+
+
 # --- ramp and cooldowns ---------------------------------------------------
 
 
@@ -346,6 +412,17 @@ def test_an_unavailable_grid_reading_forgets_both_delay_timers():
     assert verdict.reason is DecisionReason.GRID_SENSOR_UNAVAILABLE
     assert timers.start_candidate_since is None
     assert timers.stop_candidate_since is None
+
+
+def test_no_grid_sensor_configured_is_idle_not_unavailable():
+    """The only existing test with grid_sensor_configured=False also sets up
+    the battery-floor fallback, which intercepts first -- so the gate's own
+    verdict here had never actually been reached."""
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    verdict = _run(_ctx(grid_sensor_configured=False))
+    assert verdict.action is GateAction.IDLE
+    assert verdict.reason is DecisionReason.MISSING_GRID_SENSOR
 
 
 def test_tariffs_never_defer_a_surplus_charge():

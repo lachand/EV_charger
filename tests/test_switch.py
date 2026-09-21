@@ -26,6 +26,10 @@ class _Client:
         self.calls.append(("nfc", value))
         return self._ok
 
+    async def async_set_schedule(self, enabled, start, end):
+        self.calls.append(("schedule", (enabled, start, end)))
+        return self._ok
+
 
 class _Controller:
     """Stands in for SolarSurplusController, as far as the force-charge switch sees it."""
@@ -272,3 +276,61 @@ def test_a_switch_reads_false_before_the_first_poll():
     from tuya_ev_charger.switch import TuyaEVChargerChargeSessionSwitch as S
 
     assert _switch(S, data=None).is_on is False
+
+
+# --- surplus mode ------------------------------------------------------------
+
+
+def test_surplus_mode_reflects_the_option():
+    from tuya_ev_charger.const import CONF_SURPLUS_MODE_ENABLED
+    from tuya_ev_charger.switch import TuyaEVChargerSurplusModeSwitch as S
+
+    on = _switch(S, _entry=types.SimpleNamespace(options={CONF_SURPLUS_MODE_ENABLED: True}))
+    assert on.is_on is True
+
+    off = _switch(S, _entry=types.SimpleNamespace(options={CONF_SURPLUS_MODE_ENABLED: False}))
+    assert off.is_on is False
+
+
+def test_turning_on_surplus_mode_writes_the_option():
+    from tuya_ev_charger.const import CONF_SURPLUS_MODE_ENABLED
+    from tuya_ev_charger.switch import TuyaEVChargerSurplusModeSwitch as S
+
+    updates: list[dict] = []
+    entry = types.SimpleNamespace(options={CONF_SURPLUS_MODE_ENABLED: False})
+    hass = types.SimpleNamespace(
+        config_entries=types.SimpleNamespace(
+            async_update_entry=lambda e, options: updates.append(options)
+        )
+    )
+    entity = _switch(S, _entry=entry, hass=hass, async_write_ha_state=lambda: None)
+    asyncio.run(entity.async_turn_on())
+    assert updates == [{CONF_SURPLUS_MODE_ENABLED: True}]
+
+
+# --- schedule ------------------------------------------------------------------
+
+
+def test_schedule_switch_defaults_to_midnight_without_coordinator_data():
+    """coordinator.data can be None (before the first poll) or report no
+    schedule at all -- either way the write must not send a stale or garbage
+    time, only ever the documented "00:00" default."""
+    from tuya_ev_charger.switch import TuyaEVChargerScheduleSwitch as S
+
+    client = _Client()
+    entity = _switch(S, data=None, client=client)
+    asyncio.run(entity.async_turn_on())
+    assert client.calls == [("schedule", (True, "00:00", "00:00"))]
+
+
+def test_schedule_switch_writes_the_existing_times():
+    from tuya_ev_charger.switch import TuyaEVChargerScheduleSwitch as S
+
+    client = _Client()
+    entity = _switch(
+        S,
+        data=_metrics(schedule_enabled=False, schedule_start="22:00", schedule_end="06:00"),
+        client=client,
+    )
+    asyncio.run(entity.async_turn_on())
+    assert client.calls == [("schedule", (True, "22:00", "06:00"))]

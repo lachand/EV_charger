@@ -186,3 +186,21 @@ def test_a_deadline_without_an_energy_target_is_ignored():
 
     plan = plan_charge(_request(now=_at(20, 0), departure=time(22, 0), energy_needed_kwh=0.0))
     assert plan.allowed is False
+
+
+def test_a_deadline_without_a_known_charge_power_is_also_ignored():
+    """Same reasoning as an unknown energy target: minutes_needed(x, 0) is 0,
+    so an urgent departure cannot be distinguished from "nothing needed" --
+    pinned here because the only sibling test covers the energy side, not
+    the power side, of the same guard."""
+    from tuya_ev_charger.charge_planner import plan_charge
+
+    plan = plan_charge(
+        _request(
+            now=_at(21, 55),
+            departure=time(22, 0),
+            energy_needed_kwh=22.2,
+            charge_power_kw=0.0,
+        )
+    )
+    assert plan.allowed is False
