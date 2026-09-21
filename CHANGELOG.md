@@ -7,6 +7,20 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.26.0
+
+- **New: critical peak pricing (B10).** A departure deadline overrode the
+  off-peak wait regardless of price — fine normally, but some tariffs (French
+  RTE Tempo's red days, notably) make peak-hour electricity many times more
+  expensive on specific days. **Critical peak sensor**, a new optional
+  boolean option, suppresses the deadline override during peak hours when
+  set: the charge keeps waiting for off-peak instead of silently pulling
+  from the grid at the worst possible price. `switch.force_charge` remains
+  available as an explicit override. The integration has no built-in notion
+  of Tempo or any other specific tariff — point the option at a template
+  binary sensor built from whichever colour/price signal you have; the
+  README shows a worked example for `hekmon/rtetempo`.
+
 ## 2.25.1
 
 - **Off-peak windows and the off-peak sensor had no effect with surplus mode

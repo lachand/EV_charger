@@ -11,7 +11,25 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 
 ## Resume here
 
-- **Current version:** 2.25.1
+- **Current version:** 2.26.0
+- **2.26.0**: **B10**, critical peak pricing. First draft parsed a Tempo
+  colour sensor directly (`"Rouge"`/`"Bleu"`/`"Blanc"`) — rejected in review:
+  hard-coding one French supplier's scheme would lock out users on other
+  tariffs, other countries, or schemes with a different number of tiers.
+  Shipped instead as a source-agnostic boolean **Critical peak sensor**
+  option, the same shape as the existing off-peak sensor
+  (`binary_sensor`/`input_boolean` + invert), which the user templates
+  themselves from whatever signal they have (Tempo colour, spot price, ...).
+  On, during peak hours, it suppresses the departure-deadline override —
+  `charge_planner.py::plan_charge()` gained `ChargeWindow.CRITICAL_PEAK`,
+  checked before the existing deadline branch. `_gate_tariff` needed no
+  change at all: `tariff_reason` was already derived generically from
+  `plan.window.value`, so the new window's translated reason flowed through
+  for free — the kind of reuse the gate architecture is meant to buy. 7 new
+  tests (2 pure-planner, 5 controller-level via the `Harness`, including one
+  closing a small pre-existing gap: a plain deadline-overrides-peak-hours
+  scenario had only ever been tested at the pure-planner level, never end to
+  end). `force_charge` remains an explicit override, untouched.
 - **Test-coverage audit (2026-09-21, no release — test-only):** #43 was a real
   branch with zero coverage at any level, silently doing nothing instead of
   starting a charge. Audited the decision layer, the orchestration layer and
@@ -85,15 +103,15 @@ Reading this file alone should be enough to resume without re-auditing the repo.
   undecryptable poll fail quietly instead of throwing the reauth banner (#34), and
   stopped zeroing a live session's L1 readings on a charger with an unmapped DP 109
   string (#35, partial). None of these were roadmap phases. Remaining roadmap items: **phase 6** (B8 carbon intensity, B9
-  daily forecast, B10 Tempo/RTE) and **phase 7** (B11 phase imbalance, B14 session receipt, B15
+  daily forecast, B10 ✅ 2.26.0) and **phase 7** (B11 phase imbalance, B14 session receipt, B15
   vehicle subentries).
-- **Next concrete action:** **B10 (Tempo/RTE)** is the most valuable remaining feature for French
-  users — a red Tempo day makes peak power prohibitive, and `charge_planner.py` already accepts
-  windows, so it is a matter of deriving them from a colour sensor. B8 (carbon intensity) and B9
-  (daily forecast) follow the same shape. The `todo`s left in `quality_scale.yaml` (services in
-  `async_setup`, strict typing, translated service exceptions) are the route to gold. Both B2 and
-  B3, previously listed here as next, already shipped in 2.15.0 — see the correction above.
-- **Suite:** 584 tests. CI green on all four jobs; `ruff format --check` now
+- **Next concrete action:** B8 (carbon intensity) and B9 (daily forecast)
+  follow the same shape as B10 — `charge_planner.py` already accepts
+  windows/booleans resolved by the caller, so each is a matter of deriving
+  one from a sensor. The `todo`s left in `quality_scale.yaml` (services in
+  `async_setup`, strict typing, translated service exceptions) are the route
+  to gold.
+- **Suite:** 591 tests. CI green on all four jobs; `ruff format --check` now
   enforced.
 - **Hardware (2.24.0 pass, charger at 192.168.1.236, fw 1.9.7, no DP 140):**
   `async_set_charge_enabled(False/True)` round-trips — `WORKING → PAUSE/204`,
@@ -120,7 +138,7 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 | 3 | B5 proactive repairs (2.16.0) + A4 form sections + A5 entry migration (2.16.1) | 2.16.x | ✅ done |
 | 4 | **B1 predictive pre-emption** + B6 adaptive polling + B7 Smart Life coexistence | 2.17.0 | ✅ done |
 | 5 | B4 learned curve (2.18.0) + taper, B12 anomalies, B13 statistics (2.19.0) | 2.19.0 | ✅ done |
-| 6 | B8 carbon intensity + B9 daily forecast + B10 Tempo/RTE + A3 `quality_scale.yaml` | 2.19.0+ | ⬜ |
+| 6 | B8 carbon intensity + B9 daily forecast + B10 Tempo/RTE (✅ 2.26.0) + A3 `quality_scale.yaml` | 2.19.0+ | ◐ B10 done, rest ⬜ |
 | 7 | B11 phase imbalance + B14 session receipt + B15 vehicle subentries | on demand | ⬜ |
 
 ---
@@ -154,7 +172,7 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 | **B7** ⭐ | ✅ 2.17.0 | **Explicit Smart Life coexistence.** A switch or service that *releases* the local socket for N minutes so the phone app can be used, then resumes on its own. Today the only way is disabling the whole integration. |
 | **B8** | ⬜ | **Carbon-intensity charging.** Charge on the cleanest hours, not only the cheapest, from an electricitymaps/CO2 Signal sensor. `charge_planner.py` already takes windows; derive them from a sensor. |
 | **B9** | ⬜ | **Daily-forecast planning.** The solar forecast is only an anti-drop guard (500 W). A day-ahead view can decide *when* to charge: wait for the production peak, or charge early if the afternoon looks cloudy. |
-| **B10** | ⬜ | **Real French tariffs (Tempo / RTE).** Configurable off-peak windows cover the common case, but Tempo's blue/white/red days change everything: on a red day the peak price is prohibitive. RTE Tempo integrations exist in HACS; accept a colour sensor and modulate. |
+| **B10** | ✅ 2.26.0 | **Critical peak pricing (Tempo / RTE and beyond).** Configurable off-peak windows cover the common case, but Tempo's red days change everything: peak-hour price becomes prohibitive. Shipped as a generic boolean **Critical peak sensor** option, not a Tempo-specific parser (rejected in review — other users have other tariff schemes/integrations): when on during peak hours, it suppresses the departure-deadline override in `charge_planner.py::plan_charge()` (new `ChargeWindow.CRITICAL_PEAK`). The user templates their own colour/price sensor into the boolean; README has a worked `hekmon/rtetempo` example. |
 | **B11** | ⬜ | **Phase-imbalance detection.** L1/L2/L3 are already decoded. A persistent imbalance on a three-phase charger points at wiring or the vehicle. Nobody exposes it; an installer would value it. |
 | **B12** | ✅ 2.19.0 | **Session anomalies.** From the stored history: "this session charged far slower than usual" (degrading contactor or cable), "three interrupted sessions in a row", "energy delivered falling at equal current". Predictive maintenance from data already on disk. |
 | **B13** | ✅ 2.19.0 | **Per-vehicle long-term statistics.** The per-vehicle sensors are `total_increasing` but do not land properly in the Energy dashboard. `async_add_external_statistics` would give a correct per-car history, retroactively included. |
