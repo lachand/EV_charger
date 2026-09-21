@@ -7,6 +7,20 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.26.1
+
+- **Surplus targeting and both protection caps assumed a single-phase
+  charger.** Reported by @fcal1986 (#41) — a 3-phase charger targeted up to
+  3x the correct current on solar surplus, and **`max_house_power_w`**/
+  **`max_inverter_power_w`** let through roughly 3x their configured limit
+  too (found while fixing the reported symptom — a safety-relevant gap, not
+  just a comfort one). Every watts-to-amps conversion divided by 230 V alone,
+  with no notion anywhere of how many phases the charger is wired on. New
+  **Installation phases** option (1 or 3, next to the current limits),
+  defaulting to 1 so nobody sees a change without opting in — existing
+  3-phase installs need to set it explicitly, since there is no reliable way
+  to auto-detect phase count.
+
 ## 2.26.0
 
 - **New: critical peak pricing (B10).** A departure deadline overrode the

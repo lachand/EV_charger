@@ -11,7 +11,25 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 
 ## Resume here
 
-- **Current version:** 2.26.0
+- **Current version:** 2.26.1
+- **2.26.1**: surplus targeting and both protection caps
+  (`max_house_power_w`/`max_inverter_power_w`) assumed a single-phase
+  charger — every watts-to-amps conversion in `surplus_decision.py` divided
+  by 230 V alone, with no notion anywhere of phase count (#41, reported by
+  @fcal1986: 3-phase charger targeted up to 3x the correct current on
+  surplus). Worse than the reported symptom: the same bug meant the two
+  protection caps let through ~3x their configured limit on a 3-phase
+  install, a safety gap found while fixing the surplus complaint, not
+  mentioned in the report itself. Fixed with a `phases: int = 1` parameter
+  threaded through `current_supported_by`/`cap_to_available_power` and a new
+  **Installation phases** (1/3) option, defaulting to 1 so nobody sees a
+  change without opting in — existing 3-phase installs must set it
+  explicitly, since phase count cannot be auto-detected reliably from the
+  already-decoded per-phase L1/L2/L3 readings. 16 new tests (extended
+  parametrize in `test_surplus_decision.py` plus 5 new controller-level
+  tests reproducing the report end to end, the two caps, and the
+  departure-deadline power estimate, which had the same bug in the other
+  direction).
 - **2.26.0**: **B10**, critical peak pricing. First draft parsed a Tempo
   colour sensor directly (`"Rouge"`/`"Bleu"`/`"Blanc"`) — rejected in review:
   hard-coding one French supplier's scheme would lock out users on other
@@ -111,7 +129,7 @@ Reading this file alone should be enough to resume without re-auditing the repo.
   one from a sensor. The `todo`s left in `quality_scale.yaml` (services in
   `async_setup`, strict typing, translated service exceptions) are the route
   to gold.
-- **Suite:** 591 tests. CI green on all four jobs; `ruff format --check` now
+- **Suite:** 607 tests. CI green on all four jobs; `ruff format --check` now
   enforced.
 - **Hardware (2.24.0 pass, charger at 192.168.1.236, fw 1.9.7, no DP 140):**
   `async_set_charge_enabled(False/True)` round-trips — `WORKING → PAUSE/204`,
