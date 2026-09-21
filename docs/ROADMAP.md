@@ -12,6 +12,26 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 ## Resume here
 
 - **Current version:** 2.25.1
+- **Test-coverage audit (2026-09-21, no release — test-only):** #43 was a real
+  branch with zero coverage at any level, silently doing nothing instead of
+  starting a charge. Audited the decision layer, the orchestration layer and
+  the entity platforms for the same shape of gap before starting B10. Added 28
+  tests (556 → 584), no production code changed — every one pins behaviour
+  already correct today, spot-verified by breaking one (the SOC threshold
+  coupling in `number.py`) and confirming the test caught it. Covered:
+  `_gate_protection_reduce`'s reduce-to-cap write, `session_limit_reason`'s
+  priority, the min-runtime guard, `_gate_grid_sensor`'s own verdict,
+  `plan_charge()` with an unresolved charge power, three write-failure paths
+  in `solar_surplus.py` (plain ramp adjustment, stop, both force-charge
+  branches), a new `tests/test_sensor.py` (the file had zero tests before —
+  only static `SENSOR_DESCRIPTIONS` metadata was checked elsewhere), and
+  `TuyaEVChargerScheduleSwitch`/`SurplusModeSwitch`/`SurplusOptionNumber`,
+  which also had none. **Deferred to a follow-up pass** (lower risk —
+  resilience/config-hygiene, not "charges silently in the wrong state"):
+  `coordinator.py`'s relocate/key-refresh/retry paths, per-key coverage of
+  `LIVE_APPLIABLE_OPTION_KEYS`, `repairs.py`'s issue creation, `button.py`'s
+  reboot success path. Full list in the commit message
+  (`test: close the coverage gaps of the same shape as #43`).
 - **2.25.1**: off-peak windows and the off-peak sensor had no effect with surplus
   mode off (#43, reported by @nilsburg). `_gate_tariff` handled two cases —
   stop outside the window, force-start for an urgent departure deadline — but
@@ -73,7 +93,7 @@ Reading this file alone should be enough to resume without re-auditing the repo.
   (daily forecast) follow the same shape. The `todo`s left in `quality_scale.yaml` (services in
   `async_setup`, strict typing, translated service exceptions) are the route to gold. Both B2 and
   B3, previously listed here as next, already shipped in 2.15.0 — see the correction above.
-- **Suite:** 556 tests. CI green on all four jobs; `ruff format --check` now
+- **Suite:** 584 tests. CI green on all four jobs; `ruff format --check` now
   enforced.
 - **Hardware (2.24.0 pass, charger at 192.168.1.236, fw 1.9.7, no DP 140):**
   `async_set_charge_enabled(False/True)` round-trips — `WORKING → PAUSE/204`,
