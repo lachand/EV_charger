@@ -69,6 +69,7 @@ LOGGER = logging.getLogger(__name__)
 FIXED_START_DELAY_S = 30
 FIXED_STOP_DELAY_S = 60
 FIXED_RAMP_STEP_A = 1
+FIXED_PROTECTION_HOLD_S = 60
 FIXED_MIN_RUN_TIME_S = 0
 FIXED_MAX_SESSION_DURATION_MIN = 0
 FIXED_MAX_SESSION_ENERGY_KWH = 0.0
@@ -426,6 +427,7 @@ class SolarSurplusController:
             start_delay_s=float(FIXED_START_DELAY_S),
             stop_delay_s=float(FIXED_STOP_DELAY_S),
             ramp_step=FIXED_RAMP_STEP_A,
+            protection_hold_s=float(FIXED_PROTECTION_HOLD_S),
             min_run_time_s=float(FIXED_MIN_RUN_TIME_S),
             session_limit_reason=self._session_limit_reason(now),
         )

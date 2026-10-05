@@ -191,6 +191,7 @@
         "name": "Derniere raison decision surplus",
         "state": {
           "adjust_cooldown_active": "Attente avant de rechanger le courant",
+          "protection_hold": "Courant maintenu : une limite de protection vient de le réduire",
           "adjust_current": "Ajustement du courant au surplus",
           "battery_floor_off_peak_charging": "Charge sur le reseau en heures creuses - batterie maison au plancher",
           "battery_floor_off_peak_start": "Batterie maison au plancher - demarrage d'une charge reseau en heures creuses",

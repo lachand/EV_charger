@@ -100,6 +100,7 @@ class DecisionReason(StrEnum):
     NO_TARGET_CURRENT = "no_target_current"
     ADJUST_CURRENT = "adjust_current"
     ADJUST_COOLDOWN_ACTIVE = "adjust_cooldown_active"
+    PROTECTION_HOLD = "protection_hold"
     TARGET_ALREADY_REACHED = "target_already_reached"
     HOLDING_CURRENT = "holding_current"
 
@@ -135,6 +136,8 @@ class TimerState:
     stop_candidate_since: float | None = None
     last_increase_action_ts: float = 0.0
     last_decrease_action_ts: float = 0.0
+    # When a protection cap last forced the current down; None if it never has.
+    last_protection_reduce_ts: float | None = None
 
     def copy(self) -> TimerState:
         """A detached copy, for asking what *would* happen.
@@ -191,6 +194,8 @@ class GateContext:
     start_delay_s: float = 0.0
     stop_delay_s: float = 0.0
     ramp_step: int = 1
+    # How long a ramp-up stays put after a protection cap forced a reduction.
+    protection_hold_s: float = 0.0
     min_run_time_s: float = 0.0
     # Already-computed session limit, if any (duration, energy, end time).
     session_limit_reason: DecisionReason | None = None
@@ -312,6 +317,7 @@ def _gate_protection_reduce(ctx: GateContext, timers: TimerState) -> Verdict | N
         return None
     if ctx.current_target is None or ctx.current_target <= ctx.protection_cap:
         return None
+    timers.last_protection_reduce_ts = ctx.now
     return Verdict(
         action=GateAction.SET_CURRENT,
         reason=DecisionReason(f"{ctx.cap_source}_reduced"),
@@ -417,6 +423,12 @@ def _gate_battery_floor_tariff_fallback(ctx: GateContext, timers: TimerState) ->
         return Verdict(
             action=GateAction.HOLD,
             reason=DecisionReason.BATTERY_FLOOR_OFF_PEAK_CHARGING,
+            regulation_active=True,
+        )
+    if _protection_hold_active(ctx, timers):
+        return Verdict(
+            action=GateAction.HOLD,
+            reason=DecisionReason.PROTECTION_HOLD,
             regulation_active=True,
         )
     next_current = _ramp(current, ceiling, ctx.available_currents, ctx.ramp_step)
@@ -528,6 +540,12 @@ def _gate_charging(ctx: GateContext, timers: TimerState) -> Verdict | None:
             reason=DecisionReason.ADJUST_COOLDOWN_ACTIVE,
             regulation_active=True,
         )
+    if increasing and _protection_hold_active(ctx, timers):
+        return Verdict(
+            action=GateAction.HOLD,
+            reason=DecisionReason.PROTECTION_HOLD,
+            regulation_active=True,
+        )
 
     # Cars dislike large current jumps, so the setpoint is walked one step.
     next_current = _ramp(current, ctx.target_current, ctx.available_currents, ctx.ramp_step)
@@ -588,6 +606,19 @@ def _gate_start(ctx: GateContext, timers: TimerState) -> Verdict | None:
 
 
 # --- helpers ---------------------------------------------------------------
+
+
+def _protection_hold_active(ctx: GateContext, timers: TimerState) -> bool:
+    """Whether a ramp-up must wait because a cap just refused a higher current.
+
+    The caps read an instantaneous measurement that wobbles around its limit, so
+    without this the ramp climbs one step, the cap drops it straight back, and
+    the setpoint saws between the two. Only increases are held: a decrease is
+    never delayed.
+    """
+    if timers.last_protection_reduce_ts is None:
+        return False
+    return ctx.now - timers.last_protection_reduce_ts < ctx.protection_hold_s
 
 
 def _min_runtime_guard_applies(ctx: GateContext, stop_reason: DecisionReason) -> bool:

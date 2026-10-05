@@ -7,6 +7,18 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.27.0-beta2
+
+Pre-release: HACS offers it only with beta versions enabled.
+
+- **The current no longer saws up and down against a protection limit.** The
+  surplus ramp raised the setpoint one step at a time while the load-balancing
+  or inverter cap, reading a measurement that wobbles around its limit, dropped
+  it straight back, over and over (21 A, 19 A, 21 A, 19 A...). After a cap has
+  forced the current down, the ramp now holds for 60 s before climbing again,
+  and the decision reason says `protection_hold` while it waits. Reductions are
+  never delayed, and nothing changes for installs without a cap configured.
+
 ## 2.27.0-beta1
 
 Pre-release: HACS offers it only with beta versions enabled.

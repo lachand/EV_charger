@@ -563,6 +563,22 @@ def test_battery_floor_fallback_holds_once_at_the_ceiling():
     assert verdict.reason is DecisionReason.BATTERY_FLOOR_OFF_PEAK_CHARGING
 
 
+def test_battery_floor_fallback_ramp_waits_after_a_cap_reduced_the_current():
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    verdict = _run(
+        _charging(
+            battery_ready=False,
+            tariff_allowed=True,
+            current_target=10,
+            protection_hold_s=60.0,
+        ),
+        _timers(last_protection_reduce_ts=990.0),
+    )
+    assert verdict.action is GateAction.HOLD
+    assert verdict.reason is DecisionReason.PROTECTION_HOLD
+
+
 def test_battery_floor_fallback_does_not_need_a_grid_sensor():
     """It is explicitly the no-solar tier; requiring a grid sensor would trap
     the installs -- a nightly window, no solar sensor wired up -- it exists
@@ -607,6 +623,63 @@ def test_battery_hysteresis(soc, enabled, expected):
     from tuya_ev_charger.charge_gates import battery_hysteresis
 
     assert battery_hysteresis(soc, high=80.0, low=60.0, enabled=enabled) is expected
+
+
+# --- the protection hold ---------------------------------------------------
+
+
+def _ramping(**kwargs):
+    """A running charge at 19 A that the surplus wants at 21 A."""
+    base = {
+        "now": 1000.0,
+        "is_charging": True,
+        "session_active": True,
+        "current_target": 19,
+        "available_currents": tuple(range(6, 33)),
+        "available_surplus_w": 5000.0,
+        "max_supported_current": 21,
+        "target_current": 21,
+        "protection_hold_s": 60.0,
+    }
+    base.update(kwargs)
+    return _ctx(**base)
+
+
+def test_a_ramp_up_waits_after_a_cap_reduced_the_current():
+    """The sawtooth: step up, the cap drops it back, step up again. After a
+    protection reduce the ramp must not climb for the hold time."""
+    timers = _timers(last_protection_reduce_ts=980.0)
+    verdict = _run(_ramping(), timers)
+    assert verdict.reason.value == "protection_hold"
+    assert verdict.action.value == "hold"
+
+
+def test_the_ramp_resumes_once_the_hold_has_elapsed():
+    timers = _timers(last_protection_reduce_ts=900.0)
+    verdict = _run(_ramping(), timers)
+    assert verdict.reason.value == "adjust_current"
+    assert verdict.target_current == 20
+
+
+def test_the_hold_never_delays_a_decrease():
+    timers = _timers(last_protection_reduce_ts=990.0)
+    verdict = _run(_ramping(current_target=21, target_current=18), timers)
+    assert verdict.reason.value == "adjust_current"
+    assert verdict.target_current == 20
+
+
+def test_no_cap_means_no_hold():
+    verdict = _run(_ramping(), _timers())
+    assert verdict.reason.value == "adjust_current"
+
+
+def test_a_protection_reduce_arms_the_hold():
+    timers = _timers()
+    verdict = _run(
+        _ramping(current_target=21, protection_cap=19, cap_source="inverter_limit"), timers
+    )
+    assert verdict.reason.value == "inverter_limit_reduced"
+    assert timers.last_protection_reduce_ts == 1000.0
 
 
 # --- helper ---------------------------------------------------------------

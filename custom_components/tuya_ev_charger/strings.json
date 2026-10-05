@@ -222,6 +222,7 @@
         "name": "Surplus last decision reason",
         "state": {
           "adjust_cooldown_active": "Waiting before changing the current again",
+          "protection_hold": "Holding the current: a protection limit just reduced it",
           "adjust_current": "Adjusting the current to the surplus",
           "battery_floor_off_peak_charging": "Charging from the grid during off-peak hours \u2014 house battery is at its floor",
           "battery_floor_off_peak_start": "House battery at its floor \u2014 starting a grid charge inside the off-peak window",
