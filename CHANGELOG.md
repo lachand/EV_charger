@@ -7,7 +7,9 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
-## Unreleased
+## 2.27.0-beta1
+
+Pre-release: HACS offers it only with beta versions enabled.
 
 - **Documented how the charger is identified.** The Tuya device id (gwId) is the
   identity of the entry, the device and every entity; the MAC is only a
