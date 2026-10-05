@@ -117,7 +117,7 @@ def test_floats_are_rounded_rather_than_refused():
 def test_a_value_above_the_installation_limit_is_refused():
     """The cap is a limit, so the entity must reject rather than silently clamp:
     a caller asking for 32 A on a 20 A circuit has a bug worth surfacing."""
-    from tuya_ev_charger.number import HomeAssistantError
+    from homeassistant.exceptions import HomeAssistantError
 
     client = _Client()
     entity = _entity(
@@ -126,13 +126,13 @@ def test_a_value_above_the_installation_limit_is_refused():
         client=client,
     )
 
-    with pytest.raises(HomeAssistantError, match="Unsupported current setpoint"):
+    with pytest.raises(HomeAssistantError, match="unsupported_current"):
         _set(entity, 32)
     assert client.calls == [], "nothing may reach the charger for a refused value"
 
 
 def test_a_value_below_the_charger_minimum_is_refused():
-    from tuya_ev_charger.number import HomeAssistantError
+    from homeassistant.exceptions import HomeAssistantError
 
     entity = _entity(data=_metrics(current_target=10))
     with pytest.raises(HomeAssistantError):
@@ -142,10 +142,10 @@ def test_a_value_below_the_charger_minimum_is_refused():
 def test_a_failed_write_raises_and_does_not_refresh():
     """Silently swallowing the failure would leave the UI showing a setpoint the
     charger never accepted."""
-    from tuya_ev_charger.number import HomeAssistantError
+    from homeassistant.exceptions import HomeAssistantError
 
     entity = _entity(data=_metrics(current_target=10), client=_Client(ok=False))
-    with pytest.raises(HomeAssistantError, match="Unable to update"):
+    with pytest.raises(HomeAssistantError, match="set_current_failed"):
         _set(entity, 16)
     assert entity.refreshes == []
 

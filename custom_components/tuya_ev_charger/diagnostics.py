@@ -57,7 +57,8 @@ def _integration_version() -> str | None:
         )
     except (OSError, ValueError):
         return None
-    return manifest.get("version")
+    version = manifest.get("version")
+    return version if isinstance(version, str) else None
 
 
 async def async_get_config_entry_diagnostics(

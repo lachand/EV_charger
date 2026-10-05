@@ -137,3 +137,35 @@ def test_end_to_end_an_overnight_charge():
     cost = session_cost(energy_kwh=30.0, split=split, off_peak_price=0.16, peak_price=0.27)
     # 28.125 kWh off-peak, 1.875 kWh peak.
     assert cost == pytest.approx(4.5 + 0.50625, abs=1e-4)
+
+
+# --- a negative price is a real tariff ------------------------------------------------
+
+
+def test_a_negative_off_peak_price_is_costed_not_treated_as_unpriced():
+    """Paid to consume at certain hours: the session earns money, it is not "free"."""
+    from tuya_ev_charger.session_costing import SessionSplit
+
+    cost = _cost(energy_kwh=10.0, split=SessionSplit(120, 0), off_peak_price=-0.05, peak_price=0)
+
+    assert cost == -0.5
+
+
+def test_a_negative_price_beside_a_positive_one_is_blended_by_time():
+    from tuya_ev_charger.session_costing import SessionSplit
+
+    cost = _cost(energy_kwh=10.0, split=SessionSplit(60, 60), off_peak_price=-0.10, peak_price=0.30)
+
+    assert cost == 1.0  # 5 kWh at -0.10 and 5 kWh at 0.30
+
+
+def test_only_two_exactly_zero_prices_mean_unpriced():
+    from tuya_ev_charger.session_costing import SessionSplit
+
+    assert (
+        _cost(energy_kwh=10.0, split=SessionSplit(60, 60), off_peak_price=0, peak_price=0) is None
+    )
+    assert (
+        _cost(energy_kwh=10.0, split=SessionSplit(60, 60), off_peak_price=-0.01, peak_price=0)
+        is not None
+    )

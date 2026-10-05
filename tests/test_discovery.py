@@ -62,3 +62,20 @@ def test_a_scan_failure_returns_empty_rather_than_raising(monkeypatch):
     """A failed scan must not take the poll loop down with it."""
     found, _ = _scan(monkeypatch, raises=OSError("network down"))
     assert found == {}
+
+
+def test_a_scan_that_hangs_gives_up_and_finds_nothing(monkeypatch):
+    """The executor job cannot be cancelled, but the caller must not wait on it."""
+    import time
+
+    from tuya_ev_charger import discovery
+
+    monkeypatch.setattr(discovery, "SCAN_TIMEOUT_MARGIN_S", 0.05)
+
+    class _Hass:
+        async def async_add_executor_job(self, func, *args):
+            return await asyncio.to_thread(lambda: time.sleep(0.4))
+
+    found = asyncio.run(discovery.async_scan_devices_by_id(_Hass(), 0))
+
+    assert found == {}

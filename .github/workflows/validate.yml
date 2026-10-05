@@ -43,8 +43,9 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install ruff
-        run: pip install ruff
+      - name: Install lint dependencies
+        # mypy checks against the real Home Assistant, not the test stubs.
+        run: pip install ruff mypy homeassistant tinytuya voluptuous-serialize
 
       - name: Run ruff
         run: ruff check .
@@ -53,6 +54,9 @@ jobs:
       # stray 8/16/20-space indents in the surplus controller that no check saw.
       - name: Check formatting
         run: ruff format --check .
+
+      - name: Check types
+        run: mypy
 
   tests:
     name: Tests

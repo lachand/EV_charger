@@ -12,6 +12,7 @@ from homeassistant.util import dt as dt_util
 
 from .charge_curve import learned_power_kw
 from .charge_planner import parse_windows
+from .charger_metrics import EVMetrics
 from .cloud import TuyaCloudError, async_fetch_local_key
 from .const import (
     CONF_CLOUD_API_KEY,
@@ -32,6 +33,7 @@ from .const import (
     ConnectionFault,
 )
 from .discovery import async_scan_devices_by_id
+from .option_values import option_float, option_text
 from .polling import poll_interval_s
 from .repairs import (
     ISSUE_CONNECTION_REFUSED,
@@ -42,7 +44,7 @@ from .repairs import (
 from .session_anomaly import detect_anomalies, typical_energy_kwh
 from .session_costing import session_cost, split_session
 from .session_history import SessionRecord
-from .tuya_ev_charger import EVMetrics, TuyaEVChargerClient
+from .tuya_ev_charger import TuyaEVChargerClient
 
 LOGGER = logging.getLogger(__name__)
 
@@ -72,7 +74,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         )
         self.client = client
         self.entry = entry
-        self.last_discovery: dict | None = None
+        self.last_discovery: dict[str, Any] | None = None
         self.new_local_key: str | None = None
         # Set by async_setup_entry once storage has been loaded.
         self.vehicle_tracker: Any = None
@@ -209,7 +211,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
 
         try:
             fault = await self.client.async_classify_fault()
-        except Exception as err:
+        except Exception as err:  # noqa: BLE001 - diagnosis is advisory and must not fail the poll
             LOGGER.debug("Fault diagnosis failed: %s", err)
             return self._last_fault
 
@@ -341,6 +343,8 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
             return
         duration_s = metrics.last_session_duration_s
         energy_kwh = metrics.last_session_energy_kwh
+        if duration_s is None or energy_kwh is None:
+            return
         if not history.is_new_session(duration_s, energy_kwh):
             return
         try:
@@ -354,7 +358,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
                 # may predate it by weeks, and logging it would invent a session
                 # that just happened.
                 await history.async_note_seen(duration_s, energy_kwh)
-        except Exception as err:
+        except Exception as err:  # noqa: BLE001 - session logging must not fail the poll
             LOGGER.debug("Session logging failed: %s", err)
         finally:
             self._session_log_primed = True
@@ -379,7 +383,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
             async_sync_session_anomalies(
                 self.hass, self.entry.entry_id, [a.value for a in anomalies]
             )
-        except Exception as err:  # pragma: no cover - never break the poll loop
+        except Exception as err:  # pragma: no cover - never break the poll loop  # noqa: BLE001
             LOGGER.debug("Session anomaly check failed: %s", err)
 
     def _build_session_record(
@@ -396,7 +400,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         if self.solar_surplus_controller is not None:
             split = self.solar_surplus_controller.session_off_peak_split()
         if split is None:
-            windows = parse_windows(_option_text(options, CONF_OFF_PEAK_WINDOWS))
+            windows = parse_windows(option_text(options, CONF_OFF_PEAK_WINDOWS, ""))
             split = split_session(
                 ended_at=ended_at, duration_s=duration_s, off_peak_windows=windows
             )
@@ -410,8 +414,8 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
             cost=session_cost(
                 energy_kwh=float(energy_kwh),
                 split=split,
-                off_peak_price=_option_float(options, CONF_OFF_PEAK_PRICE),
-                peak_price=_option_float(options, CONF_PEAK_PRICE),
+                off_peak_price=option_float(options, CONF_OFF_PEAK_PRICE),
+                peak_price=option_float(options, CONF_PEAK_PRICE),
             ),
             vehicle=tracker.active_vehicle if tracker is not None else None,
         )
@@ -428,13 +432,13 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
             return
         try:
             await tracker.async_process_counter(metrics.session_energy_kwh)
-        except Exception as err:
+        except Exception as err:  # noqa: BLE001 - vehicle tracking must not fail the poll
             LOGGER.debug("Vehicle energy tracking failed: %s", err)
 
     async def _async_fetch_metrics(self) -> EVMetrics | None:
         try:
             return await self.client.async_get_metrics()
-        except Exception as err:
+        except Exception as err:  # noqa: BLE001 - tinytuya can raise anything; a failed poll is handled by the caller
             LOGGER.debug("Charger poll failed: %s", err)
             return None
 
@@ -476,7 +480,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
                     # The host changed; pull fresh data straight away rather than
                     # waiting out the poll interval.
                     await self.async_request_refresh()
-            except Exception as err:
+            except Exception as err:  # noqa: BLE001 - best-effort background relocation
                 LOGGER.debug("Background relocation failed: %s", err)
 
         self._relocating = self.entry.async_create_background_task(
@@ -598,7 +602,9 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         return True
 
     @staticmethod
-    def _other_candidate_hosts(candidates: dict[str, dict], current_host: str) -> list[str]:
+    def _other_candidate_hosts(
+        candidates: dict[str, dict[str, Any]], current_host: str
+    ) -> list[str]:
         """Discovered IPs to probe, excluding the already-failed current host."""
         hosts: list[str] = []
         for info in candidates.values():
@@ -608,21 +614,8 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         return hosts
 
     @staticmethod
-    def _discovery_for_host(candidates: dict[str, dict], host: str) -> dict:
+    def _discovery_for_host(candidates: dict[str, dict[str, Any]], host: str) -> dict[str, Any]:
         for info in candidates.values():
             if str(info.get("ip", "")).strip() == host:
                 return info
         return {"ip": host}
-
-
-def _option_text(options: Any, key: str) -> str:
-    value = options.get(key)
-    return "" if value is None else str(value)
-
-
-def _option_float(options: Any, key: str) -> float:
-    """Prices are typed by hand, so a stray comma must not break a poll."""
-    try:
-        return float(options.get(key) or 0.0)
-    except (TypeError, ValueError):
-        return 0.0

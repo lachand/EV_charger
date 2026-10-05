@@ -70,6 +70,8 @@ def _metrics(
     *, charging=False, current_target=None, total_power_kw=0.0, max_current=32, phases=None
 ):
     """Only the EVMetrics fields the evaluation path reads."""
+    phases = phases or {}
+    l1 = phases.get("L1")
     return types.SimpleNamespace(
         do_charge=charging,
         work_state_debug="WORKING" if charging else "IDLE",
@@ -79,7 +81,8 @@ def _metrics(
         max_current_cfg=max_current,
         adjust_current_options=[],
         session_energy_kwh=0.0,
-        phases=phases or {},
+        phases=phases,
+        voltage_l1=l1.voltage if l1 else 0.0,
     )
 
 
@@ -203,7 +206,7 @@ def test_the_external_charge_allowed_sensor_is_watched_for_state_changes(monkeyp
         monkeypatch,
         options={"external_charge_allowed_sensor_entity_id": "binary_sensor.on_grid"},
     )
-    assert "binary_sensor.on_grid" in h.controller._tracked_sensor_entities()
+    assert "binary_sensor.on_grid" in h.controller._inputs.tracked_sensor_entities()
 
 
 # --- start path ------------------------------------------------------------
@@ -426,17 +429,17 @@ def test_battery_hysteresis_holds_between_the_thresholds(monkeypatch):
         },
     )
     h.tick()
-    assert h.controller._battery_soc_hysteresis_enabled is True
+    assert h.controller._inputs._battery_soc_hysteresis_enabled is True
 
     # 70 % is below high but above low: must stay enabled.
     h.hass.set("sensor.soc", 70)
     h.tick(1)
-    assert h.controller._battery_soc_hysteresis_enabled is True
+    assert h.controller._inputs._battery_soc_hysteresis_enabled is True
 
     # Below low: disabled again.
     h.hass.set("sensor.soc", 55)
     h.tick(1)
-    assert h.controller._battery_soc_hysteresis_enabled is False
+    assert h.controller._inputs._battery_soc_hysteresis_enabled is False
 
 
 # --- battery-floor / off-peak fallback --------------------------------------
@@ -560,7 +563,7 @@ def test_no_off_peak_sensor_falls_back_to_windows(monkeypatch):
 
     monkeypatch.setattr(solar_surplus.dt_util, "now", lambda: datetime(2024, 1, 1, 23, 0))
     h = Harness(monkeypatch, options={"off_peak_windows": "22:00-06:00"})
-    assert h.controller._resolve_off_peak_now() is True
+    assert h.controller._inputs.resolve_off_peak_now() is True
 
 
 def test_off_peak_sensor_reports_on_as_off_peak(monkeypatch):
@@ -569,7 +572,7 @@ def test_off_peak_sensor_reports_on_as_off_peak(monkeypatch):
         sensors={"sensor.grid": -3000, "input_boolean.off_peak": "on"},
         options={"off_peak_sensor_entity_id": "input_boolean.off_peak"},
     )
-    assert h.controller._resolve_off_peak_now() is True
+    assert h.controller._inputs.resolve_off_peak_now() is True
 
 
 def test_off_peak_sensor_inverted(monkeypatch):
@@ -582,7 +585,7 @@ def test_off_peak_sensor_inverted(monkeypatch):
             "off_peak_sensor_inverted": True,
         },
     )
-    assert h.controller._resolve_off_peak_now() is False
+    assert h.controller._inputs.resolve_off_peak_now() is False
 
 
 def test_off_peak_sensor_wins_over_windows(monkeypatch):
@@ -601,7 +604,7 @@ def test_off_peak_sensor_wins_over_windows(monkeypatch):
             "off_peak_sensor_entity_id": "input_boolean.off_peak",
         },
     )
-    assert h.controller._resolve_off_peak_now() is False
+    assert h.controller._inputs.resolve_off_peak_now() is False
 
 
 def test_off_peak_sensor_unavailable_fails_open_not_to_windows(monkeypatch):
@@ -622,7 +625,7 @@ def test_off_peak_sensor_unavailable_fails_open_not_to_windows(monkeypatch):
             "off_peak_sensor_entity_id": "input_boolean.off_peak",
         },
     )
-    assert h.controller._resolve_off_peak_now() is None
+    assert h.controller._inputs.resolve_off_peak_now() is None
 
 
 def test_the_off_peak_sensor_is_watched_for_state_changes(monkeypatch):
@@ -630,7 +633,7 @@ def test_the_off_peak_sensor_is_watched_for_state_changes(monkeypatch):
         monkeypatch,
         options={"off_peak_sensor_entity_id": "input_boolean.off_peak"},
     )
-    assert "input_boolean.off_peak" in h.controller._tracked_sensor_entities()
+    assert "input_boolean.off_peak" in h.controller._inputs.tracked_sensor_entities()
 
 
 def test_off_peak_sensor_drives_the_battery_floor_fallback_like_a_window_would(monkeypatch):
@@ -922,27 +925,27 @@ def test_three_phase_charge_power_estimate(monkeypatch):
 
 
 def test_line_voltage_falls_back_without_a_measurement():
-    from tuya_ev_charger.solar_surplus import FIXED_LINE_VOLTAGE_V, _line_voltage
+    from tuya_ev_charger.surplus_metrics import FIXED_LINE_VOLTAGE_V, line_voltage
 
-    assert _line_voltage(None) == FIXED_LINE_VOLTAGE_V
-    assert _line_voltage(_metrics()) == FIXED_LINE_VOLTAGE_V  # phases is empty
+    assert line_voltage(None) == FIXED_LINE_VOLTAGE_V
+    assert line_voltage(_metrics()) == FIXED_LINE_VOLTAGE_V  # phases is empty
 
 
 def test_line_voltage_ignores_an_implausible_reading():
     """A charger that has never reported (or a genuinely disconnected supply)
     can leave L1's voltage at 0 -- must not become a division by zero, or by
     something meaninglessly small."""
-    from tuya_ev_charger.solar_surplus import FIXED_LINE_VOLTAGE_V, _line_voltage
+    from tuya_ev_charger.surplus_metrics import FIXED_LINE_VOLTAGE_V, line_voltage
 
     data = _metrics(phases={"L1": types.SimpleNamespace(voltage=0.0)})
-    assert _line_voltage(data) == FIXED_LINE_VOLTAGE_V
+    assert line_voltage(data) == FIXED_LINE_VOLTAGE_V
 
 
 def test_line_voltage_uses_the_real_reading():
-    from tuya_ev_charger.solar_surplus import _line_voltage
+    from tuya_ev_charger.surplus_metrics import line_voltage
 
     data = _metrics(phases={"L1": types.SimpleNamespace(voltage=253.4)})
-    assert _line_voltage(data) == 253
+    assert line_voltage(data) == 253
 
 
 def test_a_measured_voltage_shifts_the_surplus_target(monkeypatch):
@@ -960,31 +963,59 @@ def test_a_measured_voltage_shifts_the_surplus_target(monkeypatch):
 # --- installation-phases repair suggestion (#41) -----------------------------
 
 
-def test_config_problems_suggests_three_phases_when_more_than_l1_is_wired(monkeypatch):
+def _tick_with_phases(h, phases, times=1):
+    h.coordinator.data = _metrics(phases=phases)
+    for _ in range(times):
+        h.tick()
+
+
+_MULTI_PHASE = {
+    "L1": types.SimpleNamespace(voltage=230.0),
+    "L2": types.SimpleNamespace(voltage=230.0),
+}
+_SINGLE_PHASE = {"L1": types.SimpleNamespace(voltage=230.0)}
+
+
+def test_config_problems_suggests_three_phases_after_enough_polls(monkeypatch):
+    """One noisy reading must not be enough -- same reasoning as the grid-sign
+    debounce, since an unconnected L2 pin can report a spurious voltage."""
+    from tuya_ev_charger.config_diagnosis import REQUIRED_PHASE_SAMPLES
+
     h = Harness(monkeypatch)
-    h.coordinator.data = _metrics(
-        phases={
-            "L1": types.SimpleNamespace(voltage=230.0),
-            "L2": types.SimpleNamespace(voltage=230.0),
-        }
-    )
+    _tick_with_phases(h, _MULTI_PHASE, times=REQUIRED_PHASE_SAMPLES)
     assert "installation_phases_likely_three" in h.controller.config_problems()
 
 
+def test_one_multi_phase_poll_is_not_enough(monkeypatch):
+    h = Harness(monkeypatch)
+    _tick_with_phases(h, _MULTI_PHASE, times=1)
+    assert "installation_phases_likely_three" not in h.controller.config_problems()
+
+
+def test_a_clean_poll_clears_earlier_multi_phase_suspicion(monkeypatch):
+    """A charger settling after being polled mid-transient must not leave a
+    stuck suggestion -- the count must track the latest reading, not latch."""
+    from tuya_ev_charger.config_diagnosis import REQUIRED_PHASE_SAMPLES
+
+    h = Harness(monkeypatch)
+    _tick_with_phases(h, _MULTI_PHASE, times=REQUIRED_PHASE_SAMPLES - 1)
+    _tick_with_phases(h, _SINGLE_PHASE, times=1)
+    assert "installation_phases_likely_three" not in h.controller.config_problems()
+
+
 def test_config_problems_does_not_suggest_when_already_configured(monkeypatch):
+    from tuya_ev_charger.config_diagnosis import REQUIRED_PHASE_SAMPLES
+
     h = Harness(monkeypatch, options={"installation_phases": "3"})
-    h.coordinator.data = _metrics(
-        phases={
-            "L1": types.SimpleNamespace(voltage=230.0),
-            "L2": types.SimpleNamespace(voltage=230.0),
-        }
-    )
+    _tick_with_phases(h, _MULTI_PHASE, times=REQUIRED_PHASE_SAMPLES)
     assert "installation_phases_likely_three" not in h.controller.config_problems()
 
 
 def test_config_problems_does_not_suggest_on_single_phase_data(monkeypatch):
+    from tuya_ev_charger.config_diagnosis import REQUIRED_PHASE_SAMPLES
+
     h = Harness(monkeypatch)
-    h.coordinator.data = _metrics(phases={"L1": types.SimpleNamespace(voltage=230.0)})
+    _tick_with_phases(h, _SINGLE_PHASE, times=REQUIRED_PHASE_SAMPLES)
     assert "installation_phases_likely_three" not in h.controller.config_problems()
 
 
@@ -1193,10 +1224,10 @@ def test_the_reservation_expires_so_the_car_is_not_held_down_twice(monkeypatch):
     # The hob is now in the measurement: 1800 car + 500 base + 3000 hob.
     h.hass.set("sensor.total_load", 5300)
     ladder = tuple(range(6, 33))
-    cap_during = h.controller._inverter_limit_current(h.coordinator.data, ladder)
+    cap_during = h.controller._caps.inverter_limit_current(h.coordinator.data, ladder)
 
     h.now += DEFAULT_RESERVATION_WINDOW_S + 1
-    cap_after = h.controller._inverter_limit_current(h.coordinator.data, ladder)
+    cap_after = h.controller._caps.inverter_limit_current(h.coordinator.data, ladder)
 
     assert cap_after > cap_during, (
         "the reservation still applied after its window, double-counting the hob"
@@ -1214,7 +1245,7 @@ def test_the_announcing_entity_is_watched_for_state_changes(monkeypatch):
             "load_reservations": "switch.hob: 3000, switch.oven: 2500",
         },
     )
-    tracked = h.controller._tracked_sensor_entities()
+    tracked = h.controller._inputs.tracked_sensor_entities()
     assert "switch.hob" in tracked
     assert "switch.oven" in tracked
 
@@ -1271,3 +1302,35 @@ def test_a_broken_history_cannot_break_regulation(monkeypatch):
     assert h.controller._estimate_charge_power_kw(_metrics(), tuple(range(6, 33))) == pytest.approx(
         7.36
     )
+
+
+# --- the evaluation task belongs to the entry ---------------------------------
+
+
+def test_evaluation_runs_as_a_background_task_of_the_entry(monkeypatch):
+    """So that unloading the entry cancels it, instead of it outliving the entry."""
+    h = Harness(monkeypatch)
+    created: list[str] = []
+
+    def _create(_hass, coro, name=None):
+        created.append(name)
+        coro.close()
+        return types.SimpleNamespace(done=lambda: False, cancel=lambda: None)
+
+    h.controller._entry.async_create_background_task = _create
+
+    h.controller._async_schedule_evaluation("test")
+
+    assert created == ["tuya_ev_charger_surplus_evaluation"]
+
+
+def test_no_evaluation_is_scheduled_after_shutdown(monkeypatch):
+    """A sensor callback already queued on the loop must not revive the controller."""
+    h = Harness(monkeypatch)
+    created: list[str] = []
+    h.controller._entry.async_create_background_task = lambda *_a, **_k: created.append("x")
+
+    asyncio.run(h.controller.async_shutdown())
+    h.controller._async_schedule_evaluation("late_sensor_update")
+
+    assert created == []

@@ -108,7 +108,7 @@ class SessionHistory:
         priced = [session["cost"] for session in self._sessions if session.get("cost") is not None]
         if not priced:
             return None
-        return round(sum(priced), 2)
+        return round(float(sum(priced)), 2)
 
     def total_energy_kwh(self) -> float:
         return round(sum(float(session.get("energy_kwh") or 0.0) for session in self._sessions), 3)

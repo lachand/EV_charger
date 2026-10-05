@@ -96,8 +96,8 @@ async def async_attach_trigger(
 
     entity_id = config.get(CONF_ENTITY_ID) or _status_entity_id(hass, config[CONF_DEVICE_ID])
     state_config: dict[str, Any] = {
-        state_trigger.CONF_PLATFORM: "state",
-        state_trigger.CONF_ENTITY_ID: entity_id,
+        CONF_PLATFORM: "state",
+        CONF_ENTITY_ID: entity_id,
         state_trigger.CONF_TO: to_state,
     }
     if from_state is not None:

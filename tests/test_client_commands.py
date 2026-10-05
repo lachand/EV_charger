@@ -14,6 +14,7 @@ put `custom_components` on the path, so every import here is inside a function.
 from __future__ import annotations
 
 import asyncio
+import time
 
 import pytest
 
@@ -39,6 +40,16 @@ class _FakeDevice:
         return result(self.status_calls) if callable(result) else result
 
     def close(self):  # pragma: no cover - only the unload path calls this
+        pass
+
+    # tinytuya knobs `_configure_device` sets when the client builds a fresh Device.
+    def set_socketTimeout(self, _value):
+        pass
+
+    def set_socketRetryLimit(self, _value):
+        pass
+
+    def set_socketRetryDelay(self, _value):
         pass
 
 
@@ -147,3 +158,108 @@ def test_a_command_waits_for_an_in_flight_read():
         return await task
 
     assert asyncio.run(_run()) is True
+
+
+# --- a stuck tinytuya call must not hold the I/O lock forever -----------------
+
+
+class _HangingDevice(_FakeDevice):
+    """A device whose first `status` / `set_value` blocks past the I/O timeout."""
+
+    def __init__(self, *, hang_s=0.3, **kwargs):
+        super().__init__(**kwargs)
+        self._hang_s = hang_s
+        self.closed = False
+        self._hung = False
+
+    def _maybe_hang(self):
+        if not self._hung:
+            self._hung = True
+            time.sleep(self._hang_s)
+
+    def status(self):
+        self._maybe_hang()
+        return super().status()
+
+    def set_value(self, dp_id, value):
+        self._maybe_hang()
+        return super().set_value(dp_id, value)
+
+    def close(self):
+        self.closed = True
+
+
+@pytest.fixture
+def _short_io_timeout(monkeypatch):
+    import tuya_ev_charger.tuya_ev_charger as tem
+
+    monkeypatch.setattr(tem, "IO_TIMEOUT_S", 0.05)
+
+
+def test_a_stuck_read_times_out_closes_the_socket_and_recovers(_short_io_timeout, monkeypatch):
+    import tuya_ev_charger.tuya_ev_charger as tem
+
+    hanging = _HangingDevice(status_result={"dps": {"109": "IDLE"}})
+    fresh = _FakeDevice(status_result={"dps": {"109": "IDLE"}})
+    monkeypatch.setattr(tem.tinytuya, "Device", lambda **_kw: fresh)
+    client = _client(hanging)
+
+    async def scenario():
+        first = await client.async_get_raw_dps()
+        # The lock was released, and the next read rebuilds the connection.
+        second = await asyncio.wait_for(client.async_get_raw_dps(), timeout=1)
+        return first, second
+
+    first, second = asyncio.run(scenario())
+
+    assert first is None
+    assert hanging.closed is True
+    assert second == {"109": "IDLE"}
+    assert fresh.status_calls == 1
+
+
+def test_a_stuck_write_is_settled_by_the_read_back(_short_io_timeout, monkeypatch):
+    """The command may have gone out before the hang, so only a read says."""
+    import tuya_ev_charger.tuya_ev_charger as tem
+
+    hanging = _HangingDevice(set_result=None)
+    fresh = _FakeDevice(status_result={"dps": {"140": True}})
+    monkeypatch.setattr(tem.tinytuya, "Device", lambda **_kw: fresh)
+    client = _client(hanging)
+
+    assert asyncio.run(client.async_set_charge_enabled(True)) is True
+    assert hanging.closed is True
+
+
+def test_a_stuck_unverified_write_reports_failure(_short_io_timeout):
+    hanging = _HangingDevice(set_result=None)
+    client = _client(hanging)
+
+    assert asyncio.run(client.async_set_schedule(True, "08:00", "10:00")) is False
+    assert hanging.closed is True
+
+
+def test_a_closed_client_does_not_reconnect_by_itself():
+    device = _FakeDevice()
+    client = _client(device)
+
+    asyncio.run(client.async_close())
+
+    with pytest.raises(RuntimeError):
+        client._get_device()
+
+
+def test_closing_a_stuck_socket_does_not_hold_the_lock(_short_io_timeout):
+    """`close` runs under the I/O lock; a hung one must not freeze the client."""
+    hanging = _HangingDevice()
+    hanging.close = lambda: time.sleep(0.3)
+    client = _client(hanging)
+
+    async def scenario():
+        await asyncio.wait_for(client.async_close(), timeout=1)
+        # The lock is free again and the stuck device is forgotten.
+        async with asyncio.timeout(1):
+            async with client._io_lock:
+                return client._device
+
+    assert asyncio.run(scenario()) is None

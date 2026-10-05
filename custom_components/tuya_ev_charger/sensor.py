@@ -14,6 +14,7 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     PERCENTAGE,
+    EntityCategory,
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
     UnitOfEnergy,
@@ -22,11 +23,11 @@ from homeassistant.const import (
     UnitOfTime,
 )
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TuyaEVChargerRuntimeData
 from .charge_gates import DecisionReason
+from .charger_metrics import EVCC_STATUS_OPTIONS, STATUS_OPTIONS, EVMetrics, evcc_status
 from .const import (
     ADVANCED_ENTITY_KEYS,
     CARD_ROLE_ALARM,
@@ -47,12 +48,6 @@ from .const import (
 )
 from .entity import TuyaEVChargerEntity
 from .solar_surplus import SolarSurplusSnapshot
-from .tuya_ev_charger import (
-    EVCC_STATUS_OPTIONS,
-    STATUS_OPTIONS,
-    EVMetrics,
-    evcc_status,
-)
 from .vehicles import configured_vehicles
 
 PARALLEL_UPDATES = 0  # Read-only: values come from the shared coordinator, so nothing to serialise.
@@ -74,7 +69,8 @@ def _phase_attr(phase: str, attribute: str) -> Callable[[EVMetrics], float | Non
         measurements = data.phases.get(phase)
         if measurements is None:
             return None
-        return getattr(measurements, attribute)
+        value: float | None = getattr(measurements, attribute)
+        return value
 
     return _value
 
@@ -346,7 +342,7 @@ SURPLUS_CONTROLLER_SENSOR_DESCRIPTIONS: tuple[
 def _apply_default_visibility(
     descriptions: tuple[TuyaEVChargerSensorDescription, ...]
     | tuple[TuyaEVChargerSurplusControllerSensorDescription, ...],
-):
+) -> tuple[Any, ...]:
     """Create advanced sensors disabled, from the single policy in const.py."""
     return tuple(
         replace(description, entity_registry_enabled_default=False)
@@ -420,7 +416,8 @@ class TuyaEVChargerConnectionHealthSensor(TuyaEVChargerEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        return self.coordinator.connection_health["success_rate_pct"]
+        rate: float | None = self.coordinator.connection_health["success_rate_pct"]
+        return rate
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -447,7 +444,7 @@ class TuyaEVChargerLastSessionCostSensor(TuyaEVChargerEntity, SensorEntity):
         self._attr_unique_id = f"{runtime_data.client.device_id}_last_session_cost"
 
     @property
-    def _latest(self) -> dict | None:
+    def _latest(self) -> dict[str, Any] | None:
         history = self._runtime_data.session_history
         return history.latest if history is not None else None
 

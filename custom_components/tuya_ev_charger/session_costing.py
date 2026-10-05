@@ -80,9 +80,11 @@ def session_cost(
 
     Returns None rather than 0.0 when unpriced: a sensor showing 0 € for every
     session looks like a working meter reporting free electricity, which is
-    worse than showing nothing.
+    worse than showing nothing. "Unpriced" means both prices are exactly zero;
+    a negative price is a real tariff (paid to consume) and is costed, so the
+    cost can come out negative.
     """
-    if peak_price <= 0 and off_peak_price <= 0:
+    if peak_price == 0 and off_peak_price == 0:
         return None
     if energy_kwh <= 0:
         return 0.0

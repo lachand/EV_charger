@@ -9,14 +9,17 @@ IP-range brute force and no state-changing command required.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
-import tinytuya  # type: ignore
+import tinytuya
 from homeassistant.core import HomeAssistant
-from tinytuya import scanner  # type: ignore
+from tinytuya import scanner
 
 LOGGER = logging.getLogger(__name__)
+
+SCAN_TIMEOUT_MARGIN_S = 5
 
 
 def _sync_scan_devices_by_id(
@@ -61,4 +64,10 @@ async def async_scan_devices_by_id(
     broadcast does not fall inside the first few seconds — instead of returning
     whatever unrelated device happened to announce itself first.
     """
-    return await hass.async_add_executor_job(_sync_scan_devices_by_id, scantime, wantids)
+    try:
+        # The scan is bounded by ``scantime``; the margin only catches a hung socket.
+        async with asyncio.timeout(scantime + SCAN_TIMEOUT_MARGIN_S):
+            return await hass.async_add_executor_job(_sync_scan_devices_by_id, scantime, wantids)
+    except TimeoutError:
+        LOGGER.debug("Tuya UDP discovery scan timed out.")
+        return {}

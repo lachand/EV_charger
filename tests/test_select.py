@@ -75,7 +75,7 @@ def test_selecting_the_current_plug_in_action_writes_nothing():
 
 
 def test_a_failed_plug_in_write_raises():
-    from tuya_ev_charger.select import HomeAssistantError
+    from homeassistant.exceptions import HomeAssistantError
 
     entity = _plug_in(plug_in_action="prompt", client=_Client(ok=False))
     with pytest.raises(HomeAssistantError):
@@ -117,10 +117,10 @@ def test_a_renamed_stored_vehicle_falls_back_to_the_first():
 
 
 def test_selecting_an_unknown_vehicle_raises():
-    from tuya_ev_charger.select import HomeAssistantError
+    from homeassistant.exceptions import HomeAssistantError
 
     entity = _vehicle(options=["Zoe"], active="Zoe")
-    with pytest.raises(HomeAssistantError, match="Unknown vehicle"):
+    with pytest.raises(HomeAssistantError, match="unknown_vehicle"):
         asyncio.run(entity.async_select_option("Tesla"))
 
 
@@ -149,9 +149,9 @@ def _profile(*, current):
 
 
 def test_an_unsupported_profile_raises():
-    from tuya_ev_charger.select import HomeAssistantError
+    from homeassistant.exceptions import HomeAssistantError
 
-    with pytest.raises(HomeAssistantError, match="Unsupported"):
+    with pytest.raises(HomeAssistantError, match="unsupported_surplus_profile"):
         asyncio.run(_profile(current="balanced").async_select_option("turbo"))
 
 

@@ -5,7 +5,6 @@ from datetime import time
 from homeassistant.components.time import TimeEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TuyaEVChargerRuntimeData
@@ -15,6 +14,7 @@ from .const import (
     CARD_ROLE_SCHEDULE_START,
 )
 from .entity import TuyaEVChargerEntity
+from .errors import charger_error
 
 PARALLEL_UPDATES = 1  # The charger accepts one local connection; writes are serialised.
 
@@ -72,7 +72,7 @@ class TuyaEVChargerScheduleStartTime(TuyaEVChargerEntity, TimeEntity):
         if not await self._runtime_data.client.async_set_schedule(
             enabled, _format_time(value), end
         ):
-            raise HomeAssistantError("Unable to update schedule start time.")
+            raise charger_error("schedule_start_failed")
         await self.coordinator.async_request_refresh()
 
 
@@ -100,5 +100,5 @@ class TuyaEVChargerScheduleEndTime(TuyaEVChargerEntity, TimeEntity):
         if not await self._runtime_data.client.async_set_schedule(
             enabled, start, _format_time(value)
         ):
-            raise HomeAssistantError("Unable to update schedule end time.")
+            raise charger_error("schedule_end_failed")
         await self.coordinator.async_request_refresh()

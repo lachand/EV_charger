@@ -104,3 +104,94 @@ def test_local_key_lookup_matches_on_device_id(monkeypatch):
 
     missing = asyncio.run(cloud.async_fetch_local_key(_Hass(), "eu", "key", "secret", "absent"))
     assert missing is None
+
+
+def test_a_hung_cloud_call_becomes_a_cloud_error(monkeypatch):
+    """The executor job cannot be cancelled, but the caller must not wait on it."""
+    import time
+
+    from tuya_ev_charger import cloud
+
+    monkeypatch.setattr(cloud, "CLOUD_TIMEOUT_S", 0.05)
+
+    class _Hass:
+        async def async_add_executor_job(self, func, *args):
+            return await asyncio.to_thread(lambda: time.sleep(0.3))
+
+    with pytest.raises(cloud.TuyaCloudError, match="in time"):
+        asyncio.run(cloud.async_fetch_devices(_Hass(), "eu", "key", "secret"))
+
+
+# --- the local_key lookup --------------------------------------------------------------
+
+
+def _fetch_key(monkeypatch, devices, device_id="bf123"):
+    from tuya_ev_charger import cloud
+
+    async def _devices(_hass, region, key, secret, wanted):
+        return devices
+
+    monkeypatch.setattr(cloud, "async_fetch_devices", _devices)
+    return asyncio.run(cloud.async_fetch_local_key(None, "eu", "k", "s", device_id))
+
+
+def test_the_local_key_of_the_matching_device_is_returned(monkeypatch):
+    devices = [{"id": "other", "key": "nope"}, {"id": " bf123 ", "key": " thekey "}]
+
+    assert _fetch_key(monkeypatch, devices) == "thekey"
+
+
+def test_a_device_the_account_does_not_have_gives_no_key(monkeypatch):
+    assert _fetch_key(monkeypatch, [{"id": "other", "key": "nope"}]) is None
+
+
+def test_a_device_with_a_blank_or_missing_key_gives_no_key(monkeypatch):
+    assert _fetch_key(monkeypatch, [{"id": "bf123", "key": "  "}]) is None
+    assert _fetch_key(monkeypatch, [{"id": "bf123"}]) is None
+
+
+def test_a_listing_that_raises_becomes_a_cloud_error(monkeypatch):
+    from tuya_ev_charger.cloud import TuyaCloudError
+
+    class _Cloud:
+        error = None
+
+        def getdevices(self, *a, **kw):
+            raise OSError("network down")
+
+    from tuya_ev_charger import cloud
+
+    monkeypatch.setattr(cloud.tinytuya, "Cloud", lambda **_kw: _Cloud(), raising=False)
+
+    with pytest.raises(TuyaCloudError, match="listing failed"):
+        cloud._sync_fetch_devices("eu", "k", "s", None)
+
+
+def test_a_payload_that_is_neither_a_list_nor_an_error_dict_is_refused(monkeypatch):
+    from tuya_ev_charger import cloud
+    from tuya_ev_charger.cloud import TuyaCloudError
+
+    class _Cloud:
+        error = None
+
+        def getdevices(self, *a, **kw):
+            return "garbage"
+
+    monkeypatch.setattr(cloud.tinytuya, "Cloud", lambda **_kw: _Cloud(), raising=False)
+
+    with pytest.raises(TuyaCloudError, match="Unexpected"):
+        cloud._sync_fetch_devices("eu", "k", "s", None)
+
+
+def test_devices_without_an_id_or_that_are_not_dicts_are_dropped(monkeypatch):
+    from tuya_ev_charger import cloud
+
+    class _Cloud:
+        error = None
+
+        def getdevices(self, *a, **kw):
+            return [{"id": "a"}, {"name": "no id"}, "text", {"id": ""}]
+
+    monkeypatch.setattr(cloud.tinytuya, "Cloud", lambda **_kw: _Cloud(), raising=False)
+
+    assert cloud._sync_fetch_devices("eu", "k", "s", None) == [{"id": "a"}]

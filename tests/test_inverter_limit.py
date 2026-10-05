@@ -37,20 +37,29 @@ class _Metrics:
         self.power_l1 = total_power_kw / 3.0  # as if only L1 were read
         self.current_target = current_target
         self.phases = phases or {}
+        l1 = self.phases.get("L1")
+        self.voltage_l1 = l1.voltage if l1 else 0.0
 
 
 def _controller(options, sensor_values):
     from tuya_ev_charger import solar_surplus
     from tuya_ev_charger.solar_surplus import (
         SolarSurplusController,
-        _settings_from_entry,
     )
+    from tuya_ev_charger.surplus_caps import ProtectionCaps
+    from tuya_ev_charger.surplus_reader import SurplusReader
+    from tuya_ev_charger.surplus_settings import settings_from_entry
 
     entry = types.SimpleNamespace(options=options)
     ctrl = SolarSurplusController.__new__(SolarSurplusController)
-    ctrl._settings = _settings_from_entry(entry)
+    ctrl._settings = settings_from_entry(entry)
     ctrl._hass = types.SimpleNamespace(
         states=_States({k: _State(v) for k, v in sensor_values.items()})
+    )
+    # `__new__` skips `__init__`, so the reader it builds is wired here.
+    ctrl._inputs = SurplusReader(ctrl._hass, lambda: ctrl._settings)
+    ctrl._caps = ProtectionCaps(
+        ctrl._hass, lambda: ctrl._settings, ctrl._inputs, lambda: solar_surplus.monotonic()
     )
     return ctrl, solar_surplus
 
@@ -77,7 +86,7 @@ def test_the_total_load_cap_sees_the_real_overload():
     """Same instant, read against total load instead: 5 kW car + 2 kW hob = 7 kW
     through a 5500 W cap leaves room for well under the car's current draw."""
     ctrl, _ = _controller(INVERTER_OPTS, {"sensor.total_load": 7000})
-    cap = ctrl._inverter_limit_current(_Metrics(total_power_kw=5.0), LADDER)
+    cap = ctrl._caps.inverter_limit_current(_Metrics(total_power_kw=5.0), LADDER)
     # Budget = 5500 - (7000 - 5000) = 3500 W -> 3500/230 = 15 A.
     assert cap == 15
 
@@ -88,7 +97,7 @@ def test_the_cap_uses_the_charger_s_own_measured_voltage():
     overshoot its configured limit rather than under-shoot it."""
     ctrl, _ = _controller(INVERTER_OPTS, {"sensor.total_load": 7000})
     metrics = _Metrics(total_power_kw=5.0, phases={"L1": types.SimpleNamespace(voltage=253.0)})
-    cap = ctrl._inverter_limit_current(metrics, LADDER)
+    cap = ctrl._caps.inverter_limit_current(metrics, LADDER)
     # Same 3500 W budget, but 3500/253 = 13 A -- lower than the 15 A at nominal.
     assert cap == 13
 
@@ -96,12 +105,12 @@ def test_the_cap_uses_the_charger_s_own_measured_voltage():
 def test_the_cap_stops_charging_when_no_headroom_remains():
     """Total load already at the ceiling: the car must come all the way down."""
     ctrl, _ = _controller(INVERTER_OPTS, {"sensor.total_load": 8000})
-    cap = ctrl._inverter_limit_current(_Metrics(total_power_kw=5.0), LADDER)
+    cap = ctrl._caps.inverter_limit_current(_Metrics(total_power_kw=5.0), LADDER)
     # Budget = 5500 - (8000 - 5000) = 2500 W -> 10 A. Still chargeable...
     assert cap == 10
     # ...but push the house to 10 kW and even 6 A does not fit.
     ctrl, _ = _controller(INVERTER_OPTS, {"sensor.total_load": 10000})
-    assert ctrl._inverter_limit_current(_Metrics(total_power_kw=5.0), LADDER) == 0
+    assert ctrl._caps.inverter_limit_current(_Metrics(total_power_kw=5.0), LADDER) == 0
 
 
 def test_disabled_when_ceiling_is_zero():
@@ -109,16 +118,16 @@ def test_disabled_when_ceiling_is_zero():
         {"max_inverter_power_w": 0, "total_load_sensor_entity_id": "sensor.total_load"},
         {"sensor.total_load": 7000},
     )
-    assert ctrl._inverter_limit_current(_Metrics(), LADDER) is None
+    assert ctrl._caps.inverter_limit_current(_Metrics(), LADDER) is None
 
 
 def test_disabled_when_the_sensor_is_missing_or_unavailable():
     """No reading means no cap: capping blind is worse than not capping."""
     ctrl, _ = _controller(INVERTER_OPTS, {})  # sensor not present
-    assert ctrl._inverter_limit_current(_Metrics(), LADDER) is None
+    assert ctrl._caps.inverter_limit_current(_Metrics(), LADDER) is None
 
     ctrl, _ = _controller(INVERTER_OPTS, {"sensor.total_load": "unavailable"})
-    assert ctrl._inverter_limit_current(_Metrics(), LADDER) is None
+    assert ctrl._caps.inverter_limit_current(_Metrics(), LADDER) is None
 
 
 def test_the_tighter_of_the_two_caps_binds():
@@ -135,33 +144,33 @@ def test_the_tighter_of_the_two_caps_binds():
     #   9200 - (3000 - 5000) = 11200 W -> 32 A (full).
     # Inverter, total load 7000 W: 3500 W -> 15 A. Inverter wins.
     ctrl, _ = _controller(options, {"sensor.grid": 3000, "sensor.total_load": 7000})
-    cap, source = ctrl._protection_cap(_Metrics(total_power_kw=5.0), LADDER)
+    cap, source = ctrl._caps.protection_cap(_Metrics(total_power_kw=5.0), LADDER)
     assert cap == 15
     assert source == "inverter_limit"
 
 
 def test_neither_limit_configured_gives_no_cap():
     ctrl, _ = _controller({}, {})
-    assert ctrl._protection_cap(_Metrics(), LADDER) == (None, None)
+    assert ctrl._caps.protection_cap(_Metrics(), LADDER) == (None, None)
 
 
 def test_ev_power_uses_total_not_l1():
     """The bug this fix corrects: on three phases, L1 alone under-reports the
     car's draw by up to 3x, over-stating headroom for every cap."""
-    from tuya_ev_charger.solar_surplus import _ev_power_w
+    from tuya_ev_charger.surplus_metrics import ev_power_w
 
     # 11 kW three-phase: total_power 11 kW, L1 ~3.67 kW.
     metrics = _Metrics(total_power_kw=11.0)
-    assert _ev_power_w(metrics) == pytest.approx(11000.0)
+    assert ev_power_w(metrics) == pytest.approx(11000.0)
     # Not the ~3667 W that reading power_l1 * 1000 would have given.
-    assert _ev_power_w(metrics) > 10000.0
+    assert ev_power_w(metrics) > 10000.0
 
 
 def test_ev_power_handles_missing_total():
     """total_power can be None before the first full read; must not crash."""
-    from tuya_ev_charger.solar_surplus import _ev_power_w
+    from tuya_ev_charger.surplus_metrics import ev_power_w
 
-    assert _ev_power_w(types.SimpleNamespace(total_power=None, power_l1=0.0)) == 0.0
+    assert ev_power_w(types.SimpleNamespace(total_power=None, power_l1=0.0)) == 0.0
 
 
 def test_a_forced_charge_is_offered_only_capped_currents():
@@ -175,7 +184,7 @@ def test_a_forced_charge_is_offered_only_capped_currents():
     ctrl, _ = _controller(INVERTER_OPTS, {"sensor.total_load": 7000})
     metrics = _Metrics(total_power_kw=5.0)
 
-    cap, _source = ctrl._protection_cap(metrics, LADDER)
+    cap, _source = ctrl._caps.protection_cap(metrics, LADDER)
     capped = tuple(c for c in LADDER if c <= cap)
 
     # Force charge falls back to min_current when its requested current is not

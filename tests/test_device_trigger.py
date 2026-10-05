@@ -110,8 +110,8 @@ def test_transitions(trigger_type, expected):
 
 def test_every_trigger_targets_a_real_status_value():
     """A typo would produce a trigger that silently never fires."""
+    from tuya_ev_charger.charger_metrics import STATUS_OPTIONS
     from tuya_ev_charger.device_trigger import TRIGGER_TRANSITIONS
-    from tuya_ev_charger.tuya_ev_charger import STATUS_OPTIONS
 
     for from_state, to_state in TRIGGER_TRANSITIONS.values():
         assert to_state in STATUS_OPTIONS

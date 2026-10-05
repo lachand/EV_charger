@@ -13,14 +13,14 @@ import pytest
 
 
 def _check(payload):
-    from tuya_ev_charger.tuya_ev_charger import validate_custom_dp_profile
+    from tuya_ev_charger.dp_profile import validate_custom_dp_profile
 
     raw = payload if isinstance(payload, str) else json.dumps(payload)
     return validate_custom_dp_profile(raw)
 
 
 def _valid_mapping():
-    from tuya_ev_charger.tuya_ev_charger import known_dp_profile_fields
+    from tuya_ev_charger.dp_profile import known_dp_profile_fields
 
     return {name: str(100 + index) for index, name in enumerate(known_dp_profile_fields())}
 
@@ -31,7 +31,7 @@ def test_a_complete_valid_mapping_passes():
 
 def test_a_partial_mapping_passes():
     """Unset fields fall back to the default profile, which is intended."""
-    from tuya_ev_charger.tuya_ev_charger import known_dp_profile_fields
+    from tuya_ev_charger.dp_profile import known_dp_profile_fields
 
     first = known_dp_profile_fields()[0]
     assert _check({first: "101"}) is None
@@ -40,7 +40,7 @@ def test_a_partial_mapping_passes():
 @pytest.mark.parametrize("blank", ["", "   ", None])
 def test_an_empty_mapping_is_not_an_error(blank):
     """Empty means "no custom mapping", which is the default state."""
-    from tuya_ev_charger.tuya_ev_charger import validate_custom_dp_profile
+    from tuya_ev_charger.dp_profile import validate_custom_dp_profile
 
     assert validate_custom_dp_profile(blank) is None
 
@@ -65,7 +65,7 @@ def test_an_unknown_field_is_named():
 
 
 def test_an_empty_value_is_named():
-    from tuya_ev_charger.tuya_ev_charger import known_dp_profile_fields
+    from tuya_ev_charger.dp_profile import known_dp_profile_fields
 
     first = known_dp_profile_fields()[0]
     problem = _check({first: "  "})
@@ -75,7 +75,7 @@ def test_an_empty_value_is_named():
 
 def test_two_fields_on_the_same_dp_are_rejected():
     """Always a copy-paste mistake, and it produces wrong readings, not errors."""
-    from tuya_ev_charger.tuya_ev_charger import known_dp_profile_fields
+    from tuya_ev_charger.dp_profile import known_dp_profile_fields
 
     first, second = known_dp_profile_fields()[:2]
     problem = _check({first: "101", second: "101"})
@@ -87,12 +87,12 @@ def test_two_fields_on_the_same_dp_are_rejected():
 def test_a_valid_mapping_actually_resolves_to_that_profile():
     """Validation and parsing must agree, or the form would accept and drop."""
     from tuya_ev_charger.const import CHARGER_PROFILE_CUSTOM_JSON
-    from tuya_ev_charger.tuya_ev_charger import _resolve_profile
+    from tuya_ev_charger.dp_profile import resolve_profile
 
     mapping = _valid_mapping()
     assert _check(mapping) is None
 
-    name, profile = _resolve_profile(CHARGER_PROFILE_CUSTOM_JSON, json.dumps(mapping))
+    name, profile = resolve_profile(CHARGER_PROFILE_CUSTOM_JSON, json.dumps(mapping))
     assert name == CHARGER_PROFILE_CUSTOM_JSON
     for field, dp in mapping.items():
         assert getattr(profile, field) == dp

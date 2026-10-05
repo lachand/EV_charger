@@ -525,5 +525,76 @@
       "plugged_in": "A cable was plugged into {entity_name}",
       "unplugged_while_charging": "{entity_name} was unplugged while charging"
     }
+  },
+  "exceptions": {
+    "ready_to_charge_failed": {
+      "message": "Unable to set the charger to ready-to-charge."
+    },
+    "reboot_failed": {
+      "message": "Unable to send the reboot command to the charger."
+    },
+    "schedule_start_failed": {
+      "message": "Unable to update the schedule start time."
+    },
+    "schedule_end_failed": {
+      "message": "Unable to update the schedule end time."
+    },
+    "unsupported_current": {
+      "message": "Unsupported current setpoint: {amperage} A (allowed: {allowed})."
+    },
+    "set_current_failed": {
+      "message": "Unable to update the current setpoint on the charger."
+    },
+    "integer_required": {
+      "message": "This value must be an integer."
+    },
+    "charge_start_failed": {
+      "message": "Unable to start the charging session."
+    },
+    "charge_stop_failed": {
+      "message": "Unable to stop the charging session."
+    },
+    "surplus_controller_unavailable": {
+      "message": "The solar surplus controller is unavailable."
+    },
+    "nfc_enable_failed": {
+      "message": "Unable to enable NFC."
+    },
+    "nfc_disable_failed": {
+      "message": "Unable to disable NFC."
+    },
+    "schedule_update_failed": {
+      "message": "Unable to update the charging schedule."
+    },
+    "plug_in_action_failed": {
+      "message": "Unable to update the plug-in action."
+    },
+    "unknown_vehicle": {
+      "message": "Unknown vehicle \"{vehicle}\"."
+    },
+    "vehicle_tracking_unavailable": {
+      "message": "Vehicle tracking is unavailable."
+    },
+    "unsupported_surplus_profile": {
+      "message": "Unsupported surplus profile \"{profile}\". Use eco, balanced or fast."
+    },
+    "unknown_vehicle_configured": {
+      "message": "Unknown vehicle \"{vehicle}\". Configured vehicles: {configured}."
+    },
+    "entry_not_loaded": {
+      "message": "The entry \"{entry_id}\" is not loaded."
+    },
+    "no_loaded_entries": {
+      "message": "No Tuya EV Charger Local entry is loaded."
+    },
+    "multiple_entries": {
+      "message": "Several Tuya EV Charger Local entries are loaded; provide \"{field}\"."
+    },
+    "vehicle_tracking_disabled": {
+      "message": "Per-vehicle tracking is not enabled for the entry \"{entry_id}\". Set the \"vehicles\" option first."
+    },
+    "surplus_controller_unavailable_entry": {
+      "message": "The solar surplus controller is unavailable for the entry \"{entry_id}\"."
+    }
   }
 }

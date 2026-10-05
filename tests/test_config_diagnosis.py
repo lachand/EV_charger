@@ -193,3 +193,56 @@ def test_reset_forgets_everything():
     detector.reset()
     assert detector.contradictions == 0
     assert detector.last_ev_power_w is None
+
+
+# --- charger reporting more than L1 -----------------------------------------
+
+
+def _phase_detector():
+    from tuya_ev_charger.config_diagnosis import PhaseCountDetector
+
+    return PhaseCountDetector()
+
+
+def test_single_phase_data_is_never_flagged():
+    detector = _phase_detector()
+    for _ in range(5):
+        assert not detector.observe(phase_count=1)
+
+
+def test_flagged_after_enough_consecutive_multi_phase_polls():
+    """A charger genuinely wired for three phases keeps reporting L2/L3 every
+    poll, unlike a spurious one-off reading on an unconnected pin."""
+    from tuya_ev_charger.config_diagnosis import REQUIRED_PHASE_SAMPLES
+
+    detector = _phase_detector()
+    flagged = False
+    for _ in range(REQUIRED_PHASE_SAMPLES):
+        flagged = detector.observe(phase_count=2)
+    assert flagged
+
+
+def test_one_multi_phase_poll_is_not_enough():
+    """An unconnected L2 pin settling mid-poll can fake a single reading."""
+    detector = _phase_detector()
+    assert not detector.observe(phase_count=2)
+
+
+def test_a_single_phase_poll_clears_earlier_suspicion():
+    from tuya_ev_charger.config_diagnosis import REQUIRED_PHASE_SAMPLES
+
+    detector = _phase_detector()
+    for _ in range(REQUIRED_PHASE_SAMPLES - 1):
+        detector.observe(phase_count=2)
+    assert detector.consecutive_multi_phase == REQUIRED_PHASE_SAMPLES - 1
+
+    detector.observe(phase_count=1)
+    assert detector.consecutive_multi_phase == 0
+    assert not detector.likely_three_phase
+
+
+def test_phase_count_reset_forgets_everything():
+    detector = _phase_detector()
+    detector.observe(phase_count=2)
+    detector.reset()
+    assert detector.consecutive_multi_phase == 0

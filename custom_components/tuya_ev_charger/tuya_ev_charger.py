@@ -4,40 +4,26 @@ import asyncio
 import json
 import logging
 import socket
-from dataclasses import dataclass
+from collections.abc import Callable
 from typing import Any
 
-import tinytuya  # type: ignore
+import tinytuya
 
+from .charger_metrics import (
+    PLUG_IN_ACTION_MAP,
+    EVMetrics,
+    decode_metrics,
+    values_match,
+)
 from .const import (
     ALLOWED_CURRENTS,
-    CHARGER_PROFILE_CUSTOM_JSON,
-    CHARGER_PROFILE_DEPOW_V2,
-    CHARGER_PROFILE_GENERIC_V1,
-    CHARGER_PROFILES,
     DEFAULT_CHARGER_PROFILE,
     DEFAULT_CHARGER_PROFILE_JSON,
-    DP_ADJUST_CURRENT,
-    DP_ALARM,
-    DP_CHARGE_HISTORY,
-    DP_CHARGER_INFO,
-    DP_CURRENT_TARGET,
-    DP_DO_CHARGE,
-    DP_DOWNCOUNTER,
-    DP_MAX_CURRENT_CFG,
-    DP_METRICS,
-    DP_NFC_CFG,
-    DP_NUM,
-    DP_PRODUCT_VARIANT,
-    DP_REBOOT,
     DP_SCHEDULE,
-    DP_SELFTEST,
-    DP_SOCKET_CFG,
-    DP_WORK_STATE,
-    DP_WORK_STATE_DEBUG,
     TUYA_CONTROL_PORT,
     ConnectionFault,
 )
+from .dp_profile import resolve_profile
 
 LOGGER = logging.getLogger(__name__)
 # The charger's relay and status can lag a re-read by several seconds, notably
@@ -52,174 +38,17 @@ COMMAND_VERIFY_DELAY_S = 1.0
 SOCKET_TIMEOUT_S = 5
 SOCKET_RETRY_LIMIT = 1
 SOCKET_RETRY_DELAY_S = 1
-
-PHASE_NAMES: tuple[str, ...] = ("L1", "L2", "L3")
-# DP 109 states observed across models: SLEEP (standby), IDLE (ready, unplugged),
-# IDLEINS (cable inserted, not charging), WORKING (charging).
-WORK_STATE_CHARGING = "WORKING"
-
-# Friendly, translatable status decoded from the raw DP 109 string. The mapping
-# matches tuya_local's config for this exact product (`dewall_evcharger.yaml`,
-# product id gxrtu5vljdthtd3g), so the values stay stable for automations
-# instead of exposing firmware strings. IDLEINS in particular reads as a bare
-# "IDLEINS" today, which means nothing to a user.
-STATUS_MAP: dict[str, str] = {
-    "SLEEP": "sleep",
-    "IDLE": "idle",
-    "IDLEINS": "plugged_in",
-    "WORKING": "charging",
-    "WAIT": "waiting",
-    "ERRORPAUSE": "fault",
-    "PAUSE": "paused",
-    "STOP": "charged",
-}
-# dict.fromkeys keeps order while tolerating two raw states sharing a value.
-STATUS_OPTIONS: tuple[str, ...] = tuple(dict.fromkeys(STATUS_MAP.values()))
-
-# DP 154 decides what the charger does when a cable is plugged in. "idle" is the
-# clean way to stop a car auto-starting a charge.
-PLUG_IN_ACTION_MAP: dict[int, str] = {0: "prompt", 1: "charge", 2: "idle"}
-PLUG_IN_ACTION_OPTIONS: tuple[str, ...] = tuple(PLUG_IN_ACTION_MAP.values())
-
-# IEC 61851 status letters, the vocabulary evcc consumes: A = no vehicle,
-# B = connected but not charging, C = charging.
-EVCC_STATUS_OPTIONS: tuple[str, ...] = ("A", "B", "C")
-# Above this the charger is really delivering. WORKING can linger after a
-# completed charge, so power is what separates "charging" from "connected".
-EVCC_CHARGING_POWER_KW = 0.1
-# Statuses that mean a vehicle is plugged in but not drawing.
-_EVCC_CONNECTED = frozenset({"plugged_in", "waiting", "paused", "charged", "fault"})
-
-
-def evcc_status(status: str | None, total_power: float) -> str:
-    """Map our decoded status to the A/B/C letter evcc expects."""
-    if status == "charging":
-        return "C" if total_power >= EVCC_CHARGING_POWER_KW else "B"
-    if total_power >= EVCC_CHARGING_POWER_KW:
-        return "C"
-    if status in _EVCC_CONNECTED:
-        return "B"
-    return "A"
+# Safety net above tinytuya's own bound (about 11s worst case with the settings
+# above). It must never fire on a slow-but-working charger; it only exists so a
+# thread stuck inside tinytuya cannot hold the I/O lock, and with it every poll
+# and command, forever.
+IO_TIMEOUT_S = 20
 
 
 def _configure_device(device: tinytuya.Device) -> None:
     device.set_socketTimeout(SOCKET_TIMEOUT_S)
     device.set_socketRetryLimit(SOCKET_RETRY_LIMIT)
     device.set_socketRetryDelay(SOCKET_RETRY_DELAY_S)
-
-
-@dataclass(slots=True, frozen=True)
-class DPProfile:
-    metrics: str
-    charger_info: str
-    work_state: str
-    work_state_debug: str
-    do_charge: str
-    current_target: str
-    max_current_cfg: str
-    nfc_cfg: str
-    downcounter: str
-    selftest: str
-    alarm: str
-    charge_history: str
-    adjust_current: str
-    product_variant: str
-    dp_num: str
-    reboot: str
-    plug_in_action: str
-
-
-DP_PROFILE_MAP: dict[str, DPProfile] = {
-    CHARGER_PROFILE_DEPOW_V2: DPProfile(
-        metrics=DP_METRICS,
-        charger_info=DP_CHARGER_INFO,
-        work_state=DP_WORK_STATE,
-        work_state_debug=DP_WORK_STATE_DEBUG,
-        do_charge=DP_DO_CHARGE,
-        current_target=DP_CURRENT_TARGET,
-        max_current_cfg=DP_MAX_CURRENT_CFG,
-        nfc_cfg=DP_NFC_CFG,
-        downcounter=DP_DOWNCOUNTER,
-        selftest=DP_SELFTEST,
-        alarm=DP_ALARM,
-        charge_history=DP_CHARGE_HISTORY,
-        adjust_current=DP_ADJUST_CURRENT,
-        product_variant=DP_PRODUCT_VARIANT,
-        dp_num=DP_NUM,
-        reboot=DP_REBOOT,
-        plug_in_action=DP_SOCKET_CFG,
-    ),
-    # Generic profile currently mirrors depow_v2 mappings and is meant as
-    # an extension point for additional charger firmwares.
-    CHARGER_PROFILE_GENERIC_V1: DPProfile(
-        metrics=DP_METRICS,
-        charger_info=DP_CHARGER_INFO,
-        work_state=DP_WORK_STATE,
-        work_state_debug=DP_WORK_STATE_DEBUG,
-        do_charge=DP_DO_CHARGE,
-        current_target=DP_CURRENT_TARGET,
-        max_current_cfg=DP_MAX_CURRENT_CFG,
-        nfc_cfg=DP_NFC_CFG,
-        downcounter=DP_DOWNCOUNTER,
-        selftest=DP_SELFTEST,
-        alarm=DP_ALARM,
-        charge_history=DP_CHARGE_HISTORY,
-        adjust_current=DP_ADJUST_CURRENT,
-        product_variant=DP_PRODUCT_VARIANT,
-        dp_num=DP_NUM,
-        reboot=DP_REBOOT,
-        plug_in_action=DP_SOCKET_CFG,
-    ),
-}
-
-
-@dataclass(slots=True, frozen=True)
-class PhaseMetrics:
-    """Per-phase readings decoded from DP 102.
-
-    Voltage and current use a verified /10 scale (2270 -> 227.0 V, 87 -> 8.7 A).
-    Power is expressed in kW and derived from voltage x current rather than read
-    from the third array element: the reported value is quantised to 0.1 kW
-    (measured 19 for 227.0 V x 8.7 A = 1.975 kW), so deriving it is both finer
-    grained and independent of a per-model scale. The reported value is kept in
-    ``raw_power`` for diagnostics.
-    """
-
-    voltage: float
-    current: float
-    power: float
-    raw_power: float
-
-
-@dataclass(slots=True, frozen=True)
-class EVMetrics:
-    voltage_l1: float
-    current_l1: float
-    power_l1: float
-    phases: dict[str, PhaseMetrics]
-    total_power: float
-    session_energy_kwh: float | None
-    session_duration_s: int | None
-    last_session_energy_kwh: float | None
-    last_session_duration_s: int | None
-    temperature: float
-    work_state: int | None
-    work_state_debug: str
-    status: str | None
-    plug_in_action: str | None
-    do_charge: bool | None
-    current_target: int | None
-    max_current_cfg: int | None
-    nfc_enabled: bool | None
-    downcounter: int | None
-    selftest: str | None
-    alarm: str | None
-    adjust_current_options: tuple[int, ...] | None
-    product_variant: int | None
-    charger_info: dict[str, Any]
-    schedule_enabled: bool
-    schedule_start: str | None
-    schedule_end: str | None
 
 
 class TuyaEVChargerClient:
@@ -236,7 +65,7 @@ class TuyaEVChargerClient:
         self._host = host
         self._local_key = local_key
         self._protocol_version = protocol_version
-        self._dp_profile, self._dp = _resolve_profile(
+        self._dp_profile, self._dp = resolve_profile(
             charger_profile,
             charger_profile_json,
         )
@@ -248,6 +77,8 @@ class TuyaEVChargerClient:
         # that lands mid-poll corrupts the socket and tinytuya returns None,
         # which used to read as "Command rejected for DP 140".
         self._io_lock = asyncio.Lock()
+        # Set when a stuck call made us drop the socket; the next access rebuilds it.
+        self._needs_reconnect = False
 
     @property
     def device_id(self) -> str:
@@ -267,18 +98,49 @@ class TuyaEVChargerClient:
 
     async def async_connect(self) -> None:
         async with self._io_lock:
-            if self._device is not None:
-                # Close the previous socket so it never lingers on the charger's
-                # single local-connection slot.
-                self._device.close()
-            device = tinytuya.Device(
-                dev_id=self._device_id,
-                address=self._host,
-                local_key=self._local_key,
-                version=self._protocol_version,
+            self._build_device()
+
+    def _build_device(self) -> tinytuya.Device:
+        """Replace the current Device with a fresh one. Call with the I/O lock held."""
+        if self._device is not None:
+            # Close the previous socket so it never lingers on the charger's
+            # single local-connection slot.
+            self._device.close()
+        device = tinytuya.Device(
+            dev_id=self._device_id,
+            address=self._host,
+            local_key=self._local_key,
+            version=self._protocol_version,
+        )
+        _configure_device(device)
+        self._device = device
+        self._needs_reconnect = False
+        return device
+
+    async def _async_in_thread(self, func: Callable[..., Any], *args: Any) -> Any:
+        """Run a blocking tinytuya call off the loop, bounded by ``IO_TIMEOUT_S``.
+
+        Must be called with ``self._io_lock`` held. A thread cannot be cancelled,
+        so on a timeout the call is still running against the socket. The charger
+        accepts a single local connection, so the socket is closed here, before
+        the lock is released: that makes the stuck call fail fast instead of
+        racing the next one, and the next access starts from a fresh connection.
+        """
+        try:
+            async with asyncio.timeout(IO_TIMEOUT_S):
+                return await asyncio.to_thread(func, *args)
+        except TimeoutError:
+            LOGGER.warning(
+                "Charger I/O did not finish within %ss; dropping the connection.", IO_TIMEOUT_S
             )
-            _configure_device(device)
-            self._device = device
+            device, self._device = self._device, None
+            self._needs_reconnect = True
+            if device is not None:
+                try:
+                    await asyncio.to_thread(device.close)
+                except OSError as err:
+                    LOGGER.debug("Closing the stuck connection failed: %s", err)
+            raise
 
     async def async_update_host(self, host: str) -> None:
         """Point the client at a new IP (after a DHCP change) and reconnect."""
@@ -290,10 +152,10 @@ class TuyaEVChargerClient:
         self._local_key = local_key
         await self.async_connect()
 
-    async def _async_probe_port(self) -> str:
+    async def _async_probe_port(self) -> ConnectionFault:
         """Classify what the control port does when we knock on it."""
 
-        def _connect() -> str:
+        def _connect() -> ConnectionFault:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(SOCKET_TIMEOUT_S)
             try:
@@ -309,9 +171,13 @@ class TuyaEVChargerClient:
             finally:
                 sock.close()
 
-        return await asyncio.to_thread(_connect)
+        try:
+            async with asyncio.timeout(IO_TIMEOUT_S):
+                return await asyncio.to_thread(_connect)
+        except TimeoutError:
+            return ConnectionFault.UNREACHABLE
 
-    async def async_classify_fault(self) -> str:
+    async def async_classify_fault(self) -> ConnectionFault:
         """Work out why reads are failing, so the user gets an actionable message.
 
         Separates a wrong or absent address, from a port that refuses us, from a
@@ -340,8 +206,14 @@ class TuyaEVChargerClient:
         """
         async with self._io_lock:
             if self._device is not None:
-                await asyncio.to_thread(self._device.close)
-                self._device = None
+                device, self._device = self._device, None
+                try:
+                    async with asyncio.timeout(IO_TIMEOUT_S):
+                        await asyncio.to_thread(device.close)
+                except TimeoutError:
+                    # The device is already forgotten, so the lock is free either way.
+                    LOGGER.debug("Closing the charger connection timed out; abandoning it.")
+            self._needs_reconnect = False
 
     async def async_probe_host(self, host: str) -> bool:
         """Return True if our charger answers at ``host``.
@@ -364,7 +236,7 @@ class TuyaEVChargerClient:
             _configure_device(device)
             try:
                 payload: Any = device.status()
-            except Exception:
+            except Exception:  # noqa: BLE001 - any tinytuya failure means the host is not our charger
                 return False
             finally:
                 device.close()
@@ -375,7 +247,11 @@ class TuyaEVChargerClient:
                 and bool(payload["dps"])
             )
 
-        return await asyncio.to_thread(_probe)
+        try:
+            async with asyncio.timeout(IO_TIMEOUT_S):
+                return await asyncio.to_thread(_probe)
+        except TimeoutError:
+            return False
 
     async def async_set_charge_current(self, amperage: int, max_current: int | None = None) -> bool:
         upper = max(ALLOWED_CURRENTS)
@@ -429,60 +305,7 @@ class TuyaEVChargerClient:
             dps = await self._async_get_dps_payload()
         if dps is None:
             return None
-
-        metrics_dict = _parse_json_object(dps.get(self._dp.metrics, "{}"))
-        charger_info = _parse_json_object(dps.get(self._dp.charger_info, "{}"))
-        schedule_dict = _parse_json_object(dps.get(DP_SCHEDULE, "{}"))
-        history_dict = _parse_json_object(dps.get(self._dp.charge_history, "{}"))
-
-        work_state_debug = _coerce_optional_text(dps.get(self._dp.work_state_debug)) or "UNKNOWN"
-        work_state_debug = work_state_debug.strip().upper()
-        do_charge = _coerce_optional_bool(dps.get(self._dp.do_charge))
-
-        # The charger keeps reporting the last power reading after a session
-        # ends, which corrupts surplus regulation and "car full" detection, so
-        # treat anything but an active session as zero power. A model that
-        # reports DP 140 counts as charging when it says so, even if its DP 109
-        # string is one we do not map to "charging" (#35).
-        charging = work_state_debug == WORK_STATE_CHARGING or do_charge is True
-        phases = _parse_phases(metrics_dict, charging)
-        l1 = phases.get("L1")
-
-        return EVMetrics(
-            voltage_l1=l1.voltage if l1 else 0.0,
-            current_l1=l1.current if l1 else 0.0,
-            power_l1=l1.power if l1 else 0.0,
-            phases=phases,
-            total_power=round(sum(phase.power for phase in phases.values()), 3),
-            # DP 102 tracks the *running* session: "e" in 0.1 kWh, "d" in 0.1 s
-            # (verified against 2h37 of charging at ~2 kW giving 5.2 kWh).
-            session_energy_kwh=_tenths(metrics_dict.get("e")),
-            session_duration_s=_deciseconds(metrics_dict.get("d")),
-            # DP 105 is a frozen record of the last *completed* session, with its
-            # duration in plain seconds.
-            last_session_energy_kwh=_tenths(history_dict.get("c")),
-            last_session_duration_s=_coerce_optional_int(history_dict.get("d")),
-            temperature=_coerce_float(metrics_dict.get("t", 0)) / 10.0,
-            work_state=_coerce_optional_int(dps.get(self._dp.work_state)),
-            work_state_debug=work_state_debug,
-            status=STATUS_MAP.get(work_state_debug),
-            plug_in_action=PLUG_IN_ACTION_MAP.get(
-                _coerce_optional_int(dps.get(self._dp.plug_in_action))
-            ),
-            do_charge=do_charge,
-            current_target=_coerce_optional_int(dps.get(self._dp.current_target)),
-            max_current_cfg=_coerce_optional_int(dps.get(self._dp.max_current_cfg)),
-            nfc_enabled=_coerce_optional_bool(dps.get(self._dp.nfc_cfg)),
-            downcounter=_coerce_optional_int(dps.get(self._dp.downcounter)),
-            selftest=_coerce_optional_text(dps.get(self._dp.selftest)),
-            alarm=_coerce_optional_json_text(dps.get(self._dp.alarm)),
-            adjust_current_options=_parse_int_list(dps.get(self._dp.adjust_current)),
-            product_variant=_coerce_optional_int(dps.get(self._dp.product_variant)),
-            charger_info=charger_info,
-            schedule_enabled=schedule_dict.get("m", 0) == 2,
-            schedule_start=_coerce_optional_text(schedule_dict.get("ss")),
-            schedule_end=_coerce_optional_text(schedule_dict.get("se")),
-        )
+        return decode_metrics(dps, self._dp)
 
     async def async_set_schedule(self, enabled: bool, start: str, end: str) -> bool:
         payload = json.dumps(
@@ -514,7 +337,13 @@ class TuyaEVChargerClient:
         """
         async with self._io_lock:
             device = self._get_device()
-            response: Any = await asyncio.to_thread(device.set_value, dp_id, value)
+            try:
+                response: Any = await self._async_in_thread(device.set_value, dp_id, value)
+            except TimeoutError:
+                # Sent or not, we cannot tell: only a read-back can say.
+                if not verify:
+                    return False
+                response = None
 
             if isinstance(response, dict) and "Error" in response:
                 LOGGER.warning("Command to DP %s failed: %s", dp_id, response["Error"])
@@ -565,7 +394,7 @@ class TuyaEVChargerClient:
                     break
                 continue
             saw_dp = True
-            if _values_match(dps.get(dp_id), expected):
+            if values_match(dps.get(dp_id), expected):
                 return True
 
         if not saw_dp:
@@ -579,7 +408,10 @@ class TuyaEVChargerClient:
     async def _async_get_dps_payload(self) -> dict[str, Any] | None:
         """Read the charger's DPS. Must be called with ``self._io_lock`` held."""
         device = self._get_device()
-        payload: Any = await asyncio.to_thread(device.status)
+        try:
+            payload: Any = await self._async_in_thread(device.status)
+        except TimeoutError:
+            return None
 
         if not isinstance(payload, dict):
             LOGGER.error("Invalid status payload type: %s", type(payload).__name__)
@@ -596,261 +428,8 @@ class TuyaEVChargerClient:
         return dps
 
     def _get_device(self) -> tinytuya.Device:
+        if self._device is None and self._needs_reconnect:
+            return self._build_device()
         if self._device is None:
             raise RuntimeError("Device client is not initialized. Call async_connect first.")
         return self._device
-
-
-def _resolve_profile(profile: str, custom_json: str) -> tuple[str, DPProfile]:
-    normalized = str(profile).strip().lower()
-    if normalized == CHARGER_PROFILE_CUSTOM_JSON:
-        custom_profile = _parse_custom_dp_profile(custom_json)
-        if custom_profile is not None:
-            return CHARGER_PROFILE_CUSTOM_JSON, custom_profile
-        LOGGER.warning(
-            "Invalid custom charger profile JSON mapping, falling back to '%s'.",
-            DEFAULT_CHARGER_PROFILE,
-        )
-        return DEFAULT_CHARGER_PROFILE, DP_PROFILE_MAP[DEFAULT_CHARGER_PROFILE]
-    if normalized in CHARGER_PROFILES and normalized in DP_PROFILE_MAP:
-        return normalized, DP_PROFILE_MAP[normalized]
-    return DEFAULT_CHARGER_PROFILE, DP_PROFILE_MAP[DEFAULT_CHARGER_PROFILE]
-
-
-def _parse_custom_dp_profile(raw_json: str) -> DPProfile | None:
-    text = str(raw_json).strip()
-    if not text:
-        return None
-    try:
-        payload: Any = json.loads(text)
-    except json.JSONDecodeError:
-        LOGGER.debug("Unable to decode custom charger profile JSON.")
-        return None
-    if not isinstance(payload, dict):
-        return None
-
-    base_profile = DP_PROFILE_MAP[DEFAULT_CHARGER_PROFILE]
-    values: dict[str, str] = {}
-    for field_name in DPProfile.__dataclass_fields__:
-        raw_value = payload.get(field_name, getattr(base_profile, field_name))
-        if raw_value is None:
-            return None
-        text_value = str(raw_value).strip()
-        if not text_value:
-            return None
-        values[field_name] = text_value
-    return DPProfile(**values)
-
-
-def validate_custom_dp_profile(raw_json: str) -> str | None:
-    """Why a custom DP mapping would be rejected, or None when it is usable.
-
-    The parser above silently falls back to the default profile and logs a
-    warning, which the user never sees: the form accepts the JSON, the charger
-    then reports nothing, and the mapping looks applied. This says what is wrong
-    while the dialog is still open.
-    """
-    text = str(raw_json or "").strip()
-    if not text:
-        return None
-
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError as err:
-        return f"not valid JSON ({err.msg} at line {err.lineno})"
-    if not isinstance(payload, dict):
-        return "must be a JSON object mapping field names to DP numbers"
-
-    known = set(DPProfile.__dataclass_fields__)
-    unknown = sorted(set(payload) - known)
-    if unknown:
-        return f"unknown field(s): {', '.join(unknown)}"
-
-    empty = sorted(
-        name for name, value in payload.items() if value is None or not str(value).strip()
-    )
-    if empty:
-        return f"empty value(s) for: {', '.join(empty)}"
-
-    # Two fields on the same DP is always a mistake and produces silently wrong
-    # readings rather than an error.
-    seen: dict[str, str] = {}
-    for name, value in payload.items():
-        dp = str(value).strip()
-        if dp in seen:
-            return f"'{name}' and '{seen[dp]}' both map to DP {dp}"
-        seen[dp] = name
-    return None
-
-
-def known_dp_profile_fields() -> tuple[str, ...]:
-    """Field names a custom mapping may set, for showing in the UI."""
-    return tuple(DPProfile.__dataclass_fields__)
-
-
-def _parse_phases(
-    metrics_dict: dict[str, Any],
-    charging: bool,
-) -> dict[str, PhaseMetrics]:
-    """Decode the per-phase arrays of DP 102.
-
-    Single-phase chargers report L2/L3 as all-zero; those phases are omitted so
-    the entities show as unavailable rather than a misleading 0 V.
-    """
-    phases: dict[str, PhaseMetrics] = {}
-    for name in PHASE_NAMES:
-        raw = metrics_dict.get(name)
-        if not isinstance(raw, list) or len(raw) < 3:
-            continue
-        voltage = _coerce_float(raw[0]) / 10.0
-        current = _coerce_float(raw[1]) / 10.0
-        raw_power = _coerce_float(raw[2])
-        if name != "L1" and voltage == 0.0 and current == 0.0:
-            # Phase not wired on this model.
-            continue
-        # Some firmwares keep echoing the last current (and power) reading
-        # once a session ends, so treat both as zero outside an active
-        # session -- same reasoning as the existing power reset below.
-        metered_current = current if charging else 0.0
-        phases[name] = PhaseMetrics(
-            voltage=voltage,
-            current=metered_current,
-            # kW, to match the reported field's unit.
-            power=round(voltage * metered_current / 1000.0, 3),
-            raw_power=round(raw_power / 10.0, 2),
-        )
-    return phases
-
-
-def _tenths(raw_value: Any) -> float | None:
-    """Decode a counter reported in tenths of a unit (0.1 kWh)."""
-    value = _coerce_optional_float(raw_value)
-    if value is None:
-        return None
-    return round(value / 10.0, 2)
-
-
-def _deciseconds(raw_value: Any) -> int | None:
-    """Decode a duration reported in tenths of a second."""
-    value = _coerce_optional_float(raw_value)
-    if value is None:
-        return None
-    return int(value / 10.0)
-
-
-def _parse_json_object(raw_value: Any) -> dict[str, Any]:
-    if isinstance(raw_value, dict):
-        return raw_value
-    if not isinstance(raw_value, str):
-        return {}
-
-    try:
-        decoded: Any = json.loads(raw_value)
-    except json.JSONDecodeError:
-        LOGGER.debug("Unable to decode JSON object: %s", raw_value)
-        return {}
-
-    if isinstance(decoded, dict):
-        return decoded
-    return {}
-
-
-def _parse_int_list(raw_value: Any) -> tuple[int, ...] | None:
-    parsed_list: list[Any]
-    if isinstance(raw_value, list):
-        parsed_list = raw_value
-    elif isinstance(raw_value, str):
-        try:
-            decoded: Any = json.loads(raw_value)
-        except json.JSONDecodeError:
-            return None
-        if not isinstance(decoded, list):
-            return None
-        parsed_list = decoded
-    else:
-        return None
-
-    cleaned: list[int] = []
-    for item in parsed_list:
-        value = _coerce_optional_int(item)
-        if value is None:
-            continue
-        cleaned.append(value)
-    if not cleaned:
-        return None
-    return tuple(sorted(set(cleaned)))
-
-
-def _coerce_float(value: Any) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return 0.0
-
-
-def _coerce_optional_int(value: Any) -> int | None:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _coerce_optional_float(value: Any) -> float | None:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _coerce_optional_text(value: Any) -> str | None:
-    if value is None:
-        return None
-    text = value.strip() if isinstance(value, str) else str(value).strip()
-    if not text:
-        return None
-    return text
-
-
-def _coerce_optional_json_text(value: Any) -> str | None:
-    if value is None:
-        return None
-    if isinstance(value, str):
-        text = value.strip()
-        return text or None
-    try:
-        return json.dumps(value, ensure_ascii=True, separators=(",", ":"))
-    except TypeError:
-        return _coerce_optional_text(value)
-
-
-def _coerce_optional_bool(value: Any) -> bool | None:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, int):
-        return bool(value)
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in {"true", "1", "on"}:
-            return True
-        if lowered in {"false", "0", "off"}:
-            return False
-    return None
-
-
-def _values_match(received: Any, expected: Any) -> bool:
-    # Compare on the type actually written. `expected` is a real bool for the
-    # on/off DPs and an int for the numeric ones (DP 101 work state, DP 150
-    # current) -- coercing an int like 300 through bool() first made it "match"
-    # a read-back of 200, so a write that never took looked verified.
-    if isinstance(expected, bool):
-        received_bool = _coerce_optional_bool(received)
-        return received_bool is not None and received_bool == expected
-
-    expected_int = _coerce_optional_int(expected)
-    if expected_int is not None:
-        received_int = _coerce_optional_int(received)
-        return received_int is not None and received_int == expected_int
-
-    if isinstance(expected, str):
-        return str(received).strip() == expected.strip()
-    return received == expected

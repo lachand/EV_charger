@@ -6,12 +6,12 @@ import logging
 from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TuyaEVChargerRuntimeData
 from .const import CARD_ROLE_INDEX, CARD_ROLE_REBOOT, WORK_STATE_READY_TO_CHARGE
 from .entity import TuyaEVChargerEntity
+from .errors import charger_error
 
 PARALLEL_UPDATES = 1  # The charger accepts one local connection; writes are serialised.
 
@@ -49,7 +49,7 @@ class TuyaEVChargerReadyToChargeButton(TuyaEVChargerEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         if not await self._runtime_data.client.async_set_work_state(WORK_STATE_READY_TO_CHARGE):
-            raise HomeAssistantError("Unable to set the charger to ready-to-charge.")
+            raise charger_error("ready_to_charge_failed")
         await self.coordinator.async_request_refresh()
 
 
@@ -68,11 +68,11 @@ class TuyaEVChargerRebootButton(TuyaEVChargerEntity, ButtonEntity):
     async def async_press(self) -> None:
         success = await self._runtime_data.client.async_reboot()
         if not success:
-            raise HomeAssistantError("Unable to send reboot command to charger.")
+            raise charger_error("reboot_failed")
 
         # The charger is expected to be unavailable for a short time right after reboot.
         await asyncio.sleep(3)
         try:
             await self.coordinator.async_request_refresh()
-        except Exception as err:
+        except Exception as err:  # noqa: BLE001 - the charger restarts here; any failure is expected and ignored
             LOGGER.debug("Refresh after reboot failed while charger restarts: %s", err)

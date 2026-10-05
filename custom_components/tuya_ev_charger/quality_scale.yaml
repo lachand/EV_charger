@@ -1,31 +1,29 @@
-# Home Assistant quality scale.
+# Internal checklist, loosely modelled on Home Assistant's integration quality
+# scale. It is NOT an official evaluation and claims no tier: this is a custom
+# integration distributed through HACS, which nobody grades against that scale, so
+# a tier would be a claim nobody can verify. The manifest therefore declares none.
 #
-# Every `done` here was checked against the code, not assumed. The manifest
-# claimed `silver` for a long time with no file to back it; this is that file,
-# written honestly -- including the rules not yet met, marked `todo` with the gap,
-# and the ones that do not apply, marked `exempt` with the reason.
+# What it is for: finding gaps mechanically. Each rule is self-assessed against the
+# code, marked `done`, `todo` with the gap stated, or `exempt` with the reason.
+# Numbers in comments (tests, coverage) are measured, not estimated; re-measure
+# before changing them.
 #
-# Silver is met. The `todo`s are the road to gold.
+# hassfest does not read this file for custom integrations: its quality-scale
+# check returns immediately when the integration is not part of Home Assistant
+# core (`if not integration.core: return` in script/hassfest/quality_scale.py,
+# read on the dev branch; hassfest itself was not run locally). So the file can
+# neither fail CI nor earn anything; it is only ours.
+#
+# The group headings below only mirror how Home Assistant orders its rules.
 
 rules:
-  # --- Bronze ---------------------------------------------------------------
-  action-setup:
-    status: todo
-    comment: >-
-      Services are registered in async_setup_entry, not async_setup, so they do
-      not exist before an entry is configured. Every service targets a config
-      entry, so this is low-impact, but moving registration to async_setup is the
-      correct shape.
+  # --- Basics ---------------------------------------------------------------
+  action-setup: done  # Services are registered in async_setup; each handler says why when no entry is loaded.
   appropriate-polling: done  # Adaptive interval in polling.py: fast while regulating, slow asleep.
   brands: done  # Local brand/ icon (HA 2026.3+), plus a conformance test.
   common-modules: done  # coordinator.py and entity.py hold the shared coordinator and base entity.
   config-flow: done  # Scan, cloud and manual paths, with reconfigure and reauth.
-  config-flow-test-coverage:
-    status: todo
-    comment: >-
-      The config flow has regression tests for the failures that reached users
-      (options-form serialisation, entity-picker defaults) but not the full
-      per-step coverage this rule asks for.
+  config-flow-test-coverage: done  # Every step, error mapping and the options flow's submit path are tested; config_flow.py and options_flow.py both measure 100% line coverage (tests run on stubs, not a real Home Assistant).
   dependency-transparency: done  # Single documented dependency, tinytuya, pinned in the manifest.
   docs-actions: done  # Every service documented in the README with a YAML example.
   docs-conditions:
@@ -43,7 +41,7 @@ rules:
   test-before-setup: done  # async_setup_entry raises ConfigEntryNotReady on a failed first refresh.
   unique-config-entry: done  # The device id is the unique id; a duplicate is aborted.
 
-  # --- Silver ---------------------------------------------------------------
+  # --- Reliability ----------------------------------------------------------
   action-exceptions: done  # Services raise ServiceValidationError / HomeAssistantError, not bare errors.
   config-entry-unloading: done  # async_unload_entry unloads platforms and closes the socket.
   docs-configuration-parameters: done  # The options are documented in the README Options table.
@@ -54,14 +52,16 @@ rules:
   parallel-updates: done  # PARALLEL_UPDATES set on every platform: 0 read-only, 1 for writes.
   reauthentication-flow: done  # A rotated local_key triggers async_step_reauth.
   test-coverage:
-    status: todo
+    status: done
     comment: >-
-      The decision layers and services are covered well (400+ tests), but eight
-      entity platforms -- switch, select, entity, repairs, time, binary_sensor,
-      button, discovery -- still have no direct tests. This is the main gap to
-      close before claiming the bar fully.
+      1199 tests, 99% total line coverage (measured), above the 95% this rule
+      asks for. The figure leaves out binary_sensor.py, button.py and time.py,
+      which pyproject.toml omits as thin wrappers over the coordinator. Lowest
+      measured modules: surplus_metrics.py 92%, charge_curve.py and
+      session_anomaly.py 93%. The tests run on stubs, not on a real Home
+      Assistant.
 
-  # --- Gold (the road ahead) ------------------------------------------------
+  # --- Polish ---------------------------------------------------------------
   devices: done  # Entities are grouped under one device via DeviceInfo.
   diagnostics: done  # Redacted diagnostics, with a secret-redaction test.
   discovery: done  # DHCP discovery is declared and handled.
@@ -85,9 +85,7 @@ rules:
   entity-device-class: done  # Power, energy, current and temperature entities set device classes.
   entity-disabled-by-default: done  # Advanced and noisy entities are disabled by default.
   entity-translations: done  # Entities use translation keys; states and the reason enum are translated.
-  exception-translations:
-    status: todo
-    comment: Service exceptions are raised with English messages, not translation keys.
+  exception-translations: done  # errors.py raises translation keys; strings.json, en and fr carry the text, and a test keeps them in sync.
   icon-translations: done  # icons.json provides the entity icons.
   reconfiguration-flow: done  # async_step_reconfigure changes address and credentials without deleting.
   repair-issues: done  # Connection, config and charge-health problems raise actionable repairs.
@@ -95,13 +93,9 @@ rules:
     status: exempt
     comment: The single device is the config entry; removing the entry removes it.
 
-  # --- Platinum -------------------------------------------------------------
+  # --- Engineering ----------------------------------------------------------
   async-dependency: done  # tinytuya calls run in a thread via asyncio.to_thread; the loop never blocks.
   inject-websession:
     status: exempt
     comment: Local control uses tinytuya's own socket; the Tuya Cloud calls are made through tinytuya, not an injectable aiohttp session.
-  strict-typing:
-    status: todo
-    comment: >-
-      The code is type-hinted throughout but not checked: there is no mypy config
-      and no py.typed marker. Adding a strict mypy pass is the platinum gate.
+  strict-typing: done  # mypy strict is configured in pyproject.toml and run by the lint job; it passed locally against Home Assistant 2026.9.4. py.typed is shipped.

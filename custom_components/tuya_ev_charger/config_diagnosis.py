@@ -145,3 +145,39 @@ class GridSignDetector:
         self.last_ev_power_w = None
         self.last_grid_power_w = None
         self.contradictions = 0
+
+
+# Consecutive polls reporting more than L1 before suggesting the phase count.
+# A 3-phase-capable charger wired to only one phase has physically unconnected
+# L2/L3 inputs that can report a spurious nonzero reading (#41 follow-up); one
+# such poll must not be enough.
+REQUIRED_PHASE_SAMPLES = 3
+
+
+@dataclass(slots=True)
+class PhaseCountDetector:
+    """Watches whether the charger keeps reporting more than L1.
+
+    Only near-certain evidence counts, same reasoning as `GridSignDetector`:
+    a single poll away from an unconnected phase settling can fake a reading,
+    whereas several polls in a row cannot. A clean L1-only poll clears the
+    count immediately, so the suggestion tracks the charger's actual wiring
+    rather than latching onto one bad sample.
+    """
+
+    consecutive_multi_phase: int = 0
+
+    def observe(self, *, phase_count: int) -> bool:
+        """Feed one reading. True once enough consecutive polls agree."""
+        if phase_count >= 2:
+            self.consecutive_multi_phase += 1
+        else:
+            self.consecutive_multi_phase = 0
+        return self.likely_three_phase
+
+    @property
+    def likely_three_phase(self) -> bool:
+        return self.consecutive_multi_phase >= REQUIRED_PHASE_SAMPLES
+
+    def reset(self) -> None:
+        self.consecutive_multi_phase = 0

@@ -10,10 +10,8 @@ from homeassistant.components.number import (
     NumberMode,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE, UnitOfElectricCurrent, UnitOfPower
+from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfElectricCurrent, UnitOfPower
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TuyaEVChargerRuntimeData
@@ -43,7 +41,9 @@ from .const import (
     MIN_SURPLUS_THRESHOLD_W,
 )
 from .entity import TuyaEVChargerEntity
+from .errors import charger_error
 from .helpers import allowed_currents
+from .option_values import option_int
 
 PARALLEL_UPDATES = 1  # The charger accepts one local connection; writes are serialised.
 
@@ -62,8 +62,8 @@ CURRENT_SETPOINT_DESCRIPTION = NumberEntityDescription(
 class SurplusOptionNumberDescription(NumberEntityDescription):
     option_key: str
     default_value: int
-    min_value: int
-    max_value: int
+    option_min: int
+    option_max: int
 
 
 SURPLUS_OPTION_NUMBER_DESCRIPTIONS: tuple[SurplusOptionNumberDescription, ...] = (
@@ -72,8 +72,8 @@ SURPLUS_OPTION_NUMBER_DESCRIPTIONS: tuple[SurplusOptionNumberDescription, ...] =
         translation_key="surplus_battery_soc_high_threshold_pct",
         option_key=CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
         default_value=DEFAULT_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
-        min_value=MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-        max_value=MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+        option_min=MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+        option_max=MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
         native_unit_of_measurement=PERCENTAGE,
         native_step=1.0,
         mode=NumberMode.BOX,
@@ -84,8 +84,8 @@ SURPLUS_OPTION_NUMBER_DESCRIPTIONS: tuple[SurplusOptionNumberDescription, ...] =
         translation_key="surplus_battery_soc_low_threshold_pct",
         option_key=CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
         default_value=DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
-        min_value=MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-        max_value=MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+        option_min=MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+        option_max=MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
         native_unit_of_measurement=PERCENTAGE,
         native_step=1.0,
         mode=NumberMode.BOX,
@@ -96,8 +96,8 @@ SURPLUS_OPTION_NUMBER_DESCRIPTIONS: tuple[SurplusOptionNumberDescription, ...] =
         translation_key="surplus_start_threshold_w",
         option_key=CONF_SURPLUS_START_THRESHOLD_W,
         default_value=DEFAULT_SURPLUS_START_THRESHOLD_W,
-        min_value=MIN_SURPLUS_THRESHOLD_W,
-        max_value=MAX_SURPLUS_THRESHOLD_W,
+        option_min=MIN_SURPLUS_THRESHOLD_W,
+        option_max=MAX_SURPLUS_THRESHOLD_W,
         native_unit_of_measurement=UnitOfPower.WATT,
         native_step=1.0,
         mode=NumberMode.BOX,
@@ -108,8 +108,8 @@ SURPLUS_OPTION_NUMBER_DESCRIPTIONS: tuple[SurplusOptionNumberDescription, ...] =
         translation_key="surplus_stop_threshold_w",
         option_key=CONF_SURPLUS_STOP_THRESHOLD_W,
         default_value=DEFAULT_SURPLUS_STOP_THRESHOLD_W,
-        min_value=MIN_SURPLUS_THRESHOLD_W,
-        max_value=MAX_SURPLUS_THRESHOLD_W,
+        option_min=MIN_SURPLUS_THRESHOLD_W,
+        option_max=MAX_SURPLUS_THRESHOLD_W,
         native_unit_of_measurement=UnitOfPower.WATT,
         native_step=1.0,
         mode=NumberMode.BOX,
@@ -120,8 +120,8 @@ SURPLUS_OPTION_NUMBER_DESCRIPTIONS: tuple[SurplusOptionNumberDescription, ...] =
         translation_key="surplus_max_battery_discharge_for_ev_w",
         option_key=CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
         default_value=DEFAULT_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-        min_value=MIN_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-        max_value=MAX_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
+        option_min=MIN_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
+        option_max=MAX_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
         native_unit_of_measurement=UnitOfPower.WATT,
         native_step=1.0,
         mode=NumberMode.BOX,
@@ -183,9 +183,7 @@ class TuyaEVChargerCurrentNumber(TuyaEVChargerEntity, NumberEntity):
 
         allowed = self._allowed_currents()
         if amperage not in allowed:
-            raise HomeAssistantError(
-                f"Unsupported current setpoint: {amperage}A (allowed: {allowed})."
-            )
+            raise charger_error("unsupported_current", amperage=amperage, allowed=allowed)
 
         data = self.coordinator.data
         # Every DP write makes the charger beep, even when the value does not
@@ -198,7 +196,7 @@ class TuyaEVChargerCurrentNumber(TuyaEVChargerEntity, NumberEntity):
             max_current=data.max_current_cfg if data is not None else None,
         )
         if not success:
-            raise HomeAssistantError("Unable to update current setpoint on charger.")
+            raise charger_error("set_current_failed")
 
         await self.coordinator.async_request_refresh()
 
@@ -244,32 +242,32 @@ class TuyaEVChargerSurplusOptionNumber(TuyaEVChargerEntity, NumberEntity):
             return float(stop_threshold_w)
 
         return float(
-            _option_int(
+            option_int(
                 self._entry.options,
                 self.entity_description.option_key,
                 self.entity_description.default_value,
-                self.entity_description.min_value,
-                self.entity_description.max_value,
+                self.entity_description.option_min,
+                self.entity_description.option_max,
             )
         )
 
     @property
     def native_min_value(self) -> float:
-        return float(self.entity_description.min_value)
+        return float(self.entity_description.option_min)
 
     @property
     def native_max_value(self) -> float:
-        return float(self.entity_description.max_value)
+        return float(self.entity_description.option_max)
 
     async def async_set_native_value(self, value: float) -> None:
         coerced = int(value)
         if float(coerced) != value:
-            raise HomeAssistantError("This value must be an integer.")
+            raise charger_error("integer_required")
         high, low = _current_soc_thresholds(self._entry.options)
         start_threshold_w, stop_threshold_w = _current_surplus_power_thresholds(self._entry.options)
         clamped = max(
-            self.entity_description.min_value,
-            min(self.entity_description.max_value, coerced),
+            self.entity_description.option_min,
+            min(self.entity_description.option_max, coerced),
         )
 
         if self.entity_description.option_key == CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT:
@@ -309,7 +307,7 @@ class TuyaEVChargerSurplusOptionNumber(TuyaEVChargerEntity, NumberEntity):
 
 
 def _legacy_high_threshold_default(options: Mapping[str, object]) -> int:
-    return _option_int(
+    return option_int(
         options,
         CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
         DEFAULT_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
@@ -319,7 +317,7 @@ def _legacy_high_threshold_default(options: Mapping[str, object]) -> int:
 
 
 def _current_soc_thresholds(options: Mapping[str, object]) -> tuple[int, int]:
-    high = _option_int(
+    high = option_int(
         options,
         CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
         _legacy_high_threshold_default(options),
@@ -329,7 +327,7 @@ def _current_soc_thresholds(options: Mapping[str, object]) -> tuple[int, int]:
     if high <= MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT:
         high = MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT + 1
 
-    low = _option_int(
+    low = option_int(
         options,
         CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
         DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
@@ -342,14 +340,14 @@ def _current_soc_thresholds(options: Mapping[str, object]) -> tuple[int, int]:
 
 
 def _current_surplus_power_thresholds(options: Mapping[str, object]) -> tuple[int, int]:
-    start_threshold_w = _option_int(
+    start_threshold_w = option_int(
         options,
         CONF_SURPLUS_START_THRESHOLD_W,
         DEFAULT_SURPLUS_START_THRESHOLD_W,
         MIN_SURPLUS_THRESHOLD_W,
         MAX_SURPLUS_THRESHOLD_W,
     )
-    stop_threshold_w = _option_int(
+    stop_threshold_w = option_int(
         options,
         CONF_SURPLUS_STOP_THRESHOLD_W,
         DEFAULT_SURPLUS_STOP_THRESHOLD_W,
@@ -359,17 +357,3 @@ def _current_surplus_power_thresholds(options: Mapping[str, object]) -> tuple[in
     if stop_threshold_w > start_threshold_w:
         stop_threshold_w = start_threshold_w
     return start_threshold_w, stop_threshold_w
-
-
-def _option_int(
-    options: Mapping[str, object],
-    key: str,
-    default: int,
-    minimum: int,
-    maximum: int,
-) -> int:
-    try:
-        value = int(options.get(key, default))
-    except (TypeError, ValueError):
-        value = default
-    return max(minimum, min(maximum, value))

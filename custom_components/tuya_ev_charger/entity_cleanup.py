@@ -13,17 +13,23 @@ at most once, ever. Anything the user does afterwards stands.
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
 from .const import DOMAIN, ENTITY_OPTION_AUTO_DISABLED
 
+if TYPE_CHECKING:
+    from .charger_metrics import EVMetrics
+
 LOGGER = logging.getLogger(__name__)
 
 
-def _already_handled(entry: er.RegistryEntry) -> bool:
-    return bool((entry.options.get(DOMAIN) or {}).get(ENTITY_OPTION_AUTO_DISABLED))
+def is_already_handled(entry: er.RegistryEntry) -> bool:
+    options: Mapping[str, Mapping[str, Any]] = entry.options
+    return bool((options.get(DOMAIN) or {}).get(ENTITY_OPTION_AUTO_DISABLED))
 
 
 async def async_disable_entities(
@@ -49,7 +55,7 @@ async def async_disable_entities(
             (key for key in unique_id_suffixes if entity.unique_id.endswith(f"_{key}")),
             None,
         )
-        if matched is None or _already_handled(entity):
+        if matched is None or is_already_handled(entity):
             continue
         # A deliberate user choice always wins.
         if entity.disabled_by is er.RegistryEntryDisabler.USER:
@@ -70,7 +76,7 @@ async def async_disable_entities(
     return disabled
 
 
-def unavailable_capability_keys(metrics) -> set[str]:
+def unavailable_capability_keys(metrics: EVMetrics) -> set[str]:
     """Entity keys this charger can never populate, so they read unavailable.
 
     Only capabilities the hardware genuinely lacks are listed: a phase the model

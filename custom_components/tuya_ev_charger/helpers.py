@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from .charger_metrics import EVMetrics
 from .const import (
     ALLOWED_CURRENTS,
     CONF_CONTINUOUS_CURRENT,
@@ -12,7 +13,6 @@ from .const import (
     DEFAULT_MAX_CHARGE_CURRENT_A,
     DEFAULT_MIN_CHARGE_CURRENT_A,
 )
-from .tuya_ev_charger import EVMetrics
 
 
 def allowed_currents(

@@ -5,12 +5,12 @@ from time import monotonic
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TuyaEVChargerRuntimeData
+from .charger_metrics import WORK_STATE_CHARGING
 from .const import (
     ALLOWED_CURRENTS,
     CARD_ROLE_CHARGE_SESSION,
@@ -22,7 +22,7 @@ from .const import (
     DEFAULT_SURPLUS_MODE_ENABLED,
 )
 from .entity import TuyaEVChargerEntity
-from .tuya_ev_charger import WORK_STATE_CHARGING
+from .errors import charger_error
 
 PARALLEL_UPDATES = 1  # The charger accepts one local connection; writes are serialised.
 
@@ -120,11 +120,7 @@ class TuyaEVChargerChargeSessionSwitch(TuyaEVChargerEntity, SwitchEntity):
         if data is not None and data.do_charge is not None and data.do_charge == enabled:
             return
         if not await self._runtime_data.client.async_set_charge_enabled(enabled):
-            raise HomeAssistantError(
-                "Unable to start charging session."
-                if enabled
-                else "Unable to stop charging session."
-            )
+            raise charger_error("charge_start_failed" if enabled else "charge_stop_failed")
         self._pending_charge = enabled
         self._pending_since = monotonic()
         await self.coordinator.async_request_refresh()
@@ -163,7 +159,7 @@ class TuyaEVChargerForceChargeSwitch(TuyaEVChargerEntity, SwitchEntity):
     async def async_turn_on(self, **kwargs: object) -> None:
         controller = self._runtime_data.solar_surplus_controller
         if controller is None:
-            raise HomeAssistantError("Solar surplus controller is unavailable.")
+            raise charger_error("surplus_controller_unavailable")
         await controller.async_force_charge_for(_FORCE_CHARGE_MAX_DURATION_S, max(ALLOWED_CURRENTS))
 
     async def async_turn_off(self, **kwargs: object) -> None:
@@ -217,9 +213,7 @@ class TuyaEVChargerNfcSwitch(TuyaEVChargerEntity, SwitchEntity):
         if data is not None and data.nfc_enabled is not None and data.nfc_enabled == enabled:
             return
         if not await self._runtime_data.client.async_set_nfc_enabled(enabled):
-            raise HomeAssistantError(
-                "Unable to enable NFC." if enabled else "Unable to disable NFC."
-            )
+            raise charger_error("nfc_enable_failed" if enabled else "nfc_disable_failed")
         await self.coordinator.async_request_refresh()
 
 
@@ -288,5 +282,5 @@ class TuyaEVChargerScheduleSwitch(TuyaEVChargerEntity, SwitchEntity):
         start = (data.schedule_start if data else None) or "00:00"
         end = (data.schedule_end if data else None) or "00:00"
         if not await self._runtime_data.client.async_set_schedule(enabled, start, end):
-            raise HomeAssistantError("Unable to update charging schedule.")
+            raise charger_error("schedule_update_failed")
         await self.coordinator.async_request_refresh()

@@ -70,7 +70,7 @@ def test_setting_the_end_time_preserves_the_start():
 
 def test_a_failed_schedule_write_raises():
     import pytest
-    from tuya_ev_charger.time import HomeAssistantError
+    from homeassistant.exceptions import HomeAssistantError
     from tuya_ev_charger.time import TuyaEVChargerScheduleStartTime as T
 
     entity = _time_entity(T, data=_metrics(), client=_Client(ok=False))

@@ -17,7 +17,6 @@
   "loggers": [
     "tinytuya"
   ],
-  "quality_scale": "silver",
   "requirements": [
     "tinytuya>=1.20.0"
   ],

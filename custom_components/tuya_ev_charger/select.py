@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-from typing import ClassVar
-
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TuyaEVChargerRuntimeData
+from .charger_metrics import PLUG_IN_ACTION_OPTIONS
 from .const import (
     CARD_ROLE_INDEX,
     CARD_ROLE_SURPLUS_PROFILE,
@@ -20,8 +18,8 @@ from .const import (
     SURPLUS_PROFILES,
 )
 from .entity import TuyaEVChargerEntity
+from .errors import charger_error
 from .surplus_profiles import apply_surplus_profile, normalize_surplus_profile
-from .tuya_ev_charger import PLUG_IN_ACTION_OPTIONS
 from .vehicles import configured_vehicles
 
 PARALLEL_UPDATES = 1  # The charger accepts one local connection; writes are serialised.
@@ -50,7 +48,7 @@ class TuyaEVChargerPlugInActionSelect(TuyaEVChargerEntity, SelectEntity):
 
     _attr_translation_key = "plug_in_action"
     _attr_entity_category = EntityCategory.CONFIG
-    _attr_options: ClassVar[list[str]] = list(PLUG_IN_ACTION_OPTIONS)
+    _attr_options = list(PLUG_IN_ACTION_OPTIONS)  # noqa: RUF012 - HA declares it per instance
 
     def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
         super().__init__(entry=entry, runtime_data=runtime_data)
@@ -72,7 +70,7 @@ class TuyaEVChargerPlugInActionSelect(TuyaEVChargerEntity, SelectEntity):
         if option == self.current_option:
             return
         if not await self._runtime_data.client.async_set_plug_in_action(option):
-            raise HomeAssistantError("Unable to update the plug-in action.")
+            raise charger_error("plug_in_action_failed")
         await self.coordinator.async_request_refresh()
 
 
@@ -103,10 +101,10 @@ class TuyaEVChargerVehicleSelect(TuyaEVChargerEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         if option not in self.options:
-            raise HomeAssistantError(f"Unknown vehicle '{option}'.")
+            raise charger_error("unknown_vehicle", vehicle=option)
         tracker = self._runtime_data.vehicle_tracker
         if tracker is None:
-            raise HomeAssistantError("Vehicle tracking is unavailable.")
+            raise charger_error("vehicle_tracking_unavailable")
         await tracker.async_set_active_vehicle(option)
         self.async_write_ha_state()
 
@@ -114,7 +112,7 @@ class TuyaEVChargerVehicleSelect(TuyaEVChargerEntity, SelectEntity):
 class TuyaEVChargerSurplusProfileSelect(TuyaEVChargerEntity, SelectEntity):
     _attr_translation_key = "surplus_profile"
     _attr_entity_category = EntityCategory.CONFIG
-    _attr_options: ClassVar[list[str]] = list(SURPLUS_PROFILES)
+    _attr_options = list(SURPLUS_PROFILES)  # noqa: RUF012 - HA declares it per instance
 
     def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
         super().__init__(
@@ -132,7 +130,7 @@ class TuyaEVChargerSurplusProfileSelect(TuyaEVChargerEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         if option not in SURPLUS_PROFILES:
-            raise HomeAssistantError(f"Unsupported surplus profile '{option}'.")
+            raise charger_error("unsupported_surplus_profile", profile=option)
         normalized = normalize_surplus_profile(option)
         if normalized == self.current_option:
             return

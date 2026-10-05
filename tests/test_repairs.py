@@ -77,3 +77,80 @@ def test_accepting_the_tidy_flow_disables_the_advanced_entities(monkeypatch):
     result = asyncio.run(flow.async_step_confirm({}))
     assert result["data"]["disabled"] == 7
     assert disabled["keys"], "no entities were passed to be disabled"
+
+
+# --- creating and clearing the issues themselves ---------------------------------------
+
+
+class _Issues:
+    def __init__(self):
+        self.created: list[dict] = []
+        self.deleted: list[tuple] = []
+        self.IssueSeverity = type("S", (), {"WARNING": "warning"})
+
+    def async_create_issue(self, hass, domain, issue_id, **kwargs):
+        self.created.append({"domain": domain, "issue_id": issue_id, **kwargs})
+
+    def async_delete_issue(self, hass, domain, issue_id):
+        self.deleted.append((domain, issue_id))
+
+
+def _issues(monkeypatch):
+    from tuya_ev_charger import repairs
+
+    recorder = _Issues()
+    monkeypatch.setattr(repairs, "ir", recorder)
+    return repairs, recorder
+
+
+def test_a_raised_issue_is_per_entry_and_not_fixable(monkeypatch):
+    repairs, issues = _issues(monkeypatch)
+
+    repairs.async_raise(None, "e1", "connection_refused", translation_placeholders={"host": "h"})
+
+    (issue,) = issues.created
+    assert issue["domain"] == "tuya_ev_charger"
+    assert issue["issue_id"] == "connection_refused_e1"
+    assert issue["is_fixable"] is False
+    assert issue["translation_key"] == "connection_refused"
+    assert issue["translation_placeholders"] == {"host": "h"}
+
+
+def test_two_entries_never_share_an_issue(monkeypatch):
+    repairs, issues = _issues(monkeypatch)
+
+    repairs.async_raise(None, "e1", "connection_refused")
+    repairs.async_raise(None, "e2", "connection_refused")
+
+    assert issues.created[0]["issue_id"] != issues.created[1]["issue_id"]
+
+
+def test_clearing_deletes_that_entrys_issue(monkeypatch):
+    repairs, issues = _issues(monkeypatch)
+
+    repairs.async_clear(None, "e1", "connection_refused")
+
+    assert issues.deleted == [("tuya_ev_charger", "connection_refused_e1")]
+
+
+def test_the_tidy_offer_is_fixable_and_says_how_many(monkeypatch):
+    repairs, issues = _issues(monkeypatch)
+
+    repairs.async_offer_entity_cleanup(None, "e1", 4)
+
+    (issue,) = issues.created
+    assert issue["is_fixable"] is True
+    assert issue["translation_placeholders"] == {"count": "4"}
+    assert issue["data"] == {"entry_id": "e1"}
+
+
+def test_the_tidy_flow_shows_a_confirmation_before_doing_anything():
+    from tuya_ev_charger.repairs import TidyEntitiesFlow
+
+    flow = TidyEntitiesFlow(entry_id="e1")
+    flow.async_show_form = lambda **kw: {"type": "form", **kw}
+
+    result = asyncio.run(flow.async_step_init())
+
+    assert result["type"] == "form"
+    assert result["step_id"] == "confirm"

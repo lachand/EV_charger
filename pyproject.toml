@@ -11,6 +11,7 @@ select = [
     "B",    # bugbear
     "SIM",  # simplify
     "RUF",
+    "BLE",  # blind `except Exception` must say why it is blind
 ]
 ignore = [
     "E501",    # line length is handled by the formatter
@@ -20,6 +21,8 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # The stubs deliberately build modules and classes dynamically.
 "tests/conftest.py" = ["B010", "RUF012"]
+# Throwaway diagnostic scripts, not part of the integration.
+"tools/*" = ["BLE001"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["custom_components"]
@@ -40,3 +43,14 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "raise NotImplementedError",
 ]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+files = ["custom_components/tuya_ev_charger"]
+
+# Checked against the real Home Assistant, which the lint job installs; the unit
+# tests run on stubs and could not tell us anything about these types.
+[[tool.mypy.overrides]]
+module = ["tinytuya.*", "voluptuous_serialize.*"]
+ignore_missing_imports = true

@@ -494,5 +494,76 @@
       "plugged_in": "Un cable a ete branche sur {entity_name}",
       "unplugged_while_charging": "{entity_name} a ete debranche pendant la charge"
     }
+  },
+  "exceptions": {
+    "ready_to_charge_failed": {
+      "message": "Impossible de mettre la borne en \u00ab pr\u00eat \u00e0 charger \u00bb."
+    },
+    "reboot_failed": {
+      "message": "Impossible d'envoyer la commande de red\u00e9marrage \u00e0 la borne."
+    },
+    "schedule_start_failed": {
+      "message": "Impossible de modifier l'heure de d\u00e9but de la programmation."
+    },
+    "schedule_end_failed": {
+      "message": "Impossible de modifier l'heure de fin de la programmation."
+    },
+    "unsupported_current": {
+      "message": "Consigne de courant non prise en charge : {amperage} A (valeurs autoris\u00e9es : {allowed})."
+    },
+    "set_current_failed": {
+      "message": "Impossible de modifier la consigne de courant de la borne."
+    },
+    "integer_required": {
+      "message": "Cette valeur doit \u00eatre un entier."
+    },
+    "charge_start_failed": {
+      "message": "Impossible de d\u00e9marrer la session de charge."
+    },
+    "charge_stop_failed": {
+      "message": "Impossible d'arr\u00eater la session de charge."
+    },
+    "surplus_controller_unavailable": {
+      "message": "Le contr\u00f4leur de surplus solaire est indisponible."
+    },
+    "nfc_enable_failed": {
+      "message": "Impossible d'activer le NFC."
+    },
+    "nfc_disable_failed": {
+      "message": "Impossible de d\u00e9sactiver le NFC."
+    },
+    "schedule_update_failed": {
+      "message": "Impossible de modifier la programmation de charge."
+    },
+    "plug_in_action_failed": {
+      "message": "Impossible de modifier l'action au branchement."
+    },
+    "unknown_vehicle": {
+      "message": "V\u00e9hicule inconnu \u00ab {vehicle} \u00bb."
+    },
+    "vehicle_tracking_unavailable": {
+      "message": "Le suivi par v\u00e9hicule est indisponible."
+    },
+    "unsupported_surplus_profile": {
+      "message": "Profil de surplus non pris en charge \u00ab {profile} \u00bb. Utilisez eco, balanced ou fast."
+    },
+    "unknown_vehicle_configured": {
+      "message": "V\u00e9hicule inconnu \u00ab {vehicle} \u00bb. V\u00e9hicules configur\u00e9s : {configured}."
+    },
+    "entry_not_loaded": {
+      "message": "L'entr\u00e9e \u00ab {entry_id} \u00bb n'est pas charg\u00e9e."
+    },
+    "no_loaded_entries": {
+      "message": "Aucune entr\u00e9e Tuya EV Charger Local n'est charg\u00e9e."
+    },
+    "multiple_entries": {
+      "message": "Plusieurs entr\u00e9es Tuya EV Charger Local sont charg\u00e9es ; renseignez \u00ab {field} \u00bb."
+    },
+    "vehicle_tracking_disabled": {
+      "message": "Le suivi par v\u00e9hicule n'est pas activ\u00e9 pour l'entr\u00e9e \u00ab {entry_id} \u00bb. Renseignez d'abord l'option \u00ab vehicles \u00bb."
+    },
+    "surplus_controller_unavailable_entry": {
+      "message": "Le contr\u00f4leur de surplus solaire est indisponible pour l'entr\u00e9e \u00ab {entry_id} \u00bb."
+    }
   }
 }

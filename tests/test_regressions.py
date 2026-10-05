@@ -71,10 +71,7 @@ def test_options_form_declares_no_defaults_on_entity_pickers():
     """
     import types
 
-    from tuya_ev_charger.config_flow import (
-        OPTIONAL_ENTITY_OPTIONS,
-        TuyaEVChargerOptionsFlow,
-    )
+    from tuya_ev_charger.options_flow import OPTIONAL_ENTITY_OPTIONS, TuyaEVChargerOptionsFlow
 
     flow = TuyaEVChargerOptionsFlow(types.SimpleNamespace(data={}, options={}, entry_id="test"))
     schema = flow._build_options_schema({}, computed={})
@@ -413,7 +410,7 @@ def test_every_options_form_kind_is_handled():
     That is how a price field would become a text box that accepts "0,16" and
     stores a string, so the set of kinds is pinned to what the builder handles.
     """
-    from tuya_ev_charger.config_flow import _OPTIONS_FORM
+    from tuya_ev_charger.options_flow import _OPTIONS_FORM
 
     handled = {
         "bool",
@@ -430,14 +427,15 @@ def test_every_options_form_kind_is_handled():
 
 def test_prices_are_not_rounded_to_integers():
     """A 0.16 EUR tariff coerced through int() becomes 0: every session free."""
-    from tuya_ev_charger.config_flow import _option_float
+    from tuya_ev_charger.option_values import option_float
 
-    assert _option_float({"peak_price": 0.16}, "peak_price", 0.0) == 0.16
-    assert _option_float({"peak_price": "0.27"}, "peak_price", 0.0) == 0.27
+    assert option_float({"peak_price": 0.16}, "peak_price", 0.0) == 0.16
+    assert option_float({"peak_price": "0.27"}, "peak_price", 0.0) == 0.27
     # Typed by hand, so junk must fall back rather than raise.
-    assert _option_float({"peak_price": "0,27"}, "peak_price", 0.0) == 0.0
-    assert _option_float({"peak_price": -1}, "peak_price", 0.0) == 0.0
-    assert _option_float({}, "peak_price", 0.0) == 0.0
+    assert option_float({"peak_price": "0,27"}, "peak_price", 0.0) == 0.0
+    # A negative price is a real tariff and keeps its sign (it used to read as 0).
+    assert option_float({"peak_price": -1}, "peak_price", 0.0) == -1.0
+    assert option_float({}, "peak_price", 0.0) == 0.0
 
 
 def test_the_tinytuya_floor_matches_between_manifest_and_tests():
@@ -519,7 +517,7 @@ def test_sections_do_not_change_the_stored_option_shape():
     expects flat keys. Letting the display grouping leak into storage would need
     a migration for a purely cosmetic change.
     """
-    from tuya_ev_charger.config_flow import _flatten_sections
+    from tuya_ev_charger.options_flow import _flatten_sections
 
     nested = {
         "device": {"scan_interval": 30},
@@ -536,7 +534,7 @@ def test_sections_do_not_change_the_stored_option_shape():
 
 def test_flattening_tolerates_an_unsectioned_payload():
     """Older Home Assistant frontends, or a service call, may submit flat."""
-    from tuya_ev_charger.config_flow import _flatten_sections
+    from tuya_ev_charger.options_flow import _flatten_sections
 
     assert _flatten_sections({"scan_interval": 30}) == {"scan_interval": 30}
 
@@ -594,7 +592,7 @@ def test_options_flow_keeps_a_populated_entity_selector_alongside_numbers():
     import asyncio
     import types
 
-    from tuya_ev_charger.config_flow import TuyaEVChargerOptionsFlow
+    from tuya_ev_charger.options_flow import TuyaEVChargerOptionsFlow
 
     entry = types.SimpleNamespace(data={}, options={}, entry_id="test")
     flow = TuyaEVChargerOptionsFlow(entry)
@@ -620,7 +618,7 @@ def test_options_flow_still_clears_an_entity_selector_left_blank():
     import asyncio
     import types
 
-    from tuya_ev_charger.config_flow import TuyaEVChargerOptionsFlow
+    from tuya_ev_charger.options_flow import TuyaEVChargerOptionsFlow
 
     entry = types.SimpleNamespace(
         data={},
@@ -647,10 +645,7 @@ def test_options_form_declares_no_defaults_on_text_fields():
     schema validation silently refill a field the user had just cleared."""
     import types
 
-    from tuya_ev_charger.config_flow import (
-        OPTIONAL_TEXT_OPTIONS,
-        TuyaEVChargerOptionsFlow,
-    )
+    from tuya_ev_charger.options_flow import OPTIONAL_TEXT_OPTIONS, TuyaEVChargerOptionsFlow
 
     flow = TuyaEVChargerOptionsFlow(types.SimpleNamespace(data={}, options={}, entry_id="test"))
     schema = flow._build_options_schema({}, computed={})
@@ -680,7 +675,7 @@ def test_options_flow_clears_every_text_field_left_blank():
     import asyncio
     import types
 
-    from tuya_ev_charger.config_flow import _OPTIONS_FORM, TuyaEVChargerOptionsFlow
+    from tuya_ev_charger.options_flow import _OPTIONS_FORM, TuyaEVChargerOptionsFlow
 
     stale = {
         "off_peak_windows": "01:00-08:00",
@@ -707,7 +702,7 @@ def test_options_flow_clears_every_text_field_left_blank():
 
 def test_every_option_belongs_to_a_declared_section():
     """A typo in `section=` would silently drop the field from the form."""
-    from tuya_ev_charger.config_flow import _OPTIONS_FORM, _SECTION_ORDER
+    from tuya_ev_charger.options_flow import _OPTIONS_FORM, _SECTION_ORDER
 
     for opt in _OPTIONS_FORM:
         assert opt.section in _SECTION_ORDER, f"{opt.key} is in no rendered section"
@@ -723,7 +718,7 @@ def test_the_sectioned_schema_still_serialises():
 
     voluptuous_serialize = pytest.importorskip("voluptuous_serialize")
 
-    from tuya_ev_charger.config_flow import TuyaEVChargerOptionsFlow
+    from tuya_ev_charger.options_flow import TuyaEVChargerOptionsFlow
 
     flow = TuyaEVChargerOptionsFlow(types.SimpleNamespace(data={}, options={}, entry_id="test"))
     schema = flow._build_options_schema({}, computed={})
@@ -748,7 +743,7 @@ def test_every_option_field_has_a_label_in_its_section():
     `max_inverter_power_w` in the form, which is how the grouping could quietly
     degrade the UI it was meant to improve.
     """
-    from tuya_ev_charger.config_flow import _OPTIONS_FORM
+    from tuya_ev_charger.options_flow import _OPTIONS_FORM
 
     expected: dict[str, set[str]] = {}
     for opt in _OPTIONS_FORM:

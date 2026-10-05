@@ -13,13 +13,18 @@ constructor), so all of it must run in an executor.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
-import tinytuya  # type: ignore
+import tinytuya
 from homeassistant.core import HomeAssistant
 
 LOGGER = logging.getLogger(__name__)
+
+# tinytuya makes several HTTPS calls (token, then the device list) with its own
+# timeouts; this only keeps a hung one from stalling the config flow or a poll.
+CLOUD_TIMEOUT_S = 30
 
 
 class TuyaCloudError(Exception):
@@ -72,9 +77,13 @@ async def async_fetch_devices(
     device_id: str | None = None,
 ) -> list[dict[str, Any]]:
     """Return the user's Tuya devices (each with its ``key`` = local_key)."""
-    return await hass.async_add_executor_job(
-        _sync_fetch_devices, region, api_key, api_secret, device_id
-    )
+    try:
+        async with asyncio.timeout(CLOUD_TIMEOUT_S):
+            return await hass.async_add_executor_job(
+                _sync_fetch_devices, region, api_key, api_secret, device_id
+            )
+    except TimeoutError as err:
+        raise TuyaCloudError("Tuya Cloud did not answer in time.") from err
 
 
 async def async_fetch_local_key(

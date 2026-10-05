@@ -51,10 +51,10 @@ def test_ready_to_charge_writes_the_ready_state():
 
 
 def test_ready_to_charge_failure_raises():
-    from tuya_ev_charger.button import HomeAssistantError
+    from homeassistant.exceptions import HomeAssistantError
     from tuya_ev_charger.button import TuyaEVChargerReadyToChargeButton as B
 
-    with pytest.raises(HomeAssistantError, match="ready-to-charge"):
+    with pytest.raises(HomeAssistantError, match="ready_to_charge_failed"):
         asyncio.run(_button(B, client=_Client(work_ok=False)).async_press())
 
 
@@ -67,10 +67,10 @@ def test_a_successful_ready_press_refreshes():
 
 
 def test_reboot_failure_raises_before_the_wait(monkeypatch):
-    from tuya_ev_charger.button import HomeAssistantError
+    from homeassistant.exceptions import HomeAssistantError
     from tuya_ev_charger.button import TuyaEVChargerRebootButton as B
 
     button = _button(B, client=_Client(reboot_ok=False))
-    with pytest.raises(HomeAssistantError, match="reboot"):
+    with pytest.raises(HomeAssistantError, match="reboot_failed"):
         asyncio.run(button.async_press())
     assert button.refreshes == []

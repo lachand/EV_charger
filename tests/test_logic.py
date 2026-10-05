@@ -6,7 +6,7 @@ import pytest
 
 
 def _metrics_stub(**kwargs):
-    from tuya_ev_charger.tuya_ev_charger import EVMetrics
+    from tuya_ev_charger.charger_metrics import EVMetrics
 
     defaults = dict(
         voltage_l1=230.0,
@@ -112,7 +112,7 @@ def test_continuous_ceiling_falls_back_to_presets_when_dp152_is_absent():
     ],
 )
 def test_evcc_status(status, power, expected):
-    from tuya_ev_charger.tuya_ev_charger import evcc_status
+    from tuya_ev_charger.charger_metrics import evcc_status
 
     assert evcc_status(status, power) == expected
 
@@ -165,8 +165,8 @@ def test_everyday_entities_stay_enabled():
 
 def test_unavailable_capabilities_are_detected():
     """Only what the hardware truly lacks may be disabled without asking."""
+    from tuya_ev_charger.charger_metrics import PhaseMetrics
     from tuya_ev_charger.entity_cleanup import unavailable_capability_keys
-    from tuya_ev_charger.tuya_ev_charger import PhaseMetrics
 
     single = _metrics_stub(
         phases={"L1": PhaseMetrics(230.0, 0.0, 0.0, 0.0)}, plug_in_action=None, nfc_enabled=None

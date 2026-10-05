@@ -4,16 +4,20 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 from homeassistant.components import persistent_notification
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST
-from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import ConfigEntryNotReady, ServiceValidationError
+from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import format_mac
+
+if TYPE_CHECKING:
+    from homeassistant.helpers.typing import ConfigType
 
 from .const import (
     ADVANCED_ENTITY_KEYS,
@@ -31,7 +35,6 @@ from .const import (
     DEFAULT_CHARGER_PROFILE_JSON,
     DEFAULT_SCAN_INTERVAL_SECONDS,
     DOMAIN,
-    ENTITY_OPTION_AUTO_DISABLED,
     LIVE_APPLIABLE_OPTION_KEYS,
     MAX_SCAN_INTERVAL_SECONDS,
     MIN_SCAN_INTERVAL_SECONDS,
@@ -45,7 +48,12 @@ from .const import (
     SERVICE_SET_VEHICLE_ENERGY,
 )
 from .coordinator import TuyaEVChargerDataUpdateCoordinator
-from .entity_cleanup import async_disable_entities, unavailable_capability_keys
+from .entity_cleanup import (
+    async_disable_entities,
+    is_already_handled,
+    unavailable_capability_keys,
+)
+from .errors import validation_error
 from .repairs import (
     ISSUE_TIDY_ENTITIES,
     async_clear,
@@ -206,6 +214,20 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the services once, whether or not an entry is loaded yet.
+
+    Registering them from ``async_setup_entry`` meant they vanished with the last
+    entry and did not exist at all until one was configured. Each handler resolves
+    its target entry and raises a clear error when none is loaded.
+    """
+    _register_services(hass)
+    return True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     client = TuyaEVChargerClient(
         device_id=entry.data[CONF_DEVICE_ID],
@@ -218,7 +240,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     try:
         await client.async_connect()
-    except Exception as err:
+    except (OSError, ValueError, RuntimeError) as err:
         raise ConfigEntryNotReady(
             f"Unable to initialize charger client for {entry.title}: {err}"
         ) from err
@@ -230,14 +252,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         update_interval=timedelta(seconds=_scan_interval_seconds(entry)),
     )
 
-    try:
-        # The coordinator relocates the charger by device_id if its DHCP IP
-        # changed, so the first refresh can succeed even from a stale host.
-        await coordinator.async_config_entry_first_refresh()
-    except Exception as err:
-        raise ConfigEntryNotReady(
-            f"Unable to fetch initial charger state for {entry.title}: {err}"
-        ) from err
+    # The coordinator relocates the charger by device_id if its DHCP IP changed,
+    # so the first refresh can succeed even from a stale host. Home Assistant
+    # turns a failed first refresh into ConfigEntryNotReady (or lets
+    # ConfigEntryAuthFailed through), so it needs no wrapper here.
+    await coordinator.async_config_entry_first_refresh()
 
     # Persist any relocated IP and learn the MAC (used by DHCP auto-discovery).
     # Done before the update listener is registered so it does not trigger a reload.
@@ -283,7 +302,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_sync_config_problems(
             hass, entry.entry_id, runtime_data.solar_surplus_controller.config_problems()
         )
-    await _async_register_services(hass)
     LOGGER.debug("Tuya EV charger integration initialized: %s", entry.title)
     return True
 
@@ -310,12 +328,14 @@ async def _async_tidy_entities(
     )
 
     registry = er.async_get(hass)
-    pending = sum(
-        1
-        for candidate in er.async_entries_for_config_entry(registry, entry.entry_id)
-        if candidate.disabled_by is None
-        and any(candidate.unique_id.endswith(f"_{key}") for key in ADVANCED_ENTITY_KEYS)
-        and not (candidate.options.get(DOMAIN) or {}).get(ENTITY_OPTION_AUTO_DISABLED)
+    pending = len(
+        [
+            candidate
+            for candidate in er.async_entries_for_config_entry(registry, entry.entry_id)
+            if candidate.disabled_by is None
+            and any(candidate.unique_id.endswith(f"_{key}") for key in ADVANCED_ENTITY_KEYS)
+            and not is_already_handled(candidate)
+        ]
     )
     if pending:
         async_offer_entity_cleanup(hass, entry.entry_id, pending)
@@ -377,7 +397,7 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
     else:
         controller = previous = None
 
-    if controller is not None and previous is not None:
+    if runtime_data is not None and controller is not None and previous is not None:
         current = dict(entry.options)
         changed = {
             key for key in previous.keys() | current.keys() if previous.get(key) != current.get(key)
@@ -411,11 +431,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return unloaded
 
 
-async def _async_register_services(hass: HomeAssistant) -> None:
-    domain_data = hass.data.setdefault(DOMAIN, {})
-    if domain_data.get("services_registered"):
-        return
-
+@callback
+def _register_services(hass: HomeAssistant) -> None:
     async def _handle_force_charge(call: ServiceCall) -> None:
         entry = _resolve_entry_from_call(hass, call)
         controller = _resolve_controller(entry)
@@ -468,9 +485,7 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         entry = _resolve_entry_from_call(hass, call)
         raw_profile = call.data[SERVICE_DATA_PROFILE]
         if not is_supported_surplus_profile(raw_profile):
-            raise ServiceValidationError(
-                f"Unsupported surplus profile '{raw_profile}'. Use eco, balanced or fast."
-            )
+            raise validation_error("unsupported_surplus_profile", profile=raw_profile)
         normalized_profile = normalize_surplus_profile(raw_profile)
         new_options = apply_surplus_profile(dict(entry.options), normalized_profile)
         hass.config_entries.async_update_entry(entry, options=new_options)
@@ -500,9 +515,10 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         vehicle = str(call.data[SERVICE_DATA_VEHICLE]).strip()
         known = configured_vehicles(entry.options.get(CONF_VEHICLES))
         if vehicle not in known:
-            raise ServiceValidationError(
-                f"Unknown vehicle '{vehicle}'. Configured vehicles: "
-                f"{', '.join(known) if known else '(none)'}."
+            raise validation_error(
+                "unknown_vehicle_configured",
+                vehicle=vehicle,
+                configured=", ".join(known) if known else "(none)",
             )
         await tracker.async_set_total(vehicle, float(call.data[SERVICE_DATA_ENERGY_KWH]))
         runtime_data: TuyaEVChargerRuntimeData = entry.runtime_data
@@ -562,7 +578,6 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         _handle_set_vehicle_energy,
         schema=SERVICE_SET_VEHICLE_ENERGY_SCHEMA,
     )
-    domain_data["services_registered"] = True
 
 
 def _resolve_entry_from_call(hass: HomeAssistant, call: ServiceCall) -> ConfigEntry:
@@ -575,30 +590,23 @@ def _resolve_entry_from_call(hass: HomeAssistant, call: ServiceCall) -> ConfigEn
         for entry in loaded_entries:
             if entry.entry_id == entry_id:
                 return entry
-        raise ServiceValidationError(f"Entry '{entry_id}' is not loaded for domain '{DOMAIN}'.")
+        raise validation_error("entry_not_loaded", entry_id=entry_id)
     if len(loaded_entries) == 1:
         return loaded_entries[0]
     if not loaded_entries:
-        raise ServiceValidationError(f"No loaded '{DOMAIN}' entries found.")
-    raise ServiceValidationError(
-        f"Multiple '{DOMAIN}' entries loaded, provide '{SERVICE_DATA_ENTRY_ID}'."
-    )
+        raise validation_error("no_loaded_entries")
+    raise validation_error("multiple_entries", field=SERVICE_DATA_ENTRY_ID)
 
 
 def _resolve_vehicle_tracker(entry: ConfigEntry) -> VehicleEnergyTracker:
     runtime_data: TuyaEVChargerRuntimeData | None = getattr(entry, "runtime_data", None)
     if runtime_data is None or runtime_data.vehicle_tracker is None:
-        raise ServiceValidationError(
-            f"Per-vehicle tracking is not enabled for entry '{entry.entry_id}'. "
-            "Set the 'vehicles' option first."
-        )
+        raise validation_error("vehicle_tracking_disabled", entry_id=entry.entry_id)
     return runtime_data.vehicle_tracker
 
 
 def _resolve_controller(entry: ConfigEntry) -> SolarSurplusController:
     runtime_data: TuyaEVChargerRuntimeData | None = getattr(entry, "runtime_data", None)
     if runtime_data is None or runtime_data.solar_surplus_controller is None:
-        raise ServiceValidationError(
-            f"Solar surplus controller is unavailable for entry '{entry.entry_id}'."
-        )
+        raise validation_error("surplus_controller_unavailable_entry", entry_id=entry.entry_id)
     return runtime_data.solar_surplus_controller

@@ -153,7 +153,7 @@ def test_turning_off_force_charge_clears_it():
 
 
 def test_turning_on_force_charge_without_a_controller_raises():
-    from tuya_ev_charger.switch import HomeAssistantError
+    from homeassistant.exceptions import HomeAssistantError
     from tuya_ev_charger.switch import TuyaEVChargerForceChargeSwitch as S
 
     switch = _switch(S, controller=None)
@@ -193,11 +193,11 @@ def test_force_charge_subscribes_and_unsubscribes_to_the_controller():
 
 
 def test_a_failed_charge_write_raises():
-    from tuya_ev_charger.switch import HomeAssistantError
+    from homeassistant.exceptions import HomeAssistantError
     from tuya_ev_charger.switch import TuyaEVChargerChargeSessionSwitch as S
 
     switch = _switch(S, data=_metrics(do_charge=False), client=_Client(ok=False))
-    with pytest.raises(HomeAssistantError, match="start charging"):
+    with pytest.raises(HomeAssistantError, match="charge_start_failed"):
         asyncio.run(switch.async_turn_on())
 
 

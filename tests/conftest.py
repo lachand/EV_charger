@@ -40,6 +40,24 @@ class _Generic:
         pass
 
 
+class _CoordinatorEntity(_Generic):
+    """The slice of CoordinatorEntity the platforms use: the coordinator, its
+    availability, and the add/remove lifecycle hooks they chain to."""
+
+    def __init__(self, coordinator: Any, *args: Any, **kwargs: Any) -> None:
+        self.coordinator = coordinator
+
+    @property
+    def available(self) -> bool:
+        return bool(getattr(self.coordinator, "last_update_success", True))
+
+    async def async_added_to_hass(self) -> None:
+        pass
+
+    async def async_will_remove_from_hass(self) -> None:
+        pass
+
+
 @dataclass(frozen=True, kw_only=True)
 class _EntityDescription:
     """Superset of the description fields the integration sets.
@@ -131,12 +149,28 @@ def _install_stubs() -> None:
         EventStateChangedData=dict,
         callback=lambda func: func,
     )
+
+    class _TranslatedError(Exception):
+        """Mirrors HomeAssistantError: str() is the message, or the translation key."""
+
+        def __init__(
+            self,
+            *args,
+            translation_domain=None,
+            translation_key=None,
+            translation_placeholders=None,
+        ):
+            super().__init__(*args or (translation_key,))
+            self.translation_domain = translation_domain
+            self.translation_key = translation_key
+            self.translation_placeholders = translation_placeholders or {}
+
     _module(
         "homeassistant.exceptions",
-        HomeAssistantError=type("HomeAssistantError", (Exception,), {}),
+        HomeAssistantError=type("HomeAssistantError", (_TranslatedError,), {}),
         ConfigEntryNotReady=type("ConfigEntryNotReady", (Exception,), {}),
         ConfigEntryAuthFailed=type("ConfigEntryAuthFailed", (Exception,), {}),
-        ServiceValidationError=type("ServiceValidationError", (Exception,), {}),
+        ServiceValidationError=type("ServiceValidationError", (_TranslatedError,), {}),
     )
 
     class _Section:
@@ -160,7 +194,7 @@ def _install_stubs() -> None:
     _module(
         "homeassistant.helpers.update_coordinator",
         DataUpdateCoordinator=type("DataUpdateCoordinator", (_Generic,), {}),
-        CoordinatorEntity=type("CoordinatorEntity", (_Generic,), {}),
+        CoordinatorEntity=_CoordinatorEntity,
         UpdateFailed=type("UpdateFailed", (Exception,), {}),
     )
 
@@ -169,6 +203,7 @@ def _install_stubs() -> None:
         DIAGNOSTIC = "diagnostic"
 
     _module("homeassistant.helpers.entity", EntityCategory=EntityCategory)
+    sys.modules["homeassistant.const"].EntityCategory = EntityCategory  # type: ignore[attr-defined]
     _module("homeassistant.helpers.entity_platform", AddEntitiesCallback=object)
     _module(
         "homeassistant.helpers.device_registry",
@@ -228,6 +263,7 @@ def _install_stubs() -> None:
         "homeassistant.helpers.config_validation",
         entity_id=str,
         positive_time_period_dict=dict,
+        config_entry_only_config_schema=lambda _domain: dict,
     )
     _module(
         "homeassistant.helpers.trigger",

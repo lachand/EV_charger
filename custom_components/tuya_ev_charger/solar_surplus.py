@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import json
+import asyncio
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -8,142 +8,64 @@ from time import monotonic
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
-from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
+from homeassistant.core import (
+    CALLBACK_TYPE,
+    Event,
+    EventStateChangedData,
+    HomeAssistant,
+    callback,
+)
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.util import dt as dt_util
 
-from .charge_curve import learned_power_kw, planning_power_kw
+from .charge_curve import ChargeCurve, learned_power_kw, planning_power_kw
 from .charge_gates import (
     DecisionReason,
     GateAction,
     GateContext,
     TimerState,
     Verdict,
-    battery_hysteresis,
     evaluate,
 )
 from .charge_planner import (
     ChargeWindow,
     Plan,
     PlanRequest,
-    is_within_windows,
     parse_clock,
     parse_windows,
     plan_charge,
 )
+from .charger_metrics import EVMetrics
 from .config_diagnosis import (
     ConfigProblem,
     DiagnosisInputs,
     GridSignDetector,
+    PhaseCountDetector,
     static_problems,
 )
 from .const import (
-    CHARGER_PROFILE_DEPOW_V2,
-    CONF_CRITICAL_PEAK_SENSOR_ENTITY_ID,
-    CONF_CRITICAL_PEAK_SENSOR_INVERTED,
-    CONF_DEPARTURE_ENERGY_KWH,
-    CONF_DEPARTURE_TIME,
-    CONF_EXTERNAL_CHARGE_ALLOWED_SENSOR_ENTITY_ID,
-    CONF_EXTERNAL_CHARGE_ALLOWED_SENSOR_INVERTED,
-    CONF_INSTALLATION_PHASES,
-    CONF_LOAD_RESERVATIONS,
-    CONF_MAX_HOUSE_POWER_W,
-    CONF_MAX_INVERTER_POWER_W,
-    CONF_OFF_PEAK_SENSOR_ENTITY_ID,
-    CONF_OFF_PEAK_SENSOR_INVERTED,
-    CONF_OFF_PEAK_WINDOWS,
-    CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
-    CONF_SURPLUS_ADJUST_UP_COOLDOWN_S,
-    CONF_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
-    CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
-    CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
-    CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
-    CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
-    CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
-    CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-    CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
-    CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
-    CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
-    CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-    CONF_SURPLUS_MODE_ENABLED,
-    CONF_SURPLUS_SENSOR_ENTITY_ID,
-    CONF_SURPLUS_SENSOR_INVERTED,
-    CONF_SURPLUS_START_THRESHOLD_W,
-    CONF_SURPLUS_STOP_THRESHOLD_W,
-    CONF_TOTAL_LOAD_SENSOR_ENTITY_ID,
-    DEFAULT_CRITICAL_PEAK_SENSOR_ENTITY_ID,
-    DEFAULT_CRITICAL_PEAK_SENSOR_INVERTED,
-    DEFAULT_DEPARTURE_ENERGY_KWH,
-    DEFAULT_DEPARTURE_TIME,
-    DEFAULT_EXTERNAL_CHARGE_ALLOWED_SENSOR_ENTITY_ID,
-    DEFAULT_EXTERNAL_CHARGE_ALLOWED_SENSOR_INVERTED,
-    DEFAULT_INSTALLATION_PHASES,
-    DEFAULT_LOAD_RESERVATIONS,
-    DEFAULT_MAX_HOUSE_POWER_W,
-    DEFAULT_MAX_INVERTER_POWER_W,
-    DEFAULT_OFF_PEAK_SENSOR_ENTITY_ID,
-    DEFAULT_OFF_PEAK_SENSOR_INVERTED,
-    DEFAULT_OFF_PEAK_WINDOWS,
-    DEFAULT_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
-    DEFAULT_SURPLUS_ADJUST_UP_COOLDOWN_S,
-    DEFAULT_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
-    DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
-    DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
-    DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
-    DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
-    DEFAULT_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-    DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
-    DEFAULT_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
-    DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
-    DEFAULT_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-    DEFAULT_SURPLUS_MODE_ENABLED,
-    DEFAULT_SURPLUS_SENSOR_ENTITY_ID,
-    DEFAULT_SURPLUS_SENSOR_INVERTED,
-    DEFAULT_SURPLUS_START_THRESHOLD_W,
-    DEFAULT_SURPLUS_STOP_THRESHOLD_W,
-    DEFAULT_TOTAL_LOAD_SENSOR_ENTITY_ID,
-    DP_CHARGER_INFO,
-    DP_CURRENT_TARGET,
-    DP_DO_CHARGE,
-    DP_METRICS,
-    DP_WORK_STATE_DEBUG,
-    MAX_DEPARTURE_ENERGY_KWH,
-    MAX_MAX_HOUSE_POWER_W,
-    MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-    MAX_SURPLUS_DELAY_S,
-    MAX_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-    MAX_SURPLUS_THRESHOLD_W,
-    MIN_DEPARTURE_ENERGY_KWH,
-    MIN_MAX_HOUSE_POWER_W,
-    MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-    MIN_SURPLUS_DELAY_S,
-    MIN_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-    MIN_SURPLUS_THRESHOLD_W,
+    DOMAIN,
 )
 from .coordinator import TuyaEVChargerDataUpdateCoordinator
 from .helpers import allowed_currents
-from .preemption import (
-    ReservationTracker,
-    headroom_with_reservations,
-    parse_reservations,
-)
+from .profile_assistant import profile_assistant_report
 from .session_costing import SessionSplit
+from .surplus_caps import ProtectionCaps
 from .surplus_decision import (
     ForecastState,
     SurplusInputs,
     apply_forecast,
-    cap_to_available_power,
     current_supported_by,
-    headroom_for_car_w,
     raw_surplus_w,
 )
-from .tuya_ev_charger import EVMetrics, TuyaEVChargerClient
+from .surplus_metrics import ev_power_w, is_charging, line_voltage
+from .surplus_reader import SurplusReader
+from .surplus_settings import parse_end_time, settings_from_entry
+from .tuya_ev_charger import TuyaEVChargerClient
 
 LOGGER = logging.getLogger(__name__)
 
 # Internal tuning. Policy thresholds (start/stop/discharge) are configurable.
-FIXED_LINE_VOLTAGE_V = 230
 FIXED_START_DELAY_S = 30
 FIXED_STOP_DELAY_S = 60
 FIXED_RAMP_STEP_A = 1
@@ -154,43 +76,6 @@ FIXED_MAX_SESSION_END_TIME = ""
 FIXED_FORECAST_WEIGHT_PCT = 35
 FIXED_FORECAST_SMOOTHING_S = 180
 FIXED_FORECAST_DROP_GUARD_W = 500
-
-
-@dataclass(slots=True, frozen=True)
-class SolarSurplusSettings:
-    mode_enabled: bool
-    grid_sensor_entity_id: str
-    max_house_power_w: int
-    max_inverter_power_w: int
-    total_load_sensor_entity_id: str
-    # How many phases the charger is wired on -- one setpoint applies to
-    # every phase, so this scales every watts<->amps conversion (#41).
-    installation_phases: int
-    load_reservations: str
-    off_peak_windows: str
-    off_peak_sensor_entity_id: str
-    off_peak_sensor_inverted: bool
-    critical_peak_sensor_entity_id: str
-    critical_peak_sensor_inverted: bool
-    departure_time: str
-    departure_energy_kwh: int
-    grid_sensor_inverted: bool
-    curtailment_sensor_entity_id: str
-    curtailment_sensor_inverted: bool
-    battery_soc_sensor_entity_id: str
-    battery_soc_high_threshold_pct: int
-    battery_soc_low_threshold_pct: int
-    battery_net_discharge_sensor_entity_id: str
-    battery_net_discharge_sensor_inverted: bool
-    allow_battery_discharge_for_ev: bool
-    max_battery_discharge_for_ev_w: int
-    start_threshold_w: int
-    stop_threshold_w: int
-    adjust_up_cooldown_s: int
-    adjust_down_cooldown_s: int
-    forecast_sensor_entity_id: str
-    external_charge_allowed_sensor_entity_id: str
-    external_charge_allowed_sensor_inverted: bool
 
 
 @dataclass(slots=True, frozen=True)
@@ -222,11 +107,15 @@ class SolarSurplusController:
         self._entry = entry
         self._client = client
         self._coordinator = coordinator
-        self._settings = _settings_from_entry(entry)
-        self._unsub_sensor = None
-        self._unsub_coordinator = None
-        self._evaluation_task = None
+        self._settings = settings_from_entry(entry)
+        self._inputs = SurplusReader(hass, lambda: self._settings)
+        # `monotonic` is looked up at call time so a patched clock in tests applies.
+        self._caps = ProtectionCaps(hass, lambda: self._settings, self._inputs, lambda: monotonic())
+        self._unsub_sensor: CALLBACK_TYPE | None = None
+        self._unsub_coordinator: CALLBACK_TYPE | None = None
+        self._evaluation_task: asyncio.Task[None] | None = None
         self._rerun_requested = False
+        self._shut_down = False
         self._listeners: list[Callable[[], None]] = []
 
         # The regulation's memory between cycles, owned by the pure layer so the
@@ -256,10 +145,9 @@ class SolarSurplusController:
         self._last_target_current_a: int | None = None
         self._forecast_ema_surplus_w: float | None = None
         self._forecast_last_sample_ts: float | None = None
-        self._battery_soc_hysteresis_enabled: bool | None = None
         self._last_decision_trace: dict[str, Any] = {}
         self._grid_sign = GridSignDetector()
-        self._reservations = ReservationTracker()
+        self._phase_count = PhaseCountDetector()
 
     @property
     def snapshot(self) -> SolarSurplusSnapshot:
@@ -291,7 +179,7 @@ class SolarSurplusController:
             self._handle_coordinator_update
         )
 
-        sensor_entities = self._tracked_sensor_entities()
+        sensor_entities = self._inputs.tracked_sensor_entities()
         if sensor_entities:
             self._unsub_sensor = async_track_state_change_event(
                 self._hass,
@@ -315,12 +203,12 @@ class SolarSurplusController:
         This re-reads the snapshot, rebinds the tracked-sensor listeners in case
         that set changed, and forces an evaluation against the new values.
         """
-        self._settings = _settings_from_entry(self._entry)
+        self._settings = settings_from_entry(self._entry)
 
         if self._unsub_sensor is not None:
             self._unsub_sensor()
             self._unsub_sensor = None
-        sensor_entities = self._tracked_sensor_entities()
+        sensor_entities = self._inputs.tracked_sensor_entities()
         if sensor_entities:
             self._unsub_sensor = async_track_state_change_event(
                 self._hass,
@@ -331,6 +219,9 @@ class SolarSurplusController:
         self._schedule_evaluation("options_updated")
 
     async def async_shutdown(self) -> None:
+        # A sensor callback already queued on the loop must not start a new
+        # evaluation after this point.
+        self._shut_down = True
         if self._unsub_sensor is not None:
             self._unsub_sensor()
             self._unsub_sensor = None
@@ -364,66 +255,7 @@ class SolarSurplusController:
         self._schedule_evaluation("pause_service")
 
     async def async_profile_assistant_report(self) -> dict[str, Any]:
-        dps = await self._client.async_get_raw_dps()
-        if dps is None:
-            return {"error": "Unable to read DPS payload from charger."}
-
-        candidates: dict[str, list[str]] = {
-            "metrics": [],
-            "charger_info": [],
-            "do_charge": [],
-            "current_target": [],
-            "work_state_debug": [],
-        }
-        for dp_id, value in dps.items():
-            if _looks_like_metrics(value):
-                candidates["metrics"].append(dp_id)
-            if _looks_like_charger_info(value):
-                candidates["charger_info"].append(dp_id)
-            if _coerce_optional_bool(value) is not None:
-                candidates["do_charge"].append(dp_id)
-            if _looks_like_current_target(value):
-                candidates["current_target"].append(dp_id)
-            if _looks_like_state_debug(value):
-                candidates["work_state_debug"].append(dp_id)
-
-        known_depows = {
-            DP_METRICS,
-            DP_CHARGER_INFO,
-            DP_DO_CHARGE,
-            DP_CURRENT_TARGET,
-            DP_WORK_STATE_DEBUG,
-        }
-        suggestion = (
-            CHARGER_PROFILE_DEPOW_V2 if known_depows.issubset(set(dps.keys())) else "generic_v1"
-        )
-
-        return {
-            "suggested_profile": suggestion,
-            "detected_dp_ids": sorted(dps.keys()),
-            "candidates": candidates,
-            "sample_values": {key: dps[key] for key in sorted(dps.keys())[:15]},
-        }
-
-    def _tracked_sensor_entities(self) -> list[str]:
-        sensor_entities: list[str] = []
-        for entity_id in (
-            self._settings.grid_sensor_entity_id,
-            self._settings.total_load_sensor_entity_id,
-            self._settings.curtailment_sensor_entity_id,
-            self._settings.battery_soc_sensor_entity_id,
-            self._settings.battery_net_discharge_sensor_entity_id,
-            self._settings.forecast_sensor_entity_id,
-            self._settings.external_charge_allowed_sensor_entity_id,
-            self._settings.off_peak_sensor_entity_id,
-            self._settings.critical_peak_sensor_entity_id,
-            # The announcing entities matter most of all: reacting to them the
-            # instant they switch is the entire point of a reservation.
-            *parse_reservations(self._settings.load_reservations),
-        ):
-            if entity_id and entity_id not in sensor_entities:
-                sensor_entities.append(entity_id)
-        return sensor_entities
+        return await profile_assistant_report(self._client)
 
     def _handle_coordinator_update(self) -> None:
         self._schedule_evaluation("coordinator_update")
@@ -439,10 +271,17 @@ class SolarSurplusController:
 
     @callback
     def _async_schedule_evaluation(self, reason: str) -> None:
+        if self._shut_down:
+            return
         if self._evaluation_task is not None and not self._evaluation_task.done():
             self._rerun_requested = True
             return
-        self._evaluation_task = self._hass.async_create_task(self._async_evaluation_loop(reason))
+        # A background task of the entry, so unloading the entry cancels it.
+        self._evaluation_task = self._entry.async_create_background_task(
+            self._hass,
+            self._async_evaluation_loop(reason),
+            name=f"{DOMAIN}_surplus_evaluation",
+        )
 
     async def _async_evaluation_loop(self, reason: str) -> None:
         current_reason = reason
@@ -482,15 +321,16 @@ class SolarSurplusController:
             )
             return
 
-        is_charging = _is_charging(data)
+        charging = is_charging(data)
         grid_power_for_energy = (
-            self._read_grid_power_w() if self._settings.grid_sensor_entity_id else None
+            self._inputs.read_grid_power_w() if self._settings.grid_sensor_entity_id else None
         )
-        self._update_session_energy(now, data, is_charging, grid_power_for_energy)
+        self._update_session_energy(now, data, charging, grid_power_for_energy)
 
-        context = self._build_gate_context(now, data, is_charging)
+        context = self._build_gate_context(now, data, charging)
         if context.grid_power_w is not None:
-            self._grid_sign.observe(ev_power_w=_ev_power_w(data), grid_power_w=context.grid_power_w)
+            self._grid_sign.observe(ev_power_w=ev_power_w(data), grid_power_w=context.grid_power_w)
+        self._phase_count.observe(phase_count=len(data.phases))
         verdict = evaluate(context, self._timers)
         await self._async_apply(verdict, data=data, now=now, context=context)
 
@@ -505,15 +345,17 @@ class SolarSurplusController:
         ordering to be remembered.
         """
         available_currents = allowed_currents(data, self._entry.options)
-        protection_cap, cap_source = self._protection_cap(data, available_currents)
+        protection_cap, cap_source = self._caps.protection_cap(data, available_currents)
         if protection_cap is not None:
             available_currents = tuple(
                 value for value in available_currents if value <= protection_cap
             )
 
-        grid_power_w = self._read_grid_power_w() if self._settings.grid_sensor_entity_id else None
+        grid_power_w = (
+            self._inputs.read_grid_power_w() if self._settings.grid_sensor_entity_id else None
+        )
 
-        battery_ready = self._is_battery_ready()
+        battery_ready = self._inputs.is_battery_ready()
         available_surplus_w = 0.0
         max_supported_current = 0
         target_current: int | None = None
@@ -530,7 +372,7 @@ class SolarSurplusController:
             max_supported_current = _current_supported_by_surplus(
                 available_currents,
                 available_surplus_w,
-                _line_voltage(data),
+                line_voltage(data),
                 self._settings.installation_phases,
             )
             min_current = min(available_currents) if available_currents else 0
@@ -569,7 +411,7 @@ class SolarSurplusController:
             force_charge_active=self._is_force_charge_active(now),
             force_charge_current_a=self._force_charge_current_a,
             pause_active=self._is_pause_active(now),
-            external_charge_allowed=self._read_external_charge_allowed(),
+            external_charge_allowed=self._inputs.read_external_charge_allowed(),
             tariff_allowed=tariff_allowed,
             tariff_reason=tariff_reason,
             tariff_is_deadline=tariff_is_deadline,
@@ -591,8 +433,9 @@ class SolarSurplusController:
     def config_problems(self) -> list[str]:
         """Settings that are switched on but cannot do anything.
 
-        Combines the static checks with the one finding that needs measurements:
-        a grid sensor whose sign convention is reversed.
+        Combines the static checks with two findings that need measurements: a
+        grid sensor whose sign convention is reversed, and a charger that keeps
+        reporting more phases than Installation phases assumes.
         """
         settings = self._settings
         problems = static_problems(
@@ -611,8 +454,7 @@ class SolarSurplusController:
         values = [problem.value for problem in problems]
         if self._grid_sign.inverted:
             values.append(ConfigProblem.GRID_SENSOR_SIGN_INVERTED.value)
-        data = self._coordinator.data
-        if settings.installation_phases == 1 and data is not None and len(data.phases) >= 2:
+        if settings.installation_phases == 1 and self._phase_count.likely_three_phase:
             values.append(ConfigProblem.INSTALLATION_PHASES_LIKELY_THREE.value)
         return values
 
@@ -629,7 +471,7 @@ class SolarSurplusController:
             return {"error": "no data from the charger yet"}
 
         now = monotonic()
-        context = self._build_gate_context(now, data, _is_charging(data), update_state=False)
+        context = self._build_gate_context(now, data, is_charging(data), update_state=False)
         verdict = evaluate(context, self._timers.copy())
 
         return {
@@ -760,7 +602,7 @@ class SolarSurplusController:
     async def _async_stop_charge(
         self, verdict: Verdict, data: EVMetrics | None, now: float
     ) -> None:
-        if data is None or not _is_charging(data):
+        if data is None or not is_charging(data):
             return
         # A charge started outside surplus mode -- from the app, say -- is not
         # ours to interrupt when merely pausing.
@@ -789,7 +631,7 @@ class SolarSurplusController:
                 return DecisionReason.FORCE_CHARGE_FAILED_SET_CURRENT
             reason = DecisionReason.FORCE_CHARGE_ADJUST_CURRENT
 
-        if data is not None and not _is_charging(data):
+        if data is not None and not is_charging(data):
             if not await self._client.async_set_charge_enabled(True):
                 return DecisionReason.FORCE_CHARGE_FAILED_START
             self._start_session(now)
@@ -800,27 +642,27 @@ class SolarSurplusController:
             self._start_session(now)
         return reason
 
-    def _session_limit_reason(self, now: float) -> str | None:
+    def _session_limit_reason(self, now: float) -> DecisionReason | None:
         if not self._session_active:
             return None
 
         if FIXED_MAX_SESSION_DURATION_MIN > 0 and self._session_started_ts is not None:
             duration_s = now - self._session_started_ts
             if duration_s >= FIXED_MAX_SESSION_DURATION_MIN * 60:
-                return "session_limit_duration"
+                return DecisionReason.SESSION_LIMIT_DURATION
 
         if (
             FIXED_MAX_SESSION_ENERGY_KWH > 0
             and self._session_energy_kwh >= FIXED_MAX_SESSION_ENERGY_KWH
         ):
-            return "session_limit_energy"
+            return DecisionReason.SESSION_LIMIT_ENERGY
 
-        end_minutes = _parse_end_time(FIXED_MAX_SESSION_END_TIME)
+        end_minutes = parse_end_time(FIXED_MAX_SESSION_END_TIME)
         if end_minutes is not None:
             now_dt = dt_util.now()
             now_minutes = now_dt.hour * 60 + now_dt.minute
             if now_minutes >= end_minutes:
-                return "session_limit_end_time"
+                return DecisionReason.SESSION_LIMIT_END_TIME
 
         return None
 
@@ -853,15 +695,17 @@ class SolarSurplusController:
         grid_power_w: float,
         battery_ready: bool,
     ) -> tuple[float, float]:
-        discharge_over_limit_w = self._battery_discharge_over_limit_w()
+        discharge_over_limit_w = self._inputs.battery_discharge_over_limit_w()
         # Curtailment only counts in zero-injection setups, which is what having
         # the sensor configured signals.
         curtailed_w = (
-            self._read_curtailment_power_w() if self._settings.curtailment_sensor_entity_id else 0.0
+            self._inputs.read_curtailment_power_w()
+            if self._settings.curtailment_sensor_entity_id
+            else 0.0
         )
         inputs = SurplusInputs(
             grid_power_w=grid_power_w,
-            ev_power_w=_ev_power_w(data),
+            ev_power_w=ev_power_w(data),
             curtailed_power_w=curtailed_w,
             battery_discharge_over_limit_w=discharge_over_limit_w,
         )
@@ -876,7 +720,7 @@ class SolarSurplusController:
     ) -> float:
         result = apply_forecast(
             raw_w=raw_surplus_w,
-            forecast_w=self._read_sensor_power_w(self._settings.forecast_sensor_entity_id),
+            forecast_w=self._inputs.read_sensor_power_w(self._settings.forecast_sensor_entity_id),
             now=now,
             state=ForecastState(
                 ema_w=self._forecast_ema_surplus_w,
@@ -902,7 +746,7 @@ class SolarSurplusController:
         sensor and no off-peak window -- so the caller can skip the feature
         entirely rather than reason about an "always allowed" plan.
         """
-        is_off_peak_now = self._resolve_off_peak_now()
+        is_off_peak_now = self._inputs.resolve_off_peak_now()
         if is_off_peak_now is None:
             return None
 
@@ -916,7 +760,7 @@ class SolarSurplusController:
                 # Only what is still missing counts towards the deadline.
                 energy_needed_kwh=needed_kwh,
                 charge_power_kw=self._planning_power_kw(data, available_currents, needed_kwh),
-                critical_peak=self._resolve_critical_peak_now(is_off_peak_now),
+                critical_peak=self._inputs.resolve_critical_peak_now(is_off_peak_now),
             )
         )
 
@@ -950,13 +794,14 @@ class SolarSurplusController:
         # faster than the flat estimate, for the same reason learning may not.
         return min(flat_kw, taper_kw) if flat_kw > 0 else taper_kw
 
-    def _active_charge_curve(self):
+    def _active_charge_curve(self) -> ChargeCurve | None:
         curves = getattr(self._coordinator, "vehicle_curves", None)
         if curves is None:
             return None
         tracker = getattr(self._coordinator, "vehicle_tracker", None)
         vehicle = tracker.active_vehicle if tracker is not None else None
-        return curves.curve_for(vehicle)
+        curve: ChargeCurve | None = curves.curve_for(vehicle)
+        return curve
 
     def _estimate_charge_power_kw(
         self,
@@ -980,7 +825,7 @@ class SolarSurplusController:
 
         theoretical_kw = (
             max(available_currents)
-            * _line_voltage(data)
+            * line_voltage(data)
             * self._settings.installation_phases
             / 1000.0
         )
@@ -998,284 +843,8 @@ class SolarSurplusController:
         vehicle = tracker.active_vehicle if tracker is not None else None
         try:
             return learned_power_kw(history.sessions, vehicle=vehicle)
-        except Exception as err:  # pragma: no cover - accounting must not break regulation
+        except Exception as err:  # pragma: no cover  # noqa: BLE001 - accounting is best effort
             LOGGER.debug("Could not learn a charge rate: %s", err)
-            return None
-
-    def _protection_cap(
-        self,
-        data: EVMetrics,
-        available_currents: tuple[int, ...],
-    ) -> tuple[int | None, str | None]:
-        """The tighter of the load-balancing and inverter caps.
-
-        Returns the binding cap and which limit produced it (``load_limit`` or
-        ``inverter_limit``), for the decision reason. ``(None, None)`` when
-        neither is configured or neither has a usable reading — a cap computed
-        from a missing measurement would either stop a healthy charge or fail to
-        protect, both worse than not capping.
-        """
-        candidates = (
-            ("load_limit", self._load_limit_current(data, available_currents)),
-            ("inverter_limit", self._inverter_limit_current(data, available_currents)),
-        )
-        binding_source: str | None = None
-        binding_cap: int | None = None
-        for source, cap in candidates:
-            if cap is None:
-                continue
-            if binding_cap is None or cap < binding_cap:
-                binding_cap, binding_source = cap, source
-        return binding_cap, binding_source
-
-    def _load_limit_current(
-        self,
-        data: EVMetrics,
-        available_currents: tuple[int, ...],
-    ) -> int | None:
-        """Highest current that keeps the house under its subscribed limit.
-
-        Returns None when load balancing is off or the grid reading is missing:
-        capping blind would be worse than not capping, since a stale or absent
-        measurement would either stop a healthy charge or fail to protect.
-        """
-        limit_w = self._settings.max_house_power_w
-        if limit_w <= 0:
-            return None
-        grid_power_w = self._read_grid_power_w()
-        if grid_power_w is None:
-            return None
-
-        headroom_w = headroom_for_car_w(
-            grid_power_w=grid_power_w,
-            ev_power_w=_ev_power_w(data),
-            house_limit_w=float(limit_w),
-        )
-        return cap_to_available_power(
-            available_currents,
-            headroom_w,
-            line_voltage=_line_voltage(data),
-            phases=self._settings.installation_phases,
-        )
-
-    def _inverter_limit_current(
-        self,
-        data: EVMetrics,
-        available_currents: tuple[int, ...],
-    ) -> int | None:
-        """Highest current that keeps total inverter output under its rating.
-
-        The measurement point is what distinguishes this from load balancing.
-        Load balancing reads the grid meter; on a hybrid inverter with the house
-        on its backup output, the battery covers a sudden household draw so the
-        grid meter stays near zero while the inverter is being overloaded past
-        its rating. This must therefore read *total* load — household plus car —
-        not the grid.
-
-        Announced-but-not-yet-measured loads are subtracted on top. A cap can
-        only react as fast as its sensor, and a hob is +2 kW in under a second,
-        so waiting for the measurement means reacting after the overload. The
-        reservation expires once the sensor has had time to catch up, which is
-        what stops the same appliance being counted twice.
-
-        Returns None, like load balancing, when disabled or the reading is
-        missing: a cap off a stale total-load figure is worse than none.
-        """
-        limit_w = self._settings.max_inverter_power_w
-        if limit_w <= 0:
-            return None
-        total_load_w = self._read_sensor_power_w(self._settings.total_load_sensor_entity_id)
-        if total_load_w is None:
-            return None
-
-        headroom_w = headroom_with_reservations(
-            limit_w=float(limit_w),
-            measured_load_w=total_load_w,
-            ev_power_w=_ev_power_w(data),
-            reserved_w=self._reserved_power_w(),
-        )
-        return cap_to_available_power(
-            available_currents,
-            headroom_w,
-            line_voltage=_line_voltage(data),
-            phases=self._settings.installation_phases,
-        )
-
-    def _reserved_power_w(self) -> float:
-        """Watts held back for appliances that have announced themselves."""
-        table = parse_reservations(self._settings.load_reservations)
-        if not table:
-            return 0.0
-        now = monotonic()
-        states = {
-            entity_id: (state.state if (state := self._hass.states.get(entity_id)) else None)
-            for entity_id in table
-        }
-        self._reservations.observe(table, states, now)
-        return self._reservations.reserved_w(table, now)
-
-    def _read_grid_power_w(self) -> float | None:
-        value = self._read_sensor_power_w(self._settings.grid_sensor_entity_id)
-        if value is None:
-            return None
-        if self._settings.grid_sensor_inverted:
-            return -value
-        return value
-
-    def _read_curtailment_power_w(self) -> float:
-        if not self._settings.curtailment_sensor_entity_id:
-            return 0.0
-        value = self._read_sensor_power_w(self._settings.curtailment_sensor_entity_id)
-        if value is None:
-            return 0.0
-        if self._settings.curtailment_sensor_inverted:
-            value = -value
-        return max(0.0, value)
-
-    def _read_battery_net_discharge_w(self) -> float | None:
-        if not self._settings.battery_net_discharge_sensor_entity_id:
-            return None
-        value = self._read_sensor_power_w(self._settings.battery_net_discharge_sensor_entity_id)
-        if value is None:
-            return None
-        if self._settings.battery_net_discharge_sensor_inverted:
-            value = -value
-        return max(0.0, value)
-
-    def _battery_discharge_over_limit_w(self) -> float:
-        measured_net_discharge_w = self._read_battery_net_discharge_w()
-        if measured_net_discharge_w is None:
-            return 0.0
-        return max(0.0, measured_net_discharge_w - self._allowed_battery_discharge_w())
-
-    def _allowed_battery_discharge_w(self) -> float:
-        if not self._settings.allow_battery_discharge_for_ev:
-            return 0.0
-        return max(0.0, float(self._settings.max_battery_discharge_for_ev_w))
-
-    def _is_battery_ready(self) -> bool:
-        if not self._settings.battery_soc_sensor_entity_id:
-            return True
-
-        soc = self._read_sensor_numeric(self._settings.battery_soc_sensor_entity_id)
-        if soc is None:
-            return False
-
-        self._battery_soc_hysteresis_enabled = battery_hysteresis(
-            soc,
-            high=float(self._settings.battery_soc_high_threshold_pct),
-            low=float(self._settings.battery_soc_low_threshold_pct),
-            enabled=self._battery_soc_hysteresis_enabled,
-        )
-        return self._battery_soc_hysteresis_enabled
-
-    def _read_external_charge_allowed(self) -> bool:
-        """Whether a configured external condition currently permits charging.
-
-        True when nothing is configured -- same discipline as every other
-        optional sensor here, this feature must never be why a charge fails
-        to start for someone who has not set it up. When configured, a
-        missing or unparsable reading fails *closed*, unlike the power
-        sensors below where a gap just means "no cap applied": what this
-        guards is a safety veto (e.g. an inverter's on-grid status), and a
-        gap in the reading is exactly when that protection matters most --
-        the same precedent `_is_battery_ready` already sets above.
-        """
-        entity_id = self._settings.external_charge_allowed_sensor_entity_id
-        if not entity_id:
-            return True
-        state = self._hass.states.get(entity_id)
-        if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
-            return False
-        value = _coerce_optional_bool(state.state)
-        if value is None:
-            return False
-        return (not value) if self._settings.external_charge_allowed_sensor_inverted else value
-
-    def _resolve_off_peak_now(self) -> bool | None:
-        """Whether it is off-peak right now, from whichever source is configured.
-
-        None means no tariff restriction is configured at all, so `plan_charge`
-        arbitrates nothing and charging is unrestricted -- same discipline as
-        every other optional feature here.
-
-        Once an off-peak sensor entity is set it is the sole source of truth:
-        windows stop gating (they remain usable as the cost-split fallback, see
-        `consume_session_off_peak_split`). Unlike `_read_external_charge_allowed`,
-        this fails *open* on an unavailable or unparsable reading rather than
-        falling back to windows -- a silent second source would make "why is it
-        (not) charging" depend on sensor availability, and windows are only
-        skipped here in the first place because malformed ones are already
-        ignored rather than fatal (`parse_windows`).
-        """
-        entity_id = self._settings.off_peak_sensor_entity_id
-        if entity_id:
-            state = self._hass.states.get(entity_id)
-            if state is not None and state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
-                value = _coerce_optional_bool(state.state)
-                if value is not None:
-                    return (not value) if self._settings.off_peak_sensor_inverted else value
-            return None
-
-        windows = parse_windows(self._settings.off_peak_windows)
-        if not windows:
-            return None
-        return is_within_windows(dt_util.now().time(), windows)
-
-    def _resolve_critical_peak_now(self, is_off_peak: bool | None) -> bool:
-        """Whether right now is worth treating as exceptionally expensive.
-
-        Only matters during peak hours -- off-peak pricing is untouched by
-        this signal in any tariff scheme this is meant to model, so a
-        critical reading during an off-peak window must not block the
-        battery-floor grid charge (#43's tier). Source-agnostic on purpose:
-        point this at a template built from a Tempo colour sensor, a
-        day-ahead spot-price threshold, or any other signal -- the
-        integration does not need to know which. Fails to False (the pre-B10
-        behaviour) if unconfigured or the sensor is unavailable: a stale
-        reading should not become a new way to surprise someone relying on
-        their departure deadline.
-        """
-        entity_id = self._settings.critical_peak_sensor_entity_id
-        if not entity_id or is_off_peak is not False:
-            return False
-        state = self._hass.states.get(entity_id)
-        if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
-            return False
-        value = _coerce_optional_bool(state.state)
-        if value is None:
-            return False
-        return (not value) if self._settings.critical_peak_sensor_inverted else value
-
-    def _read_sensor_power_w(self, entity_id: str) -> float | None:
-        if not entity_id:
-            return None
-        value = self._read_sensor_numeric(entity_id)
-        if value is None:
-            return None
-        state = self._hass.states.get(entity_id)
-        if state is None:
-            return None
-        unit = str(state.attributes.get("unit_of_measurement", "")).strip().lower()
-        if unit == "kw":
-            return value * 1000.0
-        return value
-
-    def _read_sensor_numeric(self, entity_id: str) -> float | None:
-        state = self._hass.states.get(entity_id)
-        if state is None:
-            return None
-        raw = state.state
-        if raw in (STATE_UNKNOWN, STATE_UNAVAILABLE, ""):
-            return None
-        try:
-            return float(str(raw).replace(",", "."))
-        except ValueError:
-            LOGGER.debug(
-                "Unable to parse numeric sensor '%s' value '%s'.",
-                entity_id,
-                raw,
-            )
             return None
 
     def _is_force_charge_active(self, now: float) -> bool:
@@ -1326,7 +895,7 @@ class SolarSurplusController:
         if elapsed_s <= 0:
             return
 
-        power_kw = _ev_power_w(data) / 1000.0
+        power_kw = ev_power_w(data) / 1000.0
         session_increment_kwh = power_kw * (elapsed_s / 3600.0)
         self._session_energy_kwh += max(0.0, session_increment_kwh)
         self._record_curve_sample(power_kw)
@@ -1337,7 +906,7 @@ class SolarSurplusController:
         # this feature existed.
         if self._settings.off_peak_sensor_entity_id:
             self._session_total_s += elapsed_s
-            if self._resolve_off_peak_now():
+            if self._inputs.resolve_off_peak_now():
                 self._session_off_peak_s += elapsed_s
 
     def session_off_peak_split(self) -> SessionSplit | None:
@@ -1378,7 +947,7 @@ class SolarSurplusController:
         vehicle = tracker.active_vehicle if tracker is not None else None
         try:
             curves.record(vehicle, self._session_energy_kwh, power_kw)
-        except Exception as err:  # pragma: no cover - accounting must not break regulation
+        except Exception as err:  # pragma: no cover  # noqa: BLE001 - accounting is best effort
             LOGGER.debug("Could not record a charge-curve sample: %s", err)
 
     def _set_decision(self, reason: str) -> None:
@@ -1398,281 +967,6 @@ class SolarSurplusController:
                 LOGGER.exception("Failed to update solar surplus listener state")
 
 
-def _settings_from_entry(entry: ConfigEntry) -> SolarSurplusSettings:
-    options = entry.options
-
-    legacy_high = _option_int(
-        options,
-        CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-        DEFAULT_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-        MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-        MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-    )
-    high = _option_int(
-        options,
-        CONF_SURPLUS_BATTERY_SOC_HIGH_THRESHOLD_PCT,
-        legacy_high,
-        MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-        MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-    )
-    if high <= MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT:
-        high = MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT + 1
-    low = _option_int(
-        options,
-        CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
-        min(DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT, high),
-        MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-        MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
-    )
-
-    if low >= high:
-        low = max(MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT, high - 1)
-    max_battery_discharge_for_ev_w = _option_int(
-        options,
-        CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-        DEFAULT_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-        MIN_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-        MAX_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
-    )
-    start_threshold_w = _option_int(
-        options,
-        CONF_SURPLUS_START_THRESHOLD_W,
-        DEFAULT_SURPLUS_START_THRESHOLD_W,
-        MIN_SURPLUS_THRESHOLD_W,
-        MAX_SURPLUS_THRESHOLD_W,
-    )
-    stop_threshold_w = _option_int(
-        options,
-        CONF_SURPLUS_STOP_THRESHOLD_W,
-        DEFAULT_SURPLUS_STOP_THRESHOLD_W,
-        MIN_SURPLUS_THRESHOLD_W,
-        MAX_SURPLUS_THRESHOLD_W,
-    )
-    if stop_threshold_w > start_threshold_w:
-        stop_threshold_w = start_threshold_w
-    adjust_up_cooldown_s = _option_int(
-        options,
-        CONF_SURPLUS_ADJUST_UP_COOLDOWN_S,
-        DEFAULT_SURPLUS_ADJUST_UP_COOLDOWN_S,
-        MIN_SURPLUS_DELAY_S,
-        MAX_SURPLUS_DELAY_S,
-    )
-    adjust_down_cooldown_s = _option_int(
-        options,
-        CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
-        DEFAULT_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
-        MIN_SURPLUS_DELAY_S,
-        MAX_SURPLUS_DELAY_S,
-    )
-
-    return SolarSurplusSettings(
-        mode_enabled=_option_bool(
-            options,
-            CONF_SURPLUS_MODE_ENABLED,
-            DEFAULT_SURPLUS_MODE_ENABLED,
-        ),
-        off_peak_windows=_option_str(options, CONF_OFF_PEAK_WINDOWS, DEFAULT_OFF_PEAK_WINDOWS),
-        off_peak_sensor_entity_id=_option_str(
-            options,
-            CONF_OFF_PEAK_SENSOR_ENTITY_ID,
-            DEFAULT_OFF_PEAK_SENSOR_ENTITY_ID,
-        ),
-        off_peak_sensor_inverted=_option_bool(
-            options,
-            CONF_OFF_PEAK_SENSOR_INVERTED,
-            DEFAULT_OFF_PEAK_SENSOR_INVERTED,
-        ),
-        critical_peak_sensor_entity_id=_option_str(
-            options,
-            CONF_CRITICAL_PEAK_SENSOR_ENTITY_ID,
-            DEFAULT_CRITICAL_PEAK_SENSOR_ENTITY_ID,
-        ),
-        critical_peak_sensor_inverted=_option_bool(
-            options,
-            CONF_CRITICAL_PEAK_SENSOR_INVERTED,
-            DEFAULT_CRITICAL_PEAK_SENSOR_INVERTED,
-        ),
-        departure_time=_option_str(options, CONF_DEPARTURE_TIME, DEFAULT_DEPARTURE_TIME),
-        departure_energy_kwh=_option_int(
-            options,
-            CONF_DEPARTURE_ENERGY_KWH,
-            DEFAULT_DEPARTURE_ENERGY_KWH,
-            MIN_DEPARTURE_ENERGY_KWH,
-            MAX_DEPARTURE_ENERGY_KWH,
-        ),
-        max_house_power_w=_option_int(
-            options,
-            CONF_MAX_HOUSE_POWER_W,
-            DEFAULT_MAX_HOUSE_POWER_W,
-            MIN_MAX_HOUSE_POWER_W,
-            MAX_MAX_HOUSE_POWER_W,
-        ),
-        max_inverter_power_w=_option_int(
-            options,
-            CONF_MAX_INVERTER_POWER_W,
-            DEFAULT_MAX_INVERTER_POWER_W,
-            MIN_MAX_HOUSE_POWER_W,
-            MAX_MAX_HOUSE_POWER_W,
-        ),
-        installation_phases=_option_installation_phases(
-            options,
-            CONF_INSTALLATION_PHASES,
-            DEFAULT_INSTALLATION_PHASES,
-        ),
-        total_load_sensor_entity_id=_option_str(
-            options,
-            CONF_TOTAL_LOAD_SENSOR_ENTITY_ID,
-            DEFAULT_TOTAL_LOAD_SENSOR_ENTITY_ID,
-        ),
-        load_reservations=_option_str(options, CONF_LOAD_RESERVATIONS, DEFAULT_LOAD_RESERVATIONS),
-        grid_sensor_entity_id=_option_str(
-            options,
-            CONF_SURPLUS_SENSOR_ENTITY_ID,
-            DEFAULT_SURPLUS_SENSOR_ENTITY_ID,
-        ),
-        grid_sensor_inverted=_option_bool(
-            options,
-            CONF_SURPLUS_SENSOR_INVERTED,
-            DEFAULT_SURPLUS_SENSOR_INVERTED,
-        ),
-        curtailment_sensor_entity_id=_option_str(
-            options,
-            CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
-            DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
-        ),
-        curtailment_sensor_inverted=_option_bool(
-            options,
-            CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
-            DEFAULT_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
-        ),
-        battery_soc_sensor_entity_id=_option_str(
-            options,
-            CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
-            DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
-        ),
-        battery_soc_high_threshold_pct=high,
-        battery_soc_low_threshold_pct=low,
-        battery_net_discharge_sensor_entity_id=_option_str(
-            options,
-            CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
-            DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
-        ),
-        battery_net_discharge_sensor_inverted=_option_bool(
-            options,
-            CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
-            DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_INVERTED,
-        ),
-        allow_battery_discharge_for_ev=_option_bool(
-            options,
-            CONF_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
-            DEFAULT_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
-        ),
-        max_battery_discharge_for_ev_w=max_battery_discharge_for_ev_w,
-        start_threshold_w=start_threshold_w,
-        stop_threshold_w=stop_threshold_w,
-        adjust_up_cooldown_s=adjust_up_cooldown_s,
-        adjust_down_cooldown_s=adjust_down_cooldown_s,
-        forecast_sensor_entity_id=_option_str(
-            options,
-            CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
-            DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
-        ),
-        external_charge_allowed_sensor_entity_id=_option_str(
-            options,
-            CONF_EXTERNAL_CHARGE_ALLOWED_SENSOR_ENTITY_ID,
-            DEFAULT_EXTERNAL_CHARGE_ALLOWED_SENSOR_ENTITY_ID,
-        ),
-        external_charge_allowed_sensor_inverted=_option_bool(
-            options,
-            CONF_EXTERNAL_CHARGE_ALLOWED_SENSOR_INVERTED,
-            DEFAULT_EXTERNAL_CHARGE_ALLOWED_SENSOR_INVERTED,
-        ),
-    )
-
-
-def _option_str(options: Any, key: str, default: str) -> str:
-    value = options.get(key, default)
-    if value is None:
-        return ""
-    text = str(value).strip()
-    if not text or text.lower() == "none":
-        return ""
-    return text
-
-
-def _option_bool(options: Any, key: str, default: bool) -> bool:
-    value = options.get(key, default)
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in {"1", "true", "on", "yes"}:
-            return True
-        if lowered in {"0", "false", "off", "no"}:
-            return False
-    return bool(value)
-
-
-def _option_int(
-    options: Any,
-    key: str,
-    default: int,
-    min_value: int,
-    max_value: int,
-) -> int:
-    try:
-        parsed = int(options.get(key, default))
-    except (TypeError, ValueError):
-        parsed = default
-    return max(min_value, min(max_value, parsed))
-
-
-def _option_installation_phases(options: Any, key: str, default: str) -> int:
-    """1 or 3 only -- a malformed or legacy value narrows to the single-phase
-    default rather than dividing by a nonsensical phase count."""
-    try:
-        parsed = int(options.get(key, default))
-    except (TypeError, ValueError):
-        return 1
-    return parsed if parsed == 3 else 1
-
-
-def _is_charging(data: EVMetrics) -> bool:
-    if data.do_charge is not None:
-        return data.do_charge
-    return data.work_state_debug == "WORKING"
-
-
-def _ev_power_w(data: EVMetrics) -> float:
-    """The car's total draw in watts, across all wired phases.
-
-    `total_power` sums the phases (in kW); on a three-phase charger, reading L1
-    alone would under-report by up to 3x, which in turn over-states the headroom
-    every current cap is computed against — the protection would then allow the
-    very overload it exists to prevent.
-    """
-    return max(0.0, (data.total_power or 0.0) * 1000.0)
-
-
-def _line_voltage(data: EVMetrics | None) -> int:
-    """The charger's own measured line voltage, when it looks sane, else the
-    nominal fallback.
-
-    Solar-heavy grids commonly run a few percent above nominal from PV export
-    raising local voltage -- a fixed 230 V would then under-estimate real power
-    draw for a given current, letting the protection caps overshoot their
-    configured limit by roughly that same percentage. The reading already
-    exists (DP 102, L1) at no extra cost to poll. Only L1 is read: L2/L3 can be
-    ambiguous between "not wired" and "wired but idle" (#41), but that
-    ambiguity does not apply to L1, which is always decoded whenever the
-    charger answers at all.
-    """
-    l1 = data.phases.get("L1") if data is not None else None
-    if l1 is None or l1.voltage < 100.0:
-        return FIXED_LINE_VOLTAGE_V
-    return round(l1.voltage)
-
-
 def _current_supported_by_surplus(
     available_currents: tuple[int, ...],
     effective_surplus_w: float,
@@ -1682,86 +976,3 @@ def _current_supported_by_surplus(
     return current_supported_by(
         effective_surplus_w, available_currents, line_voltage=line_voltage, phases=phases
     )
-
-
-def _parse_end_time(raw: str) -> int | None:
-    text = raw.strip()
-    if not text:
-        return None
-    parts = text.split(":", 1)
-    if len(parts) != 2:
-        return None
-    try:
-        hour = int(parts[0])
-        minute = int(parts[1])
-    except ValueError:
-        return None
-    if hour < 0 or hour > 23:
-        return None
-    if minute < 0 or minute > 59:
-        return None
-    return hour * 60 + minute
-
-
-def _coerce_optional_bool(value: Any) -> bool | None:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, int):
-        return bool(value)
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in {"true", "1", "on"}:
-            return True
-        if lowered in {"false", "0", "off"}:
-            return False
-    return None
-
-
-def _coerce_optional_int(value: Any) -> int | None:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _looks_like_metrics(value: Any) -> bool:
-    if isinstance(value, dict) and "L1" in value:
-        return True
-    if isinstance(value, str):
-        try:
-            payload = json.loads(value)
-        except json.JSONDecodeError:
-            return False
-        if isinstance(payload, dict) and "L1" in payload:
-            return True
-    return False
-
-
-def _looks_like_charger_info(value: Any) -> bool:
-    if isinstance(value, dict):
-        keys = {str(key).lower() for key in value}
-        if {"model", "manufacturer"}.intersection(keys):
-            return True
-    if isinstance(value, str):
-        try:
-            payload = json.loads(value)
-        except json.JSONDecodeError:
-            return False
-        if isinstance(payload, dict):
-            keys = {str(key).lower() for key in payload}
-            return bool({"model", "manufacturer"}.intersection(keys))
-    return False
-
-
-def _looks_like_current_target(value: Any) -> bool:
-    parsed = _coerce_optional_int(value)
-    if parsed is None:
-        return False
-    return 6 <= parsed <= 32
-
-
-def _looks_like_state_debug(value: Any) -> bool:
-    if not isinstance(value, str):
-        return False
-    normalized = value.strip().upper()
-    return normalized in {"STANDBY", "WORKING", "DONE", "FAULT"}

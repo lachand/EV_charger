@@ -93,7 +93,7 @@ def _charging_slower(sessions: list[_Session], established_best_kw: float | None
     rated = [s for s in sessions[:RECENT_WINDOW] if s.average_kw is not None]
     if len(rated) < SLOW_SESSIONS_REQUIRED:
         return False
-    slow = [s for s in rated if s.average_kw < threshold]
+    slow = [s for s in rated if s.average_kw is not None and s.average_kw < threshold]
     return len(slow) >= SLOW_SESSIONS_REQUIRED
 
 

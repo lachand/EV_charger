@@ -73,6 +73,11 @@ class TuyaEVChargerEntity(CoordinatorEntity[TuyaEVChargerDataUpdateCoordinator])
             str(data.product_variant) if data and data.product_variant is not None else None
         )
 
+        # Identity is the Tuya device id (gwId), the same value the config entry is
+        # unique on and every entity's unique_id is built from. It is a factory
+        # identifier, so it survives re-pairing and a new IP. The MAC is only a
+        # connection below -- it lets DHCP discovery follow the charger, but it is
+        # never the identity, because changing an id orphans entity history.
         device_info = DeviceInfo(
             identifiers={(DOMAIN, self._runtime_data.client.device_id)},
             name=self._entry.title,
