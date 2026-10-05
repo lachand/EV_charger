@@ -148,10 +148,10 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 - **Next concrete action:** B8 (carbon intensity) and B9 (daily forecast)
   follow the same shape as B10 — `charge_planner.py` already accepts
   windows/booleans resolved by the caller, so each is a matter of deriving
-  one from a sensor. The `todo`s left in `quality_scale.yaml` (services in
-  `async_setup`, strict typing, translated service exceptions) are the route
-  to gold.
-- **Suite:** 615 tests. CI green on all four jobs; `ruff format --check` now
+  one from a sensor. `quality_scale.yaml` is now an internal checklist, not a
+  tier claim (the manifest no longer declares one); it has no `todo` left
+  (config-flow coverage is 100%).
+- **Suite:** 1199 tests, 99% line coverage (measured; unreleased work). CI green on all four jobs; `ruff format --check` now
   enforced.
 - **Hardware (2.24.0 pass, charger at 192.168.1.236, fw 1.9.7, no DP 140):**
   `async_set_charge_enabled(False/True)` round-trips — `WORKING → PAUSE/204`,
@@ -189,7 +189,7 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 |---|---|---|
 | **A1** | ✅ 2.14.0 | The 2.5.0 refactor extracted the arithmetic but the orchestration kept growing: 1 197 → 1 425 lines, with `_async_evaluate_once` at 300 lines and 27 exit points. It had already cost the `force_charge_for` bug (2.13.1), guarded only by asserting on the method's *source text*. Now `charge_gates.py`: the order is a list, the timers are a passed-in `TimerState`, and one verdict per cycle. **300 → 31 lines; 25 duplicated exit blocks → 4.** |
 | **A2** | ✅ 2.20.0 | Ten modules had no tests (~1 350 lines). Done: `surplus_profiles.py` (it rewrites the user's stored options — the riskiest of the set) and `number.py` (the current-write path). **Left:** `switch.py` 181, `select.py` 139, `entity.py` 121, `repairs.py` 110, `time.py` 98, `binary_sensor.py` 85, `button.py` 78, `discovery.py` 66. |
-| **A3** | ✅ 2.20.0 | `manifest.json` declares `quality_scale: silver` but `quality_scale.yaml` is absent — the file Home Assistant checks the claim against. Writing it honestly (marking `todo`/`exempt`) reveals the gaps mechanically and maps a route to gold. |
+| **A3** | ✅ 2.20.0 | `manifest.json` declares `quality_scale: silver` but `quality_scale.yaml` is absent — the file Home Assistant checks the claim against. Writing it honestly (marking `todo`/`exempt`) reveals the gaps mechanically. **Since revised (unreleased):** the `quality_scale` key is gone from the manifest — a custom HACS integration is not graded, so a tier could not be verified — and the file is kept as an internal checklist. |
 | **A4** | ✅ 2.16.1 | 30 options in one flat screen. HA has supported collapsible `section`s since 2024.6; the data-driven `_OPTIONS_FORM` only needs a `section` field on `_Opt`. |
 | **A5** | ✅ 2.16.1 | `VERSION = 1` with no `async_migrate_entry`. Any change to `entry.data` would break existing installs with no net. |
 | **A6** | ◐ 2.15.0 (partial) | `SERVICE_DRY_RUN_SURPLUS` declared in `const.py`, registered nowhere — it survived the 2.4.0 purge. Also `DP_DO_RESET`, `DP_EARCH_FREE_CFG`, `DP_HEARTBEAT`, declared and unused. Implement rather than delete the first (see B2). **The service half shipped in 2.15.0** (see B2) — registered, schema'd, documented in `services.yaml`. The three DP constants are still declared and unused (checked again 2026-09-14); no plan to implement them, kept as documentation per the original note. |

@@ -477,6 +477,25 @@ diagnostics download.
 
 ---
 
+## How the charger is identified
+
+Home Assistant knows your charger by its Tuya **`device_id`** (also called the
+gwId). It is set at the factory and survives power cycles, re-pairing and a new IP
+address, so it is what the integration entry, the device and every entity's
+`unique_id` are built from. That is why changing the address or the `local_key`
+never loses your history.
+
+The **MAC address** is not an identity. It is learned from the network scan and
+registered only as a *connection* of the device, so DHCP discovery can follow the
+charger when its IP changes. If you ever replace the charger's Wi-Fi module, the
+MAC changes and nothing else does.
+
+Rewritten for you when they change: the IP address, the learned MAC and, if you
+configured cloud credentials, the `local_key`. Do not edit the `device_id` by
+hand: it would create a second set of entities instead of continuing the old one.
+
+---
+
 ## Reconfiguring
 
 Use **Configure → Reconfigure** to change the address, `device_id` or
@@ -518,7 +537,7 @@ charging, instead of holding the last value.
 | `off_peak_sensor_entity_id`, `off_peak_sensor_inverted` | Optional binary_sensor/input_boolean; authoritative over `off_peak_windows` for scheduling when set |
 | `departure_time` / `departure_energy_kwh` | Deadline that overrides the off-peak wait |
 | `critical_peak_sensor_entity_id`, `critical_peak_sensor_inverted` | Optional binary_sensor/input_boolean; when on during peak hours, suppresses the departure-deadline override above |
-| `off_peak_price` / `peak_price` | Price per kWh; enables session cost estimation |
+| `off_peak_price` / `peak_price` | Price per kWh, between -100 and 100 (a negative price is allowed); enables session cost estimation |
 | `surplus_mode_enabled` | Master switch for surplus mode |
 | `surplus_sensor_entity_id`, `surplus_sensor_inverted` | Grid power sensor and its sign |
 | `surplus_start_threshold_w`, `surplus_stop_threshold_w` | Start/stop thresholds |
@@ -654,7 +673,9 @@ Two entities:
 Set **Off-peak price per kWh** and **Peak price per kWh** to enable costing. One
 of the two is enough for a flat tariff. With both at `0` the cost is reported as
 *unknown* rather than as `0` — a sensor showing 0 € for every session reads as a
-working meter reporting free electricity.
+working meter reporting free electricity. A **negative** price (some tariffs pay
+you to consume at certain hours) is accepted and costed, so a session can show a
+negative cost, meaning a gain.
 
 **The cost is an estimate.** The charger gives a duration and a total, with no
 timestamps and no breakdown, so the off-peak share is reconstructed from the

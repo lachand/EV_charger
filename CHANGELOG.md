@@ -7,6 +7,75 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## Unreleased
+
+- **Documented how the charger is identified.** The Tuya device id (gwId) is the
+  identity of the entry, the device and every entity; the MAC is only a
+  device-registry connection used for DHCP discovery. This is unchanged
+  behaviour, now written down in the code and the README, and pinned by tests
+  so a future change cannot silently orphan users' entity history.
+
+- **Negative prices now work.** A negative off-peak or peak price (paid to consume
+  at certain hours) could not be entered, because the form only accepted 0 to
+  100; one stored some other way was shown as 0 and overwritten with 0 the next
+  time the options were saved; and a session was reported as "no cost" whenever
+  both prices were zero *or below*. The fields now accept -100 to 100, the sign
+  is kept end to end, and only two prices of exactly 0 mean "unpriced". A
+  negative cost means a gain.
+
+- **A hung charger can no longer freeze the integration.** Every blocking call to
+  the charger (status reads, writes, the port and host probes, closing the
+  socket) and the UDP scan now has a time limit, and so does the Tuya Cloud
+  lookup. A call that exceeds it drops the connection, which is rebuilt on the
+  next access, instead of holding the I/O lock that every poll and command
+  waits on. A write that times out is confirmed by reading it back rather than
+  reported as failed, since it may have been sent.
+- **Services exist before a charger is configured.** They are now registered
+  when the integration loads rather than when the first entry does, and each one
+  says why it cannot run (no entry loaded, several loaded, unknown entry,
+  vehicle tracking off) instead of being missing.
+- **Error messages are translated.** Failures raised to the UI and to
+  automations now carry translation keys (English and French) instead of fixed
+  English text.
+- **Surplus evaluation stops with its entry.** It runs as a background task of
+  the config entry, and a sensor update that was already queued can no longer
+  start one after the entry unloads.
+- **Narrower error handling.** Setup only converts the failures it can name into
+  "not ready"; the deliberate catch-alls (bookkeeping that must never break a
+  poll) are marked with the reason, and a lint rule now rejects new unmarked ones.
+- **Typing.** The component is type-checked with mypy in strict mode against
+  Home Assistant, in CI, and ships a `py.typed` marker.
+- **Internals.** `config_flow.py` is split into the setup steps and
+  `options_flow.py`, and the option parsing moves out of `solar_surplus.py` into
+  `surplus_settings.py`; the reading of sensors, tariff signals and the battery
+  gate moves into `surplus_reader.py`, the current ceilings and the power held
+  for announced appliances into `surplus_caps.py`, the profile assistant into
+  `profile_assistant.py`, and the metrics helpers into `surplus_metrics.py`
+  (`solar_surplus.py` goes from 1792 lines to 977). The charger client is split
+  the same way: the data-point profiles go to `dp_profile.py` and the decoding of a
+  status read to `charger_metrics.py`, where `decode_metrics` is now a pure
+  function testable without a client (`tuya_ev_charger.py` goes from 901 lines
+  to 435). All are moves with no change in
+  behaviour. The helpers that parse stored options and charger readings (three
+  copies of the integer reader, three of the boolean reader, three of the
+  "cleared picker" rule) are merged into `option_values.py`, with tests that pin
+  the behaviour every former copy relied on; the readers that differ on purpose
+  were left alone. One
+  options-description field was renamed (`min_value`/`max_value` to
+  `option_min`/`option_max`) because it shadowed a field of Home Assistant's
+  own number description.
+- **Tests.** 622 to 1199, with line coverage measured at 99% (it was 79%). New
+  suites cover the coordinator's recovery logic (relocation, key refresh, failure
+  messages), entry setup and unload, the client's connection handling, the
+  surplus controller's sensor and tariff inputs, the config and options flows,
+  the services, entity cleanup, diagnostics redaction, and every platform's
+  setup (including a pin on the entities' unique ids, which tie them to the
+  user's history and automations).
+- **No quality-scale claim.** `quality_scale` is removed from `manifest.json`.
+  This is a custom integration distributed through HACS, so no tier is awarded
+  and one could not be verified. `quality_scale.yaml` stays as an internal,
+  self-assessed checklist and says so.
+
 ## 2.26.2
 
 - **Follow-up to #41: uses the charger's own measured voltage, and suggests
