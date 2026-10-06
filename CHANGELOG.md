@@ -7,6 +7,19 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.27.0-beta3
+
+Pre-release: HACS offers it only with beta versions enabled.
+
+- **Regulate on the protection limits alone (#48).** New option for installs
+  that keep surplus mode off, e.g. a house that has priority over the car with no
+  solar. The caps used to only reduce the current; now the charge climbs back to
+  the highest current they allow, and restarts after a `*_no_headroom` stop. Off
+  by default, so nothing changes unless you turn it on.
+- **Docs: per-phase limit and fail-safe (#49).** The README explains how to use
+  *Maximum inverter output* / *Total household load sensor* as a per-phase limit,
+  and what happens when the sensor is unavailable.
+
 ## 2.27.0-beta2
 
 Pre-release: HACS offers it only with beta versions enabled.
