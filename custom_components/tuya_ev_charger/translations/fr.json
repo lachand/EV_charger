@@ -76,6 +76,7 @@
             "description": "Garder la maison, ou un onduleur hybride, sous son calibre.",
             "data": {
               "max_house_power_w": "Puissance max de la maison pour le delestage (W, 0 = desactive)",
+              "cap_only_regulation": "Regulation par les limites de protection seules (mode surplus desactive) : remonter au courant max qu'elles autorisent",
               "max_inverter_power_w": "Sortie max de l'onduleur (W, 0 = desactive) - protege un onduleur hybride ; requiert le capteur de charge totale ci-dessous",
               "total_load_sensor_entity_id": "Capteur de charge totale de la maison (pour la limite onduleur) - consommation totale, pas le compteur reseau",
               "external_charge_allowed_sensor_entity_id": "Capteur d'autorisation de charge externe (binary_sensor/input_boolean, optionnel) - ex. le statut on-grid d'un onduleur ; bloque la charge entierement si la reponse est non",
@@ -217,6 +218,8 @@
           "load_limit_reduced": "Reduit pour rester sous la limite de la maison",
           "min_runtime_guard": "Maintien : session trop courte pour s'arreter",
           "missing_grid_sensor": "Aucun capteur de puissance reseau configure",
+          "cap_only_regulating": "Regulation par les limites de protection",
+          "cap_only_start": "Demarrage : les limites de protection laissent de la marge",
           "mode_disabled": "Mode surplus desactive",
           "no_allowed_currents": "La borne n'offre aucun courant utilisable",
           "no_coordinator_data": "Pas encore de donnees de la borne",

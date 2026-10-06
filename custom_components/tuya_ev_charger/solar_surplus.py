@@ -407,6 +407,7 @@ class SolarSurplusController:
             protection_cap=protection_cap,
             cap_source=cap_source,
             surplus_mode_enabled=self._settings.mode_enabled,
+            cap_only_regulation=self._settings.cap_only_regulation,
             grid_sensor_configured=bool(self._settings.grid_sensor_entity_id),
             grid_power_w=grid_power_w,
             force_charge_active=self._is_force_charge_active(now),

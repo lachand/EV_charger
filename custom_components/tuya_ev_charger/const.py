@@ -130,6 +130,9 @@ INSTALLATION_PHASE_CHOICES: tuple[str, ...] = ("1", "3")
 # household draw from the grid meter. Read against total load, not the grid.
 CONF_MAX_INVERTER_POWER_W = "max_inverter_power_w"
 CONF_TOTAL_LOAD_SENSOR_ENTITY_ID = "total_load_sensor_entity_id"
+# With surplus mode off, aim for the highest current the protection caps allow
+# instead of only ever reducing to them (#48).
+CONF_CAP_ONLY_REGULATION = "cap_only_regulation"
 # Entities that announce a large load before the meter sees it, as
 # "switch.hob: 3000, switch.oven: 2500". Bridges the sensor's latency.
 CONF_LOAD_RESERVATIONS = "load_reservations"
@@ -269,6 +272,7 @@ DEFAULT_MIN_CHARGE_CURRENT_A = 0
 # existed, so nobody sees a behaviour change without opting in.
 DEFAULT_INSTALLATION_PHASES = "1"
 DEFAULT_MAX_INVERTER_POWER_W = 0
+DEFAULT_CAP_ONLY_REGULATION = False
 DEFAULT_TOTAL_LOAD_SENSOR_ENTITY_ID = ""
 DEFAULT_LOAD_RESERVATIONS = ""
 DEFAULT_EXTERNAL_CHARGE_ALLOWED_SENSOR_ENTITY_ID = ""

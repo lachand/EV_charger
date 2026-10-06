@@ -72,6 +72,15 @@ def test_the_gate_order_is_asserted_directly():
         < names.index("_gate_battery_floor_tariff_fallback")
         < names.index("_gate_grid_sensor")
     )
+    # Cap-only regulation must lose to protection reduce, tariff and pause, and
+    # decide before the surplus-off idle.
+    assert (
+        names.index("_gate_protection_reduce")
+        < names.index("_gate_tariff")
+        < names.index("_gate_pause")
+        < names.index("_gate_cap_only")
+        < names.index("_gate_mode_disabled")
+    )
 
 
 def test_the_narrowed_ladder_is_the_only_one_a_gate_can_see():
@@ -680,6 +689,102 @@ def test_a_protection_reduce_arms_the_hold():
     )
     assert verdict.reason.value == "inverter_limit_reduced"
     assert timers.last_protection_reduce_ts == 1000.0
+
+
+# --- cap-only regulation (#48) -------------------------------------------
+
+
+def _cap_only(**kwargs):
+    base = {
+        "surplus_mode_enabled": False,
+        "cap_only_regulation": True,
+        "available_currents": tuple(range(6, 17)),
+        "protection_cap": 16,
+        "cap_source": "load_limit",
+        "ramp_step": 2,
+    }
+    base.update(kwargs)
+    return _ctx(**base)
+
+
+def test_cap_only_off_keeps_the_mode_disabled_behaviour():
+    verdict = _run(
+        _cap_only(cap_only_regulation=False, is_charging=True, current_target=10), _timers()
+    )
+    assert verdict.reason.value == "mode_disabled"
+
+
+def test_cap_only_without_a_cap_reading_declines():
+    verdict = _run(
+        _cap_only(protection_cap=None, cap_source=None, is_charging=True, current_target=10),
+        _timers(),
+    )
+    assert verdict.reason.value == "mode_disabled"
+
+
+def test_cap_only_starts_the_charge_when_headroom_returns():
+    verdict = _run(_cap_only(is_charging=False), _timers())
+    assert verdict.action.value == "start_charge"
+    assert verdict.reason.value == "cap_only_start"
+    assert verdict.target_current == 6
+
+
+def test_cap_only_climbs_one_step_towards_the_cap():
+    verdict = _run(_cap_only(is_charging=True, current_target=10), _timers())
+    assert verdict.action.value == "set_current"
+    assert verdict.reason.value == "cap_only_regulating"
+    assert verdict.target_current == 12
+
+
+def test_cap_only_holds_at_the_cap():
+    verdict = _run(_cap_only(is_charging=True, current_target=16), _timers())
+    assert verdict.action.value == "hold"
+    assert verdict.reason.value == "cap_only_regulating"
+
+
+def test_cap_only_respects_the_up_cooldown_and_the_protection_hold():
+    cooling = _run(
+        _cap_only(is_charging=True, current_target=10, adjust_up_cooldown_s=30.0),
+        _timers(last_increase_action_ts=990.0),
+    )
+    assert cooling.reason.value == "adjust_cooldown_active"
+    held = _run(
+        _cap_only(is_charging=True, current_target=10, protection_hold_s=60.0),
+        _timers(last_protection_reduce_ts=980.0),
+    )
+    assert held.reason.value == "protection_hold"
+
+
+def test_cap_only_still_reduces_in_one_write_and_stops_without_headroom():
+    reduced = _run(
+        _cap_only(
+            is_charging=True,
+            current_target=16,
+            protection_cap=9,
+            available_currents=tuple(range(6, 10)),
+        ),
+        _timers(),
+    )
+    assert reduced.reason.value == "load_limit_reduced"
+    assert reduced.target_current == 9
+    stopped = _run(_cap_only(is_charging=True, current_target=10, available_currents=()), _timers())
+    assert stopped.action.value == "stop_charge"
+    assert stopped.reason.value == "load_limit_no_headroom"
+
+
+def test_cap_only_yields_to_an_active_pause():
+    verdict = _run(_cap_only(is_charging=True, current_target=10, pause_active=True), _timers())
+    assert verdict.reason.value == "surplus_paused_active"
+
+
+def test_a_pause_is_still_ignored_with_surplus_off_and_no_cap_only():
+    verdict = _run(
+        _cap_only(
+            cap_only_regulation=False, is_charging=True, current_target=10, pause_active=True
+        ),
+        _timers(),
+    )
+    assert verdict.reason.value == "mode_disabled"
 
 
 # --- helper ---------------------------------------------------------------

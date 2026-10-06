@@ -88,6 +88,10 @@ class DecisionReason(StrEnum):
     BATTERY_FLOOR_OFF_PEAK_START = "battery_floor_off_peak_start"
     BATTERY_FLOOR_OFF_PEAK_CHARGING = "battery_floor_off_peak_charging"
 
+    # Surplus mode off, but the protection caps drive the current (#48).
+    CAP_ONLY_START = "cap_only_start"
+    CAP_ONLY_REGULATING = "cap_only_regulating"
+
     MODE_DISABLED = "mode_disabled"
     SURPLUS_PAUSED = "surplus_paused"
     SURPLUS_PAUSED_ACTIVE = "surplus_paused_active"
@@ -166,6 +170,8 @@ class GateContext:
     cap_source: str | None = None
 
     surplus_mode_enabled: bool = False
+    # Surplus mode off: aim for the highest current the protection caps allow.
+    cap_only_regulation: bool = False
     grid_sensor_configured: bool = False
     grid_power_w: float | None = None
 
@@ -368,12 +374,76 @@ def _gate_mode_disabled(ctx: GateContext, timers: TimerState) -> Verdict | None:
 def _gate_pause(ctx: GateContext, timers: TimerState) -> Verdict | None:
     if not ctx.pause_active:
         return None
+    # Before cap-only regulation existed this gate sat behind `_gate_mode_disabled`,
+    # so with surplus mode off a pause was never consulted. Keep that.
+    if not ctx.surplus_mode_enabled and not ctx.cap_only_regulation:
+        return None
     return Verdict(
         action=GateAction.STOP_CHARGE,
         reason=DecisionReason.SURPLUS_PAUSED_ACTIVE,
         clear_debug=True,
         # A charge someone else started is not ours to stop.
         only_stop_own_session=True,
+    )
+
+
+def _gate_cap_only(ctx: GateContext, timers: TimerState) -> Verdict | None:
+    """With surplus mode off, regulate on the protection caps alone (#48).
+
+    `available_currents` is already narrowed by the caps and recomputed every
+    cycle, so `max_current` *is* the highest current the installation allows
+    right now: it drops when headroom shrinks and climbs back when it returns.
+    An empty ladder (`*_no_headroom`) stops the charge in `_gate_no_currents`,
+    and the first cycle with headroom again starts it here.
+
+    Declines without a usable cap reading (`protection_cap is None`): the last
+    setpoint is kept, the same fail-safe as the caps themselves. Reductions are
+    not done here but by `_gate_protection_reduce`, in one write and without a
+    cooldown; this gate only walks the current back up, one ramp step at a time.
+    """
+    if ctx.surplus_mode_enabled or not ctx.cap_only_regulation:
+        return None
+    if ctx.protection_cap is None or not ctx.available_currents:
+        return None
+
+    timers.start_candidate_since = None
+    timers.stop_candidate_since = None
+
+    if not ctx.is_charging:
+        return Verdict(
+            action=GateAction.START_CHARGE,
+            reason=DecisionReason.CAP_ONLY_START,
+            target_current=ctx.min_current,
+            regulation_active=True,
+        )
+
+    current = (
+        ctx.current_target if ctx.current_target in ctx.available_currents else ctx.min_current
+    )
+    ceiling = ctx.max_current
+    if current >= ceiling:
+        return Verdict(
+            action=GateAction.HOLD,
+            reason=DecisionReason.CAP_ONLY_REGULATING,
+            regulation_active=True,
+        )
+    if ctx.now - timers.last_increase_action_ts < ctx.adjust_up_cooldown_s:
+        return Verdict(
+            action=GateAction.HOLD,
+            reason=DecisionReason.ADJUST_COOLDOWN_ACTIVE,
+            regulation_active=True,
+        )
+    if _protection_hold_active(ctx, timers):
+        return Verdict(
+            action=GateAction.HOLD,
+            reason=DecisionReason.PROTECTION_HOLD,
+            regulation_active=True,
+        )
+    return Verdict(
+        action=GateAction.SET_CURRENT,
+        reason=DecisionReason.CAP_ONLY_REGULATING,
+        target_current=_ramp(current, ceiling, ctx.available_currents, ctx.ramp_step),
+        regulation_active=True,
     )
 
 
@@ -679,8 +749,9 @@ GATES: tuple[Gate, ...] = (
     _gate_force_charge,
     _gate_protection_reduce,
     _gate_tariff,
-    _gate_mode_disabled,
     _gate_pause,
+    _gate_cap_only,
+    _gate_mode_disabled,
     _gate_battery_floor_tariff_fallback,
     _gate_grid_sensor,
     _gate_charging,

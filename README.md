@@ -202,7 +202,9 @@ house — car included — under that limit: it caps the charging current, and s
 charging outright if even the minimum current would not fit.
 
 This is a safety limit, not a surplus feature: it applies **whether or not
-surplus mode is on**, and nothing raises the current above the cap afterwards.
+surplus mode is on**, and by default nothing raises the current above the cap
+afterwards (see [Regulating on the limits alone](#regulating-on-the-limits-alone)
+to change that).
 With no grid sensor, or when its reading is unavailable, no cap is applied —
 capping on a stale measurement would be worse than not capping at all.
 
@@ -241,6 +243,69 @@ Two things worth being clear about:
 Both protection limits can be set at once; the tighter of the two applies — and
 they also bound `force_charge_for`, since forcing a charge overrides scheduling,
 not the physical limits of the installation.
+
+### Per-phase limit on a three-phase installation
+
+The two limits work without any inverter or solar panels, which is the point
+when the house must keep priority over the car. The names are the misleading
+part: on a single-phase charger fed from a three-phase installation, read them as
+"the limit of the phase the charger is on".
+
+| Setting | What to put in it |
+|---|---|
+| **Total household load sensor** | Power of the **charger's phase**, charger included (one sensor per phase is the usual setup; pick the right one) |
+| **Maximum inverter output** | The power you accept on that phase, in watts (e.g. `3680` for 16 A at 230 V) |
+| **Installation phases** | How the **charger** is wired (`1` for a single-phase charger), not the installation |
+
+The cap is independent of surplus mode and of the **Grid power sensor**: you can
+use it with surplus mode off and no grid sensor at all.
+
+### If the sensor goes away (fail-safe)
+
+- **Sensor `unavailable` or missing**: no cap is applied and the **last setpoint
+  is kept**. The integration does not guess; a cap from a stale reading would
+  either stop a healthy charge or fail to protect.
+- **Stopping the charge when the measurement is lost**: use **External
+  charge-allowed sensor**, which fails *closed* (an `unavailable` sensor blocks
+  charging). Point it at a template `binary_sensor` that checks both that the
+  measurement exists and that it is fresh:
+
+  ```yaml
+  template:
+    - binary_sensor:
+        - name: "Charger phase measurement is fresh"
+          state: >
+            {% set s = states.sensor.house_power_phase_l1 %}
+            {{ s is not none
+               and s.state not in ['unavailable', 'unknown']
+               and (now() - s.last_updated).total_seconds() < 120 }}
+  ```
+
+- **Restarting after such a stop** is not automatic unless you also enable
+  [Regulating on the limits alone](#regulating-on-the-limits-alone): the
+  external sensor blocks the charge, and once it allows it again the charge starts
+  again only with that option, a surplus start or a manual start.
+
+### Regulating on the limits alone
+
+By default a cap only ever **reduces** the current. With surplus mode off, that
+leaves the charge stuck at the reduced value (or stopped) when the headroom comes
+back. Turn on **Regulate on the protection limits alone** and, with surplus mode
+off, the integration instead aims for the **highest current the caps allow**:
+
+- it steps the current up (ramp step and up-cooldown as usual, plus the 60 s hold
+  after a cap reduced it) until it reaches the cap, which follows your headroom;
+- it reduces in one write when the cap drops, and stops when not even the minimum
+  current fits (`*_no_headroom`);
+- it starts the charge again, at the minimum current, as soon as headroom returns.
+
+Typical case: a house that has priority, no solar, a 16 A single-phase charger on
+a three-phase supply and a sensor per phase. 16 A normally; less when the heat
+pump starts; stopped if nothing is left; back up automatically afterwards.
+
+It needs at least one limit with a working sensor: without a reading nothing is
+regulated and the last setpoint is kept. A pause, a tariff window and the external
+sensor keep priority over it, and with surplus mode on it has no effect.
 
 ### Reacting before the meter moves
 
@@ -530,6 +595,7 @@ charging, instead of holding the last value.
 | `max_charge_current_a` / `min_charge_current_a` | Your circuit's rating; `0` uses the charger's |
 | `installation_phases` | `1` or `3`; scales every watts-to-amps conversion (surplus target, both protection caps) |
 | `max_inverter_power_w` / `total_load_sensor_entity_id` | Cap total load under a hybrid inverter's rating; `0` disables |
+| `cap_only_regulation` | With surplus mode off, climb back to the highest current the protection caps allow and restart after a no-headroom stop (default off) |
 | `external_charge_allowed_sensor_entity_id`, `external_charge_allowed_sensor_inverted` | Optional binary_sensor/input_boolean gate; blocks charging entirely, even `force_charge_for`, when it says no |
 | `vehicles` | Comma-separated car names; enables per-vehicle tracking |
 | `max_house_power_w` | Subscribed power for load balancing; `0` disables it |

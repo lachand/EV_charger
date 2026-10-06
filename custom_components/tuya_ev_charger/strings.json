@@ -107,6 +107,7 @@
             "description": "Keep the whole house, or a hybrid inverter, under its rating.",
             "data": {
               "max_house_power_w": "Maximum house power for load balancing (W, 0 = off)",
+              "cap_only_regulation": "Regulate on the protection limits alone (surplus mode off): climb back to the highest current they allow",
               "max_inverter_power_w": "Maximum inverter output (W, 0 = off) - protects a hybrid inverter; needs the total-load sensor below",
               "total_load_sensor_entity_id": "Total household load sensor (for the inverter limit) - total consumption, not the grid meter",
               "external_charge_allowed_sensor_entity_id": "External charge-allowed sensor (binary_sensor/input_boolean, optional) - e.g. an inverter's on-grid status; blocks charging entirely when it says no",
@@ -248,6 +249,8 @@
           "load_limit_reduced": "Reduced to stay under the house power limit",
           "min_runtime_guard": "Holding: the session is too short to stop yet",
           "missing_grid_sensor": "No grid power sensor configured",
+          "cap_only_regulating": "Regulating on the protection limits",
+          "cap_only_start": "Starting: the protection limits leave headroom",
           "mode_disabled": "Surplus mode is off",
           "no_allowed_currents": "The charger offers no usable current",
           "no_coordinator_data": "No data from the charger yet",
