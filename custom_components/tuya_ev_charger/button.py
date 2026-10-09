@@ -24,14 +24,12 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     runtime_data: TuyaEVChargerRuntimeData = entry.runtime_data
-    client = runtime_data.client
-    # A button whose DP the firmware lacks could only ever fail (#46).
-    buttons: list[ButtonEntity] = []
-    if client.has_dp("reboot"):
-        buttons.append(TuyaEVChargerRebootButton(entry, runtime_data))
-    if client.has_dp("work_state"):
-        buttons.append(TuyaEVChargerReadyToChargeButton(entry, runtime_data))
-    async_add_entities(buttons)
+    async_add_entities(
+        [
+            TuyaEVChargerRebootButton(entry, runtime_data),
+            TuyaEVChargerReadyToChargeButton(entry, runtime_data),
+        ]
+    )
 
 
 class TuyaEVChargerReadyToChargeButton(TuyaEVChargerEntity, ButtonEntity):

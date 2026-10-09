@@ -150,9 +150,9 @@ class _Hass:
         )
 
 
-def _coordinator(*, host="192.168.1.10", new_key=None, discovery=None):
+def _coordinator(*, host="192.168.1.10", new_key=None, discovery=None, has_dp=None):
     return types.SimpleNamespace(
-        client=types.SimpleNamespace(host=host),
+        client=types.SimpleNamespace(host=host, has_dp=has_dp or (lambda field: True)),
         new_local_key=new_key,
         last_discovery=discovery,
         data="metrics",
@@ -414,6 +414,15 @@ def test_entities_the_hardware_lacks_are_disabled_outright(monkeypatch):
     asyncio.run(pkg._async_tidy_entities(_Hass(), _entry(), _coordinator()))
 
     assert calls.disabled == [({"voltage_l3"}, "this charger does not expose")]
+
+
+def test_entities_whose_dp_the_profile_lacks_are_disabled_too(monkeypatch):
+    pkg, calls = _tidy(monkeypatch, registry_entries=[])
+    coordinator = _coordinator(has_dp=lambda field: field != "reboot")
+
+    asyncio.run(pkg._async_tidy_entities(_Hass(), _entry(), coordinator))
+
+    assert calls.disabled == [({"voltage_l3", "reboot_charger"}, "this charger does not expose")]
 
 
 def test_working_advanced_entities_are_only_offered_to_the_user(monkeypatch):

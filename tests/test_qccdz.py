@@ -235,13 +235,31 @@ def test_a_command_with_no_dp_on_this_firmware_is_refused_without_writing():
     assert client._device.set_calls == []
 
 
-def test_buttons_without_a_dp_are_not_created():
-    from tuya_ev_charger import button
+def test_entities_backed_by_a_missing_dp_are_listed_for_disabling():
+    from tuya_ev_charger.entity_cleanup import missing_dp_entity_keys
 
-    added: list = []
-    client = type("C", (), {"has_dp": lambda self, field: field not in {"reboot", "work_state"}})()
-    entry = type("E", (), {"runtime_data": type("R", (), {"client": client})()})()
+    client = _client(CHARGING)
 
-    asyncio.run(button.async_setup_entry(None, entry, added.extend))
+    assert missing_dp_entity_keys(client.has_dp) == {
+        "reboot_charger",
+        "ready_to_charge",
+        "schedule_enabled",
+        "schedule_start",
+        "schedule_end",
+    }
 
-    assert added == []
+
+def test_depow_v2_keeps_every_dp_backed_entity():
+    from tuya_ev_charger.entity_cleanup import missing_dp_entity_keys
+    from tuya_ev_charger.tuya_ev_charger import TuyaEVChargerClient
+
+    client = TuyaEVChargerClient("dev", "1.2.3.4", "key", "3.5", charger_profile="depow_v2")
+
+    assert missing_dp_entity_keys(client.has_dp) == set()
+
+
+def test_the_schedule_is_not_written_on_a_firmware_without_it():
+    client = _client(CHARGING)
+
+    assert asyncio.run(client.async_set_schedule(True, "22:00", "06:00")) is False
+    assert client._device.set_calls == []

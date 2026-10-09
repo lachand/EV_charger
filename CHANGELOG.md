@@ -31,8 +31,11 @@ published normally** and HACS offers them without enabling beta versions.
   setpoint on DP 4 (1–16 A). The DP map comes from the device's Tuya Thing Model
   and the scales are checked against the dumps in #46. Like DP 102, DP 48/49 keep
   their last reading after unplugging, so they only count while charging. The
-  profile assistant now suggests it, and the *Restart* / *Ready to charge*
-  buttons are not created on a profile that has no DP for them.
+  profile assistant now suggests it.
+- **Entities whose DP the profile lacks are disabled once**, the same way as the
+  unwired phases and NFC: *Restart*, *Ready to charge* and the charging schedule
+  (switch and both times) on `qccdz_v1`. The schedule DP (151) is now part of the
+  profile, so a firmware without it is never written to.
 
 ## 2.27.0-beta3
 

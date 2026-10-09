@@ -15,7 +15,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from .const import (
-    DP_SCHEDULE,
     QCCDZ_DP_CONNECTION_STATE,
     QCCDZ_DP_CURRENT,
     QCCDZ_DP_POWER,
@@ -133,7 +132,7 @@ def decode_metrics(dps: dict[str, Any], dp: DPProfile) -> EVMetrics:
     """Decode one status read (a DP-number -> value mapping) into ``EVMetrics``."""
     metrics_dict = _parse_json_object(dps.get(dp.metrics, "{}"))
     charger_info = _parse_json_object(dps.get(dp.charger_info, "{}"))
-    schedule_dict = _parse_json_object(dps.get(DP_SCHEDULE, "{}"))
+    schedule_dict = _parse_json_object(dps.get(dp.schedule, "{}"))
     history_dict = _parse_json_object(dps.get(dp.charge_history, "{}"))
 
     work_state_debug = _coerce_optional_text(dps.get(dp.work_state_debug)) or "UNKNOWN"

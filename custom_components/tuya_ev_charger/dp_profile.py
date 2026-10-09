@@ -33,6 +33,7 @@ from .const import (
     DP_NUM,
     DP_PRODUCT_VARIANT,
     DP_REBOOT,
+    DP_SCHEDULE,
     DP_SELFTEST,
     DP_SOCKET_CFG,
     DP_WORK_STATE,
@@ -65,6 +66,7 @@ class DPProfile:
     dp_num: str
     reboot: str
     plug_in_action: str
+    schedule: str
 
 
 DP_PROFILE_MAP: dict[str, DPProfile] = {
@@ -86,6 +88,7 @@ DP_PROFILE_MAP: dict[str, DPProfile] = {
         dp_num=DP_NUM,
         reboot=DP_REBOOT,
         plug_in_action=DP_SOCKET_CFG,
+        schedule=DP_SCHEDULE,
     ),
     # Generic profile currently mirrors depow_v2 mappings and is meant as
     # an extension point for additional charger firmwares.
@@ -107,6 +110,7 @@ DP_PROFILE_MAP: dict[str, DPProfile] = {
         dp_num=DP_NUM,
         reboot=DP_REBOOT,
         plug_in_action=DP_SOCKET_CFG,
+        schedule=DP_SCHEDULE,
     ),
     # Scalar DPs instead of the DP 102 blob, decoded by `decode_qccdz_metrics`.
     # An empty DP means "this firmware has no such DP": it reads as absent and
@@ -129,6 +133,7 @@ DP_PROFILE_MAP: dict[str, DPProfile] = {
         dp_num="",
         reboot="",
         plug_in_action="",
+        schedule="",
     ),
 }
 

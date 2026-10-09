@@ -21,7 +21,6 @@ from .const import (
     CHARGER_PROFILE_QCCDZ_V1,
     DEFAULT_CHARGER_PROFILE,
     DEFAULT_CHARGER_PROFILE_JSON,
-    DP_SCHEDULE,
     TUYA_CONTROL_PORT,
     ConnectionFault,
 )
@@ -320,7 +319,7 @@ class TuyaEVChargerClient:
             {"m": 2 if enabled else 0, "dt": 0, "ss": start, "se": end},
             separators=(",", ":"),
         )
-        return await self._async_send_command(DP_SCHEDULE, payload, verify=False)
+        return await self._async_send_command(self._dp.schedule, payload, verify=False)
 
     async def async_get_raw_dps(self) -> dict[str, Any] | None:
         async with self._io_lock:

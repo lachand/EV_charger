@@ -13,7 +13,7 @@ at most once, ever. Anything the user does afterwards stands.
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import HomeAssistant
@@ -97,4 +97,22 @@ def unavailable_capability_keys(metrics: EVMetrics) -> set[str]:
     if metrics.nfc_enabled is None:
         keys.add("nfc_enabled")
 
+    return keys
+
+
+# Entities that only write a DP; a profile without that DP (#46) leaves them
+# with nothing to do but fail.
+_DP_BACKED_ENTITY_KEYS: dict[str, frozenset[str]] = {
+    "reboot": frozenset({"reboot_charger"}),
+    "work_state": frozenset({"ready_to_charge"}),
+    "schedule": frozenset({"schedule_enabled", "schedule_start", "schedule_end"}),
+}
+
+
+def missing_dp_entity_keys(has_dp: Callable[[str], bool]) -> set[str]:
+    """Entity keys whose DP this charger's profile does not have."""
+    keys: set[str] = set()
+    for field, entity_keys in _DP_BACKED_ENTITY_KEYS.items():
+        if not has_dp(field):
+            keys.update(entity_keys)
     return keys

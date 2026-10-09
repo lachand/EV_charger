@@ -51,6 +51,7 @@ from .coordinator import TuyaEVChargerDataUpdateCoordinator
 from .entity_cleanup import (
     async_disable_entities,
     is_already_handled,
+    missing_dp_entity_keys,
     unavailable_capability_keys,
 )
 from .errors import validation_error
@@ -323,7 +324,8 @@ async def _async_tidy_entities(
     await async_disable_entities(
         hass,
         entry.entry_id,
-        unavailable_capability_keys(coordinator.data),
+        unavailable_capability_keys(coordinator.data)
+        | missing_dp_entity_keys(coordinator.client.has_dp),
         reason="this charger does not expose",
     )
 
