@@ -13,11 +13,15 @@ from typing import Any
 
 from .const import (
     CHARGER_PROFILE_DEPOW_V2,
+    CHARGER_PROFILE_QCCDZ_V1,
     DP_CHARGER_INFO,
     DP_CURRENT_TARGET,
     DP_DO_CHARGE,
     DP_METRICS,
     DP_WORK_STATE_DEBUG,
+    QCCDZ_DP_CONNECTION_STATE,
+    QCCDZ_DP_CURRENT_TARGET,
+    QCCDZ_DP_SWITCH,
 )
 from .option_values import coerce_optional_bool, coerce_optional_int
 from .tuya_ev_charger import TuyaEVChargerClient
@@ -47,6 +51,17 @@ async def profile_assistant_report(client: TuyaEVChargerClient) -> dict[str, Any
         if looks_like_state_debug(value):
             candidates["work_state_debug"].append(dp_id)
 
+    return {
+        "suggested_profile": suggest_profile(dps),
+        "detected_dp_ids": sorted(dps.keys()),
+        "candidates": candidates,
+        "sample_values": {key: dps[key] for key in sorted(dps.keys())[:15]},
+    }
+
+
+def suggest_profile(dps: dict[str, Any]) -> str:
+    """The built-in profile whose DP layout this raw read matches best."""
+    present = set(dps.keys())
     known_depows = {
         DP_METRICS,
         DP_CHARGER_INFO,
@@ -54,16 +69,18 @@ async def profile_assistant_report(client: TuyaEVChargerClient) -> dict[str, Any
         DP_CURRENT_TARGET,
         DP_WORK_STATE_DEBUG,
     }
-    suggestion = (
-        CHARGER_PROFILE_DEPOW_V2 if known_depows.issubset(set(dps.keys())) else "generic_v1"
-    )
-
-    return {
-        "suggested_profile": suggestion,
-        "detected_dp_ids": sorted(dps.keys()),
-        "candidates": candidates,
-        "sample_values": {key: dps[key] for key in sorted(dps.keys())[:15]},
-    }
+    if known_depows.issubset(present):
+        return CHARGER_PROFILE_DEPOW_V2
+    # Tuya's standard `qccdz` layout: pilot state, switch and setpoint, and no
+    # DP 102 blob (#46). DP 13 is checked by value: the number alone is generic.
+    known_qccdz = {QCCDZ_DP_CONNECTION_STATE, QCCDZ_DP_SWITCH, QCCDZ_DP_CURRENT_TARGET}
+    if (
+        known_qccdz.issubset(present)
+        and DP_METRICS not in present
+        and str(dps[QCCDZ_DP_CONNECTION_STATE]).startswith("controlpi_")
+    ):
+        return CHARGER_PROFILE_QCCDZ_V1
+    return "generic_v1"
 
 
 def looks_like_metrics(value: Any) -> bool:

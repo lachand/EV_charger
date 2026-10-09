@@ -23,6 +23,16 @@ published normally** and HACS offers them without enabling beta versions.
   in again -- the same key. The banner now needs the replies to stay unreadable
   for 10 minutes as well; until then the poll keeps retrying. The connection
   health report gained `undecryptable_for_s` to tell the two cases apart.
+- **New `qccdz_v1` profile for the dé portable firmwares without DP 102 (#46).**
+  dé portable 3.5/3.7 kW units on firmware 1.1.25 and later use Tuya's standard EV
+  charger layout (category `qccdz`): power, current and voltage as scalar DPs
+  48/49/50 in tenths, session energy on DP 25 in hundredths of a kWh, state on
+  DP 38 (`evse_state`, DP 13 pilot state as fallback), on/off on DP 18 and the
+  setpoint on DP 4 (1–16 A). The DP map comes from the device's Tuya Thing Model
+  and the scales are checked against the dumps in #46. Like DP 102, DP 48/49 keep
+  their last reading after unplugging, so they only count while charging. The
+  profile assistant now suggests it, and the *Restart* / *Ready to charge*
+  buttons are not created on a profile that has no DP for them.
 
 ## 2.27.0-beta3
 

@@ -848,6 +848,10 @@ Confirmed working:
 - dé Portable EV Charger 3.5 kW (single-phase) — reference device
 - dé Mobile Wallbox 11 kW, 3-phase (CEE 16 A) — L1/L2/L3 exposed
 - Other Tuya chargers using protocol 3.3 / 3.4 / 3.5 with the same DP layout
+- dé Portable EV Charger 3.5 / 3.7 kW on firmware 1.1.25+ (Tuya category
+  `qccdz`, no DP 102) — pick the **`qccdz_v1`** profile (#46). Power, current,
+  voltage, session energy, status, temperature, faults, on/off and setpoint are
+  supported; the schedule, NFC and plug-in action are not mapped yet
 
 If your charger reports a different DP layout, use `charger_profile_json` to
 supply a custom mapping, and please open an issue with a DP dump taken **while

@@ -13,10 +13,12 @@ from .charger_metrics import (
     PLUG_IN_ACTION_MAP,
     EVMetrics,
     decode_metrics,
+    decode_qccdz_metrics,
     values_match,
 )
 from .const import (
     ALLOWED_CURRENTS,
+    CHARGER_PROFILE_QCCDZ_V1,
     DEFAULT_CHARGER_PROFILE,
     DEFAULT_CHARGER_PROFILE_JSON,
     DP_SCHEDULE,
@@ -95,6 +97,10 @@ class TuyaEVChargerClient:
     @property
     def dp_profile(self) -> str:
         return self._dp_profile
+
+    def has_dp(self, field: str) -> bool:
+        """Whether this charger's profile maps ``field`` (a DPProfile name) to a DP."""
+        return bool(getattr(self._dp, field, ""))
 
     async def async_connect(self) -> None:
         async with self._io_lock:
@@ -305,6 +311,8 @@ class TuyaEVChargerClient:
             dps = await self._async_get_dps_payload()
         if dps is None:
             return None
+        if self._dp_profile == CHARGER_PROFILE_QCCDZ_V1:
+            return decode_qccdz_metrics(dps, self._dp)
         return decode_metrics(dps, self._dp)
 
     async def async_set_schedule(self, enabled: bool, start: str, end: str) -> bool:
@@ -334,7 +342,13 @@ class TuyaEVChargerClient:
 
         Only the first is a failure. The other two fall through to read-back
         verification, which already tolerates a charger that never echoes the DP.
+
+        An empty ``dp_id`` is a profile saying this firmware has no such DP (#46);
+        writing it would hand tinytuya a nonsense key, so it is refused here.
         """
+        if not dp_id:
+            LOGGER.debug("This charger's profile has no DP for that command; not sent.")
+            return False
         async with self._io_lock:
             device = self._get_device()
             try:

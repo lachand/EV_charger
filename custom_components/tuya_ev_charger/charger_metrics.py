@@ -14,7 +14,18 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from .const import DP_SCHEDULE
+from .const import (
+    DP_SCHEDULE,
+    QCCDZ_DP_CONNECTION_STATE,
+    QCCDZ_DP_CURRENT,
+    QCCDZ_DP_POWER,
+    QCCDZ_DP_SESSION_ENERGY,
+    QCCDZ_DP_SYSTEM_VERSION,
+    QCCDZ_DP_TEMPERATURE,
+    QCCDZ_DP_VOLTAGE,
+    QCCDZ_FAULT_LABELS,
+    QCCDZ_MAX_CURRENT_A,
+)
 from .dp_profile import DPProfile
 from .option_values import coerce_optional_bool, coerce_optional_int
 
@@ -172,6 +183,111 @@ def decode_metrics(dps: dict[str, Any], dp: DPProfile) -> EVMetrics:
         schedule_start=_coerce_optional_text(schedule_dict.get("ss")),
         schedule_end=_coerce_optional_text(schedule_dict.get("se")),
     )
+
+
+# `qccdz` firmwares report their state in Tuya's standard vocabulary (DP 38
+# `evse_state`, DP 13 pilot state). Translated to the DP 109 words the rest of
+# the code already reasons about (switch hold-off, surplus, poll pacing), so no
+# consumer needs to know which family it is talking to.
+QCCDZ_EVSE_STATE_MAP: dict[str, str] = {
+    "not_plugged_in": "IDLE",
+    "plugged_in_no_demand": "IDLEINS",
+    "plugged_in_demand": "WAIT",
+    "plugged_in_charging": WORK_STATE_CHARGING,
+    "session_ending": "STOP",
+    "fault": "ERRORPAUSE",
+}
+# Fallback when DP 38 is missing: IEC 61851 pilot levels (A = 12 V, B = 9 V,
+# C = 6 V; `_pwm` once the charger offers current).
+QCCDZ_PILOT_STATE_MAP: dict[str, str] = {
+    "controlpi_12v": "IDLE",
+    "controlpi_12v_pwm": "IDLE",
+    "controlpi_9v": "IDLEINS",
+    "controlpi_9v_pwm": "IDLEINS",
+    "controlpi_6v": "WAIT",
+    "controlpi_6v_pwm": WORK_STATE_CHARGING,
+    "controlpi_error": "ERRORPAUSE",
+}
+
+
+def decode_qccdz_metrics(dps: dict[str, Any], dp: DPProfile) -> EVMetrics:
+    """Decode a `qccdz` firmware's scalar DPs into ``EVMetrics`` (#46).
+
+    Power, current and voltage arrive as plain integers in tenths (DP 48/49/50)
+    and the session energy in hundredths of a kWh (DP 25). Like DP 102 on the
+    depow_v2 firmwares, DP 48/49 keep their last value after the car is
+    unplugged (#46: 1.4 kW / 6.0 A reported with no car), so power and current
+    only count while the charger says it is charging.
+    """
+    raw_state = _coerce_optional_text(dps.get(dp.work_state_debug))
+    pilot = _coerce_optional_text(dps.get(QCCDZ_DP_CONNECTION_STATE))
+    if raw_state is not None:
+        work_state_debug = QCCDZ_EVSE_STATE_MAP.get(raw_state.lower(), raw_state.upper())
+    elif pilot is not None:
+        work_state_debug = QCCDZ_PILOT_STATE_MAP.get(pilot.lower(), "UNKNOWN")
+    else:
+        work_state_debug = "UNKNOWN"
+    charging = work_state_debug == WORK_STATE_CHARGING
+
+    phases: dict[str, PhaseMetrics] = {}
+    raw_voltage = _coerce_optional_float(dps.get(QCCDZ_DP_VOLTAGE))
+    raw_current = _coerce_optional_float(dps.get(QCCDZ_DP_CURRENT))
+    raw_power = _coerce_optional_float(dps.get(QCCDZ_DP_POWER))
+    if raw_voltage is not None or raw_current is not None:
+        voltage = (raw_voltage or 0.0) / 10.0
+        current = (raw_current or 0.0) / 10.0 if charging else 0.0
+        phases["L1"] = PhaseMetrics(
+            voltage=voltage,
+            current=current,
+            power=round(voltage * current / 1000.0, 3),
+            raw_power=round((raw_power or 0.0) / 10.0, 2),
+        )
+    l1 = phases.get("L1")
+
+    energy = _coerce_optional_float(dps.get(QCCDZ_DP_SESSION_ENERGY))
+    firmware = _coerce_optional_text(dps.get(QCCDZ_DP_SYSTEM_VERSION))
+
+    return EVMetrics(
+        voltage_l1=l1.voltage if l1 else 0.0,
+        current_l1=l1.current if l1 else 0.0,
+        power_l1=l1.power if l1 else 0.0,
+        phases=phases,
+        total_power=l1.power if l1 else 0.0,
+        session_energy_kwh=round(energy / 100.0, 2) if energy is not None else None,
+        session_duration_s=None,
+        last_session_energy_kwh=None,
+        last_session_duration_s=None,
+        temperature=_coerce_float(dps.get(QCCDZ_DP_TEMPERATURE, 0)),
+        work_state=None,
+        work_state_debug=work_state_debug,
+        status=STATUS_MAP.get(work_state_debug),
+        plug_in_action=None,
+        do_charge=coerce_optional_bool(dps.get(dp.do_charge)),
+        current_target=coerce_optional_int(dps.get(dp.current_target)),
+        max_current_cfg=QCCDZ_MAX_CURRENT_A,
+        nfc_enabled=None,
+        downcounter=None,
+        selftest=None,
+        alarm=_qccdz_fault_text(dps.get(dp.alarm)),
+        adjust_current_options=None,
+        product_variant=None,
+        charger_info={"sw_version": firmware} if firmware else {},
+        schedule_enabled=False,
+        schedule_start=None,
+        schedule_end=None,
+    )
+
+
+def _qccdz_fault_text(raw_value: Any) -> str | None:
+    """Name the bits set in the DP 10 fault bitmap; None when there is no fault."""
+    bits = coerce_optional_int(raw_value)
+    if not bits:
+        return None
+    names = [label for i, label in enumerate(QCCDZ_FAULT_LABELS) if bits & (1 << i)]
+    unknown = bits >> len(QCCDZ_FAULT_LABELS)
+    if unknown:
+        names.append(f"unknown_{unknown << len(QCCDZ_FAULT_LABELS):#x}")
+    return ",".join(names)
 
 
 def _parse_phases(

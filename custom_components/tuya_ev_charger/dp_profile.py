@@ -17,6 +17,7 @@ from .const import (
     CHARGER_PROFILE_CUSTOM_JSON,
     CHARGER_PROFILE_DEPOW_V2,
     CHARGER_PROFILE_GENERIC_V1,
+    CHARGER_PROFILE_QCCDZ_V1,
     CHARGER_PROFILES,
     DEFAULT_CHARGER_PROFILE,
     DP_ADJUST_CURRENT,
@@ -36,6 +37,10 @@ from .const import (
     DP_SOCKET_CFG,
     DP_WORK_STATE,
     DP_WORK_STATE_DEBUG,
+    QCCDZ_DP_CURRENT_TARGET,
+    QCCDZ_DP_EVSE_STATE,
+    QCCDZ_DP_FAULT,
+    QCCDZ_DP_SWITCH,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -102,6 +107,28 @@ DP_PROFILE_MAP: dict[str, DPProfile] = {
         dp_num=DP_NUM,
         reboot=DP_REBOOT,
         plug_in_action=DP_SOCKET_CFG,
+    ),
+    # Scalar DPs instead of the DP 102 blob, decoded by `decode_qccdz_metrics`.
+    # An empty DP means "this firmware has no such DP": it reads as absent and
+    # the client refuses to write it (#46).
+    CHARGER_PROFILE_QCCDZ_V1: DPProfile(
+        metrics="",
+        charger_info="",
+        work_state="",
+        work_state_debug=QCCDZ_DP_EVSE_STATE,
+        do_charge=QCCDZ_DP_SWITCH,
+        current_target=QCCDZ_DP_CURRENT_TARGET,
+        max_current_cfg="",
+        nfc_cfg="",
+        downcounter="",
+        selftest="",
+        alarm=QCCDZ_DP_FAULT,
+        charge_history="",
+        adjust_current="",
+        product_variant="",
+        dp_num="",
+        reboot="",
+        plug_in_action="",
     ),
 }
 

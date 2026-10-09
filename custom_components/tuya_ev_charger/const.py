@@ -212,11 +212,15 @@ SURPLUS_PROFILES: tuple[str, ...] = (
 
 CHARGER_PROFILE_DEPOW_V2 = "depow_v2"
 CHARGER_PROFILE_GENERIC_V1 = "generic_v1"
+# Firmwares built on Tuya's standard EV charger category (`qccdz`), with scalar
+# DPs instead of the DP 102 JSON blob -- dé portable 3.5/3.7 kW on 1.1.25+ (#46).
+CHARGER_PROFILE_QCCDZ_V1 = "qccdz_v1"
 CHARGER_PROFILE_CUSTOM_JSON = "custom_json"
 CHARGER_PROFILES: tuple[str, ...] = (
     CHARGER_PROFILE_CUSTOM_JSON,
     CHARGER_PROFILE_DEPOW_V2,
     CHARGER_PROFILE_GENERIC_V1,
+    CHARGER_PROFILE_QCCDZ_V1,
 )
 
 SURPLUS_MODE_CLASSIC = "classic"
@@ -439,3 +443,39 @@ DP_REBOOT = "142"
 # the original device report in #5 mapped it wrongly.
 DP_HEARTBEAT = "188"  # unused
 DP_NUM = "189"
+
+# Tuya standard EV charger category (`qccdz`) layout, from the device's Thing Model
+# (Tuya IoT "Query Things Data Model") and cross-checked against real dumps in #46.
+# Scales are the Thing Model's: 48/49/50 in tenths, 25 in hundredths.
+QCCDZ_DP_CURRENT_TARGET = "4"  # charge_cur_set, 1-16 A
+QCCDZ_DP_FAULT = "10"  # fault bitmap, labels below
+QCCDZ_DP_CONNECTION_STATE = "13"  # controlpi_* pilot state
+QCCDZ_DP_SWITCH = "18"  # switch: charging allowed
+QCCDZ_DP_SYSTEM_VERSION = "23"
+QCCDZ_DP_TEMPERATURE = "24"  # degrees C
+QCCDZ_DP_SESSION_ENERGY = "25"  # charge_energy_once, 0.01 kWh
+QCCDZ_DP_EVSE_STATE = "38"
+QCCDZ_DP_POWER = "48"  # charge_power, 0.1 kW
+QCCDZ_DP_CURRENT = "49"  # charge_current, 0.1 A
+QCCDZ_DP_VOLTAGE = "50"  # charge_voltage, 0.1 V
+# Upper bound of charge_cur_set in the Thing Model; there is no DP 152 equivalent.
+QCCDZ_MAX_CURRENT_A = 16
+QCCDZ_FAULT_LABELS: tuple[str, ...] = (
+    "ov_cr",
+    "ov2_cr_fault",
+    "ov_vol",
+    "undervoltage_alarm",
+    "contactor_adhesion",
+    "contactor_fault",
+    "earth_fault",
+    "meter_hardware_alarm",
+    "scram_fault",
+    "cp_fault",
+    "meter_commu_fault",
+    "card_reader_fault",
+    "cir_short_fault",
+    "adhesion_fault",
+    "self_test_alarm",
+    "leakagecurr_alarm",
+    "high_temp",
+)
