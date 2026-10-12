@@ -145,6 +145,10 @@ https://github.com/vineetchoudhary/tuya-local-key
 5. Installez **Tuya Local Key** depuis l'App Store.
 6. Ouvrez l'application depuis Home Assistant.
 
+![Tuya Local Key - installation](images/22-Tuya-Local-Key-installation.png)
+
+*Capture 22 - Instructions d'installation de Tuya Local Key dans Home Assistant. Le dépôt à ajouter est `https://github.com/vineetchoudhary/tuya-local-key`.*
+
 L'application utilise Home Assistant Ingress par défaut. Il n'est pas nécessaire d'exposer son port directement sur Internet.
 
 ## 6.2 Se connecter au compte Smart Life
@@ -158,7 +162,7 @@ Le flux de connexion utilise un QR code.
 5. Scannez le QR code.
 6. Confirmez la connexion demandée pour **Home Assistant**.
 
-Après connexion, la liste des appareils du compte apparaît.
+Après connexion, la liste des appareils du compte apparaît. **Tuya Local Key récupère alors directement, sur le même écran, le Device ID et la `local_key` du chargeur.**
 
 > Si votre appareil est associé à **Tuya Smart** plutôt qu'à Smart Life et que le QR code ne fonctionne pas, Tuya Local Key prévoit également le schéma `tuyaSmart`. Consultez sa documentation pour ce cas.
 
@@ -168,9 +172,14 @@ Dans la liste des appareils :
 
 1. repérez **dé EV Charger**
 2. vérifiez qu'il est indiqué **online**
-3. copiez sa **Local Key**
+3. relevez le **Device ID**
+4. copiez sa **Local Key**
 
-L'outil peut également afficher le Device ID, le Product ID et d'autres informations utiles.
+![Tuya Local Key - CRO détecté](images/23-Tuya-Local-Key-CRO.png)
+
+*Capture 23 - Le CRO apparaît directement dans Tuya Local Key avec son état, son Device ID, sa Local Key et son Product ID. Les identifiants sensibles sont masqués dans cette capture publique.*
+
+Le principal intérêt de cette méthode est donc de récupérer **Device ID + local_key en une seule connexion** au compte Smart Life / Tuya, sans créer de Cloud Project.
 
 > **Secret :** ne publiez jamais votre `local_key`. Elle doit être masquée dans toute capture destinée à GitHub.
 
@@ -399,4 +408,6 @@ Ce guide est basé sur une installation réellement testée et sur un second tes
 | 19 | HA - protocole 3.5 / depow_v2 | Étape 7 |
 | 20 | HA - configuration / diagnostic | Étape 8 |
 | 21 | HA - test 6 A → 7 A | Étape 9 |
+| 22 | Tuya Local Key - installation | Étape 6.1 |
+| 23 | Tuya Local Key - CRO / Device ID / local_key | Étape 6.3 |
 
