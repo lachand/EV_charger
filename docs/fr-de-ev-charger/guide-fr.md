@@ -95,13 +95,11 @@ Deux méthodes permettent de récupérer la `local_key` :
 
 # 4. Installer Tuya EV Charger Local avec HACS
 
-Si **Tuya EV Charger Local** apparaît déjà dans votre HACS, installez-la directement.
-
-Sinon, ajoutez d'abord le dépôt comme dépôt personnalisé :
+Sur une **installation neuve**, ajoutez d'abord le dépôt de Valentin comme dépôt personnalisé HACS :
 
 1. Ouvrez **HACS → Intégrations**.
 2. Ouvrez le menu en haut à droite puis **Dépôts personnalisés / Custom repositories**.
-3. Ajoutez le dépôt :
+3. Ajoutez :
 
 ```text
 https://github.com/lachand/EV_charger
@@ -111,7 +109,7 @@ https://github.com/lachand/EV_charger
 5. Recherchez ensuite **Tuya EV Charger Local** dans HACS et installez-la.
 6. Redémarrez Home Assistant si HACS le demande.
 
-> Le README actuel de l'intégration documente encore l'ajout du dépôt personnalisé. Si l'intégration est déjà visible dans votre HACS, cette étape a simplement déjà été faite sur votre installation.
+> Si **Tuya EV Charger Local** apparaît déjà dans votre HACS, ne rajoutez rien : le dépôt est déjà connu de votre installation. Installez simplement l'intégration.
 
 # 5. Méthode recommandée : récupérer la local_key avec Tuya Local Key
 
