@@ -75,9 +75,9 @@ Deux méthodes permettent de récupérer la `local_key` :
 
 > **Conseil :** évitez de réappairer inutilement le CRO une fois l'installation fonctionnelle. Un nouvel appairage peut modifier la `local_key`.
 
-# 3. Ce que donne l'intégration Tuya officielle
+# 3. Facultatif : ce que donne l'intégration Tuya officielle
 
-Dans l'installation testée, l'intégration Tuya officielle de Home Assistant voit bien le CRO, mais le classe comme appareil non pris en charge et ne crée aucune entité exploitable.
+**Cette étape n'est pas nécessaire pour suivre le guide.** Dans l'installation testée, l'intégration Tuya officielle de Home Assistant voit bien le CRO, mais le classe comme appareil non pris en charge et ne crée aucune entité exploitable.
 
 ![Capture 05](images/05-HA-Tuya-officiel-CRO-sans-entites.webp)
 
@@ -91,45 +91,35 @@ Dans l'installation testée, l'intégration Tuya officielle de Home Assistant vo
 
 # 4. Installer Tuya EV Charger Local avec HACS
 
-1. Ouvrez HACS dans Home Assistant.
-2. Dans **HACS → Intégrations**, recherchez **Tuya EV Charger Local**.
-3. Ouvrez l'intégration lorsqu'elle apparaît dans le store HACS, puis installez-la.
-4. Redémarrez Home Assistant si HACS le demande.
+Si **Tuya EV Charger Local** apparaît déjà dans votre HACS, installez-la directement.
 
+Sinon, ajoutez d'abord le dépôt comme dépôt personnalisé :
 
-# 5. Détecter le CRO sur le réseau local
+1. Ouvrez **HACS → Intégrations**.
+2. Ouvrez le menu en haut à droite puis **Dépôts personnalisés / Custom repositories**.
+3. Ajoutez le dépôt :
 
-Dans **Paramètres → Appareils et services → Ajouter une intégration**, recherchez **Tuya EV Charger Local**.
+```text
+https://github.com/lachand/EV_charger
+```
 
-Choisissez **Scan network**.
+4. Choisissez la catégorie **Integration**.
+5. Recherchez ensuite **Tuya EV Charger Local** dans HACS et installez-la.
+6. Redémarrez Home Assistant si HACS le demande.
 
-![Capture 08](images/08-HA-Tuya-EV-Charger-Local-methode-configuration.webp)
+> Le README actuel de l'intégration documente encore l'ajout du dépôt personnalisé. Si l'intégration est déjà visible dans votre HACS, cette étape a simplement déjà été faite sur votre installation.
 
-*Capture 08 - Le scan réseau découvre le chargeur et son adresse locale.*
-
-Le scan permet de retrouver automatiquement :
-
-- l'adresse IP locale
-- le Device ID
-- la version de protocole Tuya
-
-Il manque encore la `local_key`.
-
-![Capture 09](images/09-HA-CRO-credentials-local-key-manquante.webp)
-
-*Capture 09 - Écran « Charger credentials » : la local_key manque encore. IP et Device ID sont masqués dans cette version publique.*
-
-# 6. Méthode recommandée : récupérer la local_key avec Tuya Local Key
+# 5. Méthode recommandée : récupérer la local_key avec Tuya Local Key
 
 Cette méthode est la plus simple pour une nouvelle installation.
 
-Le projet utilisé est :
+Projet utilisé :
 
 https://github.com/vineetchoudhary/tuya-local-key
 
 Sa documentation indique explicitement qu'il ne nécessite **ni compte Tuya Developer, ni Cloud Project, ni Access ID, ni Access Secret**.
 
-## 6.1 Installer Tuya Local Key dans Home Assistant
+## 5.1 Installer Tuya Local Key dans Home Assistant
 
 Pour Home Assistant OS :
 
@@ -147,67 +137,94 @@ https://github.com/vineetchoudhary/tuya-local-key
 
 ![Tuya Local Key - installation](images/22-Tuya-Local-Key-installation.webp)
 
-*Capture 22 - Instructions d'installation de Tuya Local Key dans Home Assistant. Le dépôt à ajouter est `https://github.com/vineetchoudhary/tuya-local-key`.*
+*Capture 22 - Instructions d'installation de Tuya Local Key dans Home Assistant.*
 
 L'application utilise Home Assistant Ingress par défaut. Il n'est pas nécessaire d'exposer son port directement sur Internet.
 
-## 6.2 Se connecter au compte Smart Life
+## 5.2 Se connecter au compte Smart Life ou Tuya Smart
 
 Le flux de connexion utilise un QR code.
 
-1. Dans Smart Life, relevez votre **User Code / Code utilisateur** dans les paramètres du compte.
-2. Saisissez ce code dans Tuya Local Key.
-3. L'outil affiche un QR code.
-4. Dans Smart Life, utilisez la fonction de scan.
-5. Scannez le QR code.
-6. Confirmez la connexion demandée pour **Home Assistant**.
+Avec **Smart Life** :
 
-Après connexion, la liste des appareils du compte apparaît. **Tuya Local Key récupère alors directement, sur le même écran, le Device ID et la `local_key` du chargeur.**
+1. relevez le **User Code / Code utilisateur** dans **Me → Settings → Account and Security → User Code**
+2. saisissez ce code dans Tuya Local Key
+3. l'outil affiche un QR code
+4. scannez-le avec Smart Life
+5. confirmez la connexion dans l'application
 
-> Si votre appareil est associé à **Tuya Smart** plutôt qu'à Smart Life et que le QR code ne fonctionne pas, Tuya Local Key prévoit également le schéma `tuyaSmart`. Consultez sa documentation pour ce cas.
+Le schéma QR par défaut de Tuya Local Key est `smartlife`.
 
-## 6.3 Copier la local_key du CRO
+Si vous utilisez **Tuya Smart**, ouvrez la configuration de l'application Tuya Local Key et choisissez le schéma QR `tuyaSmart` si nécessaire.
+
+Après connexion, la liste des appareils du compte apparaît. **Tuya Local Key récupère directement le Device ID et la `local_key` du chargeur.**
+
+## 5.3 Copier la local_key du CRO
 
 Dans la liste des appareils :
 
 1. repérez **dé EV Charger**
 2. vérifiez qu'il est indiqué **online**
-3. relevez le **Device ID**
+3. repérez son **Device ID**
 4. copiez sa **Local Key**
 
 ![Tuya Local Key - CRO détecté](images/23-Tuya-Local-Key-CRO.webp)
 
-*Capture 23 - Le CRO apparaît directement dans Tuya Local Key avec son état, son Device ID, sa Local Key et son Product ID. Les identifiants sensibles sont masqués dans cette capture publique.*
+*Capture 23 - Le CRO apparaît dans Tuya Local Key avec son état, son Device ID, sa Local Key et son Product ID. Les identifiants sensibles sont masqués.*
 
-Le principal intérêt de cette méthode est donc de récupérer **Device ID + local_key en une seule connexion** au compte Smart Life / Tuya, sans créer de Cloud Project.
+Le Device ID est utile pour vérifier que vous sélectionnez ensuite le bon appareil, mais vous n'avez pas besoin de le recopier manuellement si le scan de Tuya EV Charger Local fonctionne.
 
-> **Secret :** ne publiez jamais votre `local_key`. Elle doit être masquée dans toute capture destinée à GitHub.
+> **Secret :** ne publiez jamais votre `local_key`. Tuya Local Key peut mettre en cache la liste des appareils dans Home Assistant ; traitez donc également les sauvegardes de cette application comme des données sensibles.
 
-# 7. Ajouter le CRO dans Tuya EV Charger Local
+# 6. Ajouter le CRO dans Tuya EV Charger Local
 
-Revenez dans l'assistant de configuration de **Tuya EV Charger Local**.
+Dans **Paramètres → Appareils et services → Ajouter une intégration**, recherchez **Tuya EV Charger Local**.
 
-Si vous avez utilisé **Scan network**, l'IP et le Device ID sont déjà remplis.
+Choisissez **Scan network**.
+
+![Capture 08](images/08-HA-Tuya-EV-Charger-Local-methode-configuration.webp)
+
+*Capture 08 - Le scan réseau découvre les appareils Tuya présents sur le réseau local.*
+
+Le scan de Tuya EV Charger Local écoute les annonces Tuya et préremplit :
+
+- l'adresse IP locale
+- le Device ID
+- la version de protocole Tuya
+
+> **Réseau :** ce scan nécessite que Home Assistant soit sur le **même sous-réseau** que le CRO. Les broadcasts UDP Tuya ne traversent pas les VLAN ni la plupart des répéteurs Wi-Fi fonctionnant en NAT.
+
+Sélectionnez le CRO correspondant au Device ID relevé dans Tuya Local Key.
 
 Dans **Charger credentials** :
 
-1. collez la `local_key`
-2. conservez le protocole détecté si celui-ci est correct
-3. sur le modèle testé, choisissez :
+1. vérifiez l'IP et le Device ID
+2. collez la `local_key`
+3. sur le modèle testé, utilisez :
    - **Protocol version : 3.5**
    - **Charger profile / DP mapping : depow_v2**
 4. validez
 
+![Capture 09](images/09-HA-CRO-credentials-local-key-manquante.webp)
+
+*Capture 09 - Écran « Charger credentials ». Sur cette capture, la local_key n'était pas encore renseignée ; IP et Device ID sont masqués.*
+
 ![Capture 19](images/19-HA-CRO-protocole-3.5-depow-v2.webp)
 
-*Capture 19 - Paramètres validés sur le modèle testé : protocole 3.5 et profil depow_v2. Les identifiants locaux ont été masqués.*
+*Capture 19 - Paramètres validés sur le modèle testé : protocole 3.5 et profil depow_v2.*
 
 ```text
 Protocol version: 3.5
 Charger profile / DP mapping: depow_v2
 ```
 
-# 8. Vérifier l'intégration dans Home Assistant
+### Si le scan réseau ne trouve pas le CRO
+
+Vous pouvez choisir **Enter everything manually** dans Tuya EV Charger Local si vous connaissez déjà l'IP, le Device ID, la `local_key` et le protocole.
+
+Tuya Local Key possède aussi son propre bouton **Scan network** : il peut rechercher l'IP locale et la version de protocole sur un sous-réseau indiqué manuellement, y compris à travers un VLAN si le pare-feu autorise TCP 6668 depuis Home Assistant.
+
+# 7. Vérifier l'intégration dans Home Assistant
 
 Une fois l'intégration validée, Home Assistant crée l'appareil et expose les contrôles, capteurs et options disponibles.
 
@@ -227,7 +244,7 @@ Entités importantes :
 - **Session energy** : énergie de la session
 - **Solar surplus mode** : laissé désactivé dans ce premier tutoriel
 
-# 9. Premier test sans véhicule : 6 A → 7 A
+# 8. Premier test sans véhicule : 6 A → 7 A
 
 Le réglage de courant peut être testé sans véhicule.
 
@@ -241,7 +258,7 @@ Cela confirme que le CRO accepte des pas de 1 A, même si Smart Life présente s
 
 > **Résultat du test :** la commande provoque un bip immédiat du CRO, puis Home Assistant relit la nouvelle consigne quelques secondes plus tard.
 
-# 10. Test de coupure secteur
+# 9. Test de coupure secteur
 
 Un test complémentaire a été réalisé avec une consigne laissée à **8 A** :
 
@@ -255,13 +272,15 @@ Après redémarrage, la consigne **8 A** était toujours présente.
 
 Après une coupure, le statut peut également rester temporairement `unknown` avant de redevenir cohérent.
 
-# 11. Méthode avancée alternative : récupération via Tuya Cloud
+# 10. Méthode avancée alternative : récupération via Tuya Cloud
 
 La méthode Cloud reste disponible si vous préférez que **Tuya EV Charger Local** récupère directement le Device ID et la `local_key`.
 
-Elle est plus longue à configurer, mais présente un avantage : les identifiants Cloud peuvent permettre à l'intégration de récupérer une nouvelle `local_key` après un réappairage du CRO.
+Elle est plus longue à configurer, mais présente un avantage : les identifiants Cloud permettent à l'intégration de récupérer automatiquement une nouvelle `local_key` après un réappairage du CRO.
 
-## 11.1 Choisir Fetch credentials from Tuya Cloud
+> **À savoir :** le README actuel de l'intégration indique que les projets d'essai Tuya IoT expirent après environ **1 mois** et peuvent être prolongés jusqu'à environ **6 mois**. Après expiration, la récupération Cloud cesse de fonctionner, mais le pilotage local du CRO continue.
+
+## 10.1 Choisir Fetch credentials from Tuya Cloud
 
 Dans l'ajout de Tuya EV Charger Local, choisissez **Fetch credentials from Tuya Cloud**.
 
@@ -269,7 +288,7 @@ Dans l'ajout de Tuya EV Charger Local, choisissez **Fetch credentials from Tuya 
 
 *Capture 10 - Écran Tuya Cloud credentials. L'Access Secret ne doit jamais être publié.*
 
-## 11.2 Créer un compte Tuya Developer
+## 10.2 Créer un compte Tuya Developer
 
 1. Rendez-vous sur https://iot.tuya.com
 2. créez ou activez un compte développeur
@@ -283,7 +302,7 @@ Dans l'ajout de Tuya EV Charger Local, choisissez **Fetch credentials from Tuya 
 
 *Capture 12 - Accueil de la Tuya Developer Platform.*
 
-## 11.3 Créer le Cloud Project
+## 10.3 Créer le Cloud Project
 
 1. ouvrez **Cloud → Project Management**
 2. créez un projet, par exemple **Home Assistant EV Charger**
@@ -321,7 +340,7 @@ Dans **Overview**, relevez :
 
 *Capture 15 - Les identifiants sensibles sont masqués dans la version publique.*
 
-## 11.4 Relier le compte de l'application Tuya au projet
+## 10.4 Relier le compte de l'application Tuya au projet
 
 Dans **Devices → Link Tuya App Account**, associez le compte de l'application dans laquelle le CRO est réellement appairé.
 
@@ -335,7 +354,7 @@ Vous pouvez utiliser **Custom Link** pour n'associer que le CRO.
 
 *Capture 17 - Un seul appareil associé au projet.*
 
-## 11.5 Retour dans Home Assistant
+## 10.5 Retour dans Home Assistant
 
 Dans **Tuya EV Charger Local** :
 
@@ -350,7 +369,7 @@ Dans **Tuya EV Charger Local** :
 
 L'intégration remplit alors automatiquement la `local_key` et retrouve le chargeur sur le LAN.
 
-## 11.6 Si Home Assistant indique « aucun appareil dans ce projet Tuya IoT »
+## 10.6 Si Home Assistant indique « aucun appareil dans ce projet Tuya IoT »
 
 Avant de recréer le projet ou de réappairer le CRO, vérifiez les points suivants :
 
@@ -371,7 +390,7 @@ Dans la configuration testée, les services proposés comprenaient notamment **I
 
 Si cette méthode reste bloquée, la méthode **Tuya Local Key** décrite plus haut permet de récupérer directement le Device ID et la `local_key` sans dépendre du Cloud Project.
 
-# 12. Conseils réseau et dépannage
+# 11. Conseils réseau et dépannage
 
 - Utilisez un Wi-Fi 2,4 GHz stable au niveau du CRO.
 - Home Assistant doit pouvoir joindre le chargeur sur le réseau local.
@@ -381,8 +400,9 @@ Si cette méthode reste bloquée, la méthode **Tuya Local Key** décrite plus h
 - Laissez le planning interne désactivé tant que vous n'en avez pas besoin.
 - N'activez pas le mode « no-grounding » pour contourner un problème de terre.
 - Ne publiez jamais Access Secret, `local_key` ou identifiants de compte.
+- Un chargeur Tuya n'accepte qu'une seule connexion locale à la fois : Smart Life/Tuya Smart ou une autre intégration locale peut provoquer des refus de connexion intermittents.
 
-# 13. Et après ?
+# 12. Et après ?
 
 Cette installation constitue la base.
 
@@ -399,7 +419,7 @@ Le projet peut ensuite évoluer vers :
 
 > **Important :** ces fonctions avancées ne sont volontairement pas configurées dans ce guide. Elles feront l'objet d'un tutoriel séparé afin de garder cette procédure simple et reproductible.
 
-# 14. Remerciements
+# 13. Remerciements
 
 Merci à **Valentin Lachand** pour le développement et le suivi de **Tuya EV Charger Local**.
 
@@ -423,12 +443,12 @@ Ce guide est basé sur une installation réellement testée et sur un second tes
 | 04 | Smart Life - mise à jour | Étape 2 |
 | 05 | Tuya officiel - sans entités | Étape 3 |
 | 06 | Tuya officiel - liste appareils | Étape 3 |
-| 08 | HA - détection réseau | Étape 5 |
-| 09 | HA - local_key manquante | Étape 5 |
-| 10 à 18 | Méthode Tuya Cloud | Étape 11 |
-| 19 | HA - protocole 3.5 / depow_v2 | Étape 7 |
-| 20 | HA - configuration / diagnostic | Étape 8 |
-| 21 | HA - test 6 A → 7 A | Étape 9 |
-| 22 | Tuya Local Key - installation | Étape 6.1 |
-| 23 | Tuya Local Key - CRO / Device ID / local_key | Étape 6.3 |
+| 08 | HA - détection réseau | Étape 6 |
+| 09 | HA - local_key manquante | Étape 6 |
+| 10 à 18 | Méthode Tuya Cloud | Étape 10 |
+| 19 | HA - protocole 3.5 / depow_v2 | Étape 6 |
+| 20 | HA - configuration / diagnostic | Étape 7 |
+| 21 | HA - test 6 A → 7 A | Étape 8 |
+| 22 | Tuya Local Key - installation | Étape 5.1 |
+| 23 | Tuya Local Key - CRO / Device ID / local_key | Étape 5.3 |
 
