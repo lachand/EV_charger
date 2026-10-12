@@ -145,7 +145,7 @@ https://github.com/vineetchoudhary/tuya-local-key
 5. Installez **Tuya Local Key** depuis l'App Store.
 6. Ouvrez l'application depuis Home Assistant.
 
-![Tuya Local Key - installation](images/22-Tuya-Local-Key-installation.png)
+![Tuya Local Key - installation](images/22-Tuya-Local-Key-installation.webp)
 
 *Capture 22 - Instructions d'installation de Tuya Local Key dans Home Assistant. Le dépôt à ajouter est `https://github.com/vineetchoudhary/tuya-local-key`.*
 
@@ -175,7 +175,7 @@ Dans la liste des appareils :
 3. relevez le **Device ID**
 4. copiez sa **Local Key**
 
-![Tuya Local Key - CRO détecté](images/23-Tuya-Local-Key-CRO.png)
+![Tuya Local Key - CRO détecté](images/23-Tuya-Local-Key-CRO.webp)
 
 *Capture 23 - Le CRO apparaît directement dans Tuya Local Key avec son état, son Device ID, sa Local Key et son Product ID. Les identifiants sensibles sont masqués dans cette capture publique.*
 
@@ -349,6 +349,27 @@ Dans **Tuya EV Charger Local** :
 *Capture 18 - Sélection du CRO parmi les appareils retournés par Tuya Cloud.*
 
 L'intégration remplit alors automatiquement la `local_key` et retrouve le chargeur sur le LAN.
+
+## 11.6 Si Home Assistant indique « aucun appareil dans ce projet Tuya IoT »
+
+Avant de recréer le projet ou de réappairer le CRO, vérifiez les points suivants :
+
+| Vérification | Résultat attendu |
+|---|---|
+| Application utilisée | le compte lié correspond à l'application où le CRO est réellement appairé : Smart Life ou Tuya Smart |
+| Data Center | le Cloud Project utilise le Data Center correspondant au compte |
+| App Account | le compte de l'application est bien lié au Cloud Project |
+| Manage Devices | le dé EV Charger apparaît réellement dans la liste |
+| Device Status | `Online` |
+| Associated devices | le CRO est compté parmi les appareils associés, par exemple `1/1` si seul le chargeur est lié |
+| API Services | les services nécessaires au projet Smart Home sont autorisés |
+| Credentials | Access ID et Access Secret proviennent bien de ce même Cloud Project |
+
+Dans la configuration testée, les services proposés comprenaient notamment **IoT Core**, **Authorization Token Management** et **Smart Home Basic Service**.
+
+> **Important :** un compte d'application « lié » ne garantit pas à lui seul que le CRO est réellement associé au projet. Vérifiez toujours **Manage Devices** avant de chercher plus loin.
+
+Si cette méthode reste bloquée, la méthode **Tuya Local Key** décrite plus haut permet de récupérer directement le Device ID et la `local_key` sans dépendre du Cloud Project.
 
 # 12. Conseils réseau et dépannage
 
