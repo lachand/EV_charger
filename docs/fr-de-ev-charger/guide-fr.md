@@ -96,11 +96,6 @@ Dans l'installation testée, l'intégration Tuya officielle de Home Assistant vo
 3. Ouvrez l'intégration lorsqu'elle apparaît dans le store HACS, puis installez-la.
 4. Redémarrez Home Assistant si HACS le demande.
 
-> **Remarque :** l'ajout manuel du dépôt GitHub comme dépôt personnalisé n'est plus nécessaire lorsque **Tuya EV Charger Local** est disponible directement dans le store HACS.
-
-![Capture 07](images/07-HACS-ajout-Tuya-EV-Charger-Local.webp)
-
-*Capture 07 - Ancienne méthode par dépôt personnalisé, conservée comme référence visuelle.*
 
 # 5. Détecter le CRO sur le réseau local
 
@@ -398,7 +393,6 @@ Ce guide est basé sur une installation réellement testée et sur un second tes
 | 04 | Smart Life - mise à jour | Étape 2 |
 | 05 | Tuya officiel - sans entités | Étape 3 |
 | 06 | Tuya officiel - liste appareils | Étape 3 |
-| 07 | HACS - ajout Tuya EV Charger Local | Étape 4 |
 | 08 | HA - détection réseau | Étape 5 |
 | 09 | HA - local_key manquante | Étape 5 |
 | 10 à 18 | Méthode Tuya Cloud | Étape 11 |
@@ -406,11 +400,3 @@ Ce guide est basé sur une installation réellement testée et sur un second tes
 | 20 | HA - configuration / diagnostic | Étape 8 |
 | 21 | HA - test 6 A → 7 A | Étape 9 |
 
-## Captures à ajouter pour la méthode simple
-
-Pour rendre la méthode Tuya Local Key aussi claire que la méthode Cloud, il manque idéalement :
-
-1. ajout du dépôt **Tuya Local Key** dans l'App Store Home Assistant
-2. écran de connexion / QR code
-3. liste des appareils avec le CRO et la `local_key` masquée
-4. retour dans **Charger credentials** avec la clé masquée
