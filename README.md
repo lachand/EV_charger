@@ -60,6 +60,10 @@ the `local_key` on its own when it changes — see
 Classic path if you already have `host`, `device_id` and `local_key`, for example
 from `python -m tinytuya wizard`, which writes them to `devices.json`.
 
+You can also get the `local_key` with the [Tuya Local Key add-on](https://github.com/vineetchoudhary/tuya-local-key):
+
+[![Open your Home Assistant instance and show the app store with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_store.svg)](https://my.home-assistant.io/redirect/supervisor_store/?repository_url=https://github.com/vineetchoudhary/tuya-local-key)
+
 `local_key` is a secret, and it **changes if you re-pair or reset the charger**.
 
 ---
