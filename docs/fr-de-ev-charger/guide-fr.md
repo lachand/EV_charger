@@ -85,13 +85,15 @@ Dans l’installation testée, l’intégration Tuya officielle de Home Assistan
 # 4. Installer Tuya EV Charger Local avec HACS
 
 5. Ouvrez HACS dans Home Assistant.
-6. Ajoutez un dépôt personnalisé de type “Integration”.
-7. Utilisez l’adresse du dépôt : <https://github.com/lachand/EV_charger>
-8. Installez Tuya EV Charger Local puis redémarrez Home Assistant si HACS le demande.
+6. Dans **HACS → Intégrations**, recherchez **Tuya EV Charger Local** dans la barre de recherche.
+7. Ouvrez l’intégration lorsqu’elle apparaît dans le store HACS, puis installez-la directement.
+8. Redémarrez Home Assistant si HACS le demande.
+
+> **Remarque :** l’ajout manuel du dépôt GitHub comme dépôt personnalisé n’est plus nécessaire lorsque **Tuya EV Charger Local** est disponible directement dans le store HACS.
 
 ![Capture 07](images/07-HACS-ajout-Tuya-EV-Charger-Local.webp)
 
-*Capture 07 - Ajout du dépôt personnalisé Tuya EV Charger Local dans HACS.*
+*Capture 07 - Ancienne méthode par dépôt personnalisé, conservée ici comme référence visuelle. Si l’intégration est disponible directement dans HACS, utilisez simplement la recherche du store.*
 
 # 5. Première détection locale du chargeur
 
