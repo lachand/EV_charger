@@ -137,7 +137,7 @@ https://github.com/vineetchoudhary/tuya-local-key
 5. Installez **Tuya Local Key** depuis l'App Store.
 6. Ouvrez l'application depuis Home Assistant.
 
-![Tuya Local Key - installation](images/22-Tuya-Local-Key-installation.webp)
+![Tuya Local Key - installation](images/22-Tuya-Local-Key-installation.png)
 
 *Capture 22 - Instructions d'installation de Tuya Local Key dans Home Assistant.*
 
@@ -170,7 +170,7 @@ Dans la liste des appareils :
 3. repérez son **Device ID**
 4. copiez sa **Local Key**
 
-![Tuya Local Key - CRO détecté](images/23-Tuya-Local-Key-CRO.webp)
+![Tuya Local Key - CRO détecté](images/23-Tuya-Local-Key-CRO.png)
 
 *Capture 23 - Le CRO apparaît dans Tuya Local Key avec son état, son Device ID, sa Local Key et son Product ID. Les identifiants sensibles sont masqués.*
 
