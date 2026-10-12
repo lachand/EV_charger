@@ -18,7 +18,7 @@ Configuration de référence :
 - Wi-Fi 2,4 GHz
 - Home Assistant OS
 - HACS
-- Smart Life pour l'appairage initial
+- Smart Life pour l'appairage initial sur l'installation de référence ; Tuya Smart également utilisé lors du second test communautaire
 - protocole Tuya 3.5
 - profil `depow_v2` dans Tuya EV Charger Local
 
@@ -32,7 +32,11 @@ CRO dé
 Smart Life ou Tuya Smart
 (appairage Wi-Fi)
   ↓
-récupération de la local_key
+  ├─ Tuya Local Key (méthode recommandée)
+  │    → Device ID + local_key
+  │
+  └─ Tuya Cloud (méthode avancée)
+       → récupération automatique des identifiants
   ↓
 Tuya EV Charger Local
   ↓
