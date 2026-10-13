@@ -38,10 +38,10 @@ from .const import (
     DP_SOCKET_CFG,
     DP_WORK_STATE,
     DP_WORK_STATE_DEBUG,
+    QCCDZ_DP_CHARGE_DISCHARGE,
     QCCDZ_DP_CURRENT_TARGET,
     QCCDZ_DP_EVSE_STATE,
     QCCDZ_DP_FAULT,
-    QCCDZ_DP_SWITCH,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -120,7 +120,7 @@ DP_PROFILE_MAP: dict[str, DPProfile] = {
         charger_info="",
         work_state="",
         work_state_debug=QCCDZ_DP_EVSE_STATE,
-        do_charge=QCCDZ_DP_SWITCH,
+        do_charge=QCCDZ_DP_CHARGE_DISCHARGE,
         current_target=QCCDZ_DP_CURRENT_TARGET,
         max_current_cfg="",
         nfc_cfg="",

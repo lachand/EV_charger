@@ -261,7 +261,7 @@ def decode_qccdz_metrics(dps: dict[str, Any], dp: DPProfile) -> EVMetrics:
         work_state_debug=work_state_debug,
         status=STATUS_MAP.get(work_state_debug),
         plug_in_action=None,
-        do_charge=coerce_optional_bool(dps.get(dp.do_charge)),
+        do_charge=_qccdz_do_charge(dps.get(dp.do_charge)),
         current_target=coerce_optional_int(dps.get(dp.current_target)),
         max_current_cfg=QCCDZ_MAX_CURRENT_A,
         nfc_enabled=None,
@@ -275,6 +275,12 @@ def decode_qccdz_metrics(dps: dict[str, Any], dp: DPProfile) -> EVMetrics:
         schedule_start=None,
         schedule_end=None,
     )
+
+
+def _qccdz_do_charge(raw: Any) -> bool | None:
+    """DP 35 is an enum; only "charge" means a session is allowed to run."""
+    text = _coerce_optional_text(raw)
+    return None if text is None else text.lower() == "charge"
 
 
 def _qccdz_fault_text(raw_value: Any) -> str | None:

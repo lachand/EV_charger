@@ -198,7 +198,7 @@ class _FakeDevice:
     def status(self):
         return {"dps": self._dps}
 
-    def set_value(self, dp_id, value):  # pragma: no cover - must never be reached
+    def set_value(self, dp_id, value):
         self.set_calls.append((dp_id, value))
         return None
 
@@ -224,6 +224,26 @@ def test_the_client_writes_the_qccdz_command_dps():
 
     assert client.has_dp("current_target")
     assert client.has_dp("do_charge")
+
+
+@pytest.mark.parametrize(("enabled", "raw"), [(True, "charge"), (False, "disabled")])
+def test_start_and_stop_go_through_charge_discharge_not_the_switch(enabled, raw):
+    # The app stops a session with DP 35; DP 18 off leaves the car charging.
+    client = _client({**CHARGING, "35": raw})
+
+    assert asyncio.run(client.async_set_charge_enabled(enabled)) is True
+    assert client._device.set_calls == [("35", raw)]
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"), [("charge", True), ("disabled", False), ("discharge", False)]
+)
+def test_do_charge_reads_charge_discharge(raw, expected):
+    assert _decode({**CHARGING, "18": True, "35": raw}).do_charge is expected
+
+
+def test_do_charge_is_unknown_without_dp_35():
+    assert _decode(IDLE_SINCE_BOOT).do_charge is None
 
 
 def test_a_command_with_no_dp_on_this_firmware_is_refused_without_writing():

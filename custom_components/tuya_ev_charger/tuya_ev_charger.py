@@ -272,6 +272,11 @@ class TuyaEVChargerClient:
         return await self._async_send_command(self._dp.current_target, amperage)
 
     async def async_set_charge_enabled(self, enabled: bool) -> bool:
+        if self._dp_profile == CHARGER_PROFILE_QCCDZ_V1:
+            # DP 35 is an enum, and DP 18 off does not stop a running session.
+            return await self._async_send_command(
+                self._dp.do_charge, "charge" if enabled else "disabled"
+            )
         return await self._async_send_command(self._dp.do_charge, enabled)
 
     async def async_set_nfc_enabled(self, enabled: bool) -> bool:
