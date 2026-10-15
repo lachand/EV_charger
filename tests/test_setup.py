@@ -250,6 +250,7 @@ def _patch_setup(monkeypatch, *, connect_error=None, rec=None):
             return types.SimpleNamespace(
                 async_load=lambda: _noted(rec, f"load:{self.name}"),
                 async_flush=lambda now, force=False: _noted(rec, "flush"),
+                async_ensure_active=lambda vehicles: _noted(rec, "ensure_active"),
             )
 
     class _Controller:

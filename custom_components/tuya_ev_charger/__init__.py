@@ -271,6 +271,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     vehicle_tracker = VehicleEnergyTracker(hass, entry.entry_id)
     await vehicle_tracker.async_load()
+    await vehicle_tracker.async_ensure_active(configured_vehicles(entry.options.get(CONF_VEHICLES)))
     runtime_data.vehicle_tracker = vehicle_tracker
     coordinator.vehicle_tracker = vehicle_tracker
 

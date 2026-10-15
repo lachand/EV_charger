@@ -71,6 +71,13 @@ class VehicleEnergyTracker:
         self._active = vehicle
         await self._async_save()
 
+    async def async_ensure_active(self, vehicles: list[str]) -> None:
+        """Make the tracker agree with the select, which shows the first vehicle
+        when none (or a renamed one) is stored; otherwise energy is shown as
+        going to that vehicle but attributed to nobody."""
+        if vehicles and self._active not in vehicles:
+            await self.async_set_active_vehicle(vehicles[0])
+
     async def async_set_total(self, vehicle: str, total_kwh: float) -> None:
         """Overwrite a vehicle's cumulative total.
 

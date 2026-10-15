@@ -152,3 +152,13 @@ def test_a_corrected_total_survives_a_restart(tracker, monkeypatch):
 def test_a_negative_correction_is_clamped_to_zero(tracker):
     asyncio.run(tracker.async_set_total("Zoe", -5.0))
     assert tracker.total_for("Zoe") == 0.0
+
+
+def test_unselected_vehicle_defaults_to_the_first_configured(tracker):
+    """The select shows the first vehicle when none is stored; the energy must follow it."""
+    asyncio.run(tracker.async_ensure_active(["Twingo", "Zoe"]))
+    _feed(tracker, 0.0, 2.7)
+    assert tracker.total_for("Twingo") == 2.7
+    asyncio.run(tracker.async_set_active_vehicle("Zoe"))
+    asyncio.run(tracker.async_ensure_active(["Twingo", "Zoe"]))
+    assert tracker.active_vehicle == "Zoe"  # a valid choice is kept
