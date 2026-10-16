@@ -331,7 +331,11 @@ class SolarSurplusController:
         context = self._build_gate_context(now, data, charging)
         if context.grid_power_w is not None:
             self._grid_sign.observe(ev_power_w=ev_power_w(data), grid_power_w=context.grid_power_w)
-        self._phase_count.observe(phase_count=len(data.phases))
+        # A phase counts when it carries current: a single-phase wallbox can still
+        # report a voltage on L2/L3 (#35), which is not evidence of a 3-phase wiring.
+        self._phase_count.observe(
+            phase_count=sum(1 for phase in data.phases.values() if phase.current > 0)
+        )
         verdict = evaluate(context, self._timers)
         await self._async_apply(verdict, data=data, now=now, context=context)
 

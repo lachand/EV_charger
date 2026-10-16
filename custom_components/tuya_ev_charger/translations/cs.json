@@ -56,7 +56,7 @@
       },
       "reauth_confirm": {
         "title": "Zadejte znovu lok\u00e1ln\u00ed kl\u00ed\u010d",
-        "description": "Nab\u00edje\u010dka na adrese {host} odpov\u00edd\u00e1, ale jej\u00ed odpov\u011bdi ji\u017e nelze de\u0161ifrovat, co\u017e se st\u00e1v\u00e1 po nov\u00e9m p\u00e1rov\u00e1n\u00ed. Zadejte nov\u00fd lok\u00e1ln\u00ed kl\u00ed\u010d.",
+        "description": "Nab\u00edje\u010dka na adrese {host} odpov\u00edd\u00e1, ale jej\u00ed odpov\u011bdi ji\u017e nelze de\u0161ifrovat, co\u017e se st\u00e1v\u00e1 po nov\u00e9m p\u00e1rov\u00e1n\u00ed. Zadejte nov\u00fd lok\u00e1ln\u00ed kl\u00ed\u010d. Pokud se kl\u00ed\u010d nezm\u011bnil, nab\u00edje\u010dku restartujte (odpojte a znovu p\u0159ipojte nap\u00e1jen\u00ed): jej\u00ed Wi-Fi modul se m\u016f\u017ee zaseknout a odm\u00edtat relaci, dokud se nerestartuje.",
         "data": {
           "local_key": "Lok\u00e1ln\u00ed kl\u00ed\u010d"
         }

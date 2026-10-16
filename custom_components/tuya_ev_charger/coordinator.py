@@ -202,7 +202,8 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
                 f"Charger at {host} answers but its replies cannot be decrypted. "
                 "Usually a rotated local_key (re-pair the charger to fix it), but "
                 "a brief session-handshake glitch looks identical and clears on "
-                "its own — give it a few minutes before assuming re-pairing is needed."
+                "its own — give it a few minutes before assuming re-pairing is needed. "
+                "If it does not, power-cycle the charger: its Wi-Fi module can get stuck."
             )
         return f"Charger unreachable at {host} (nothing answers at that address)."
 

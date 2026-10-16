@@ -954,7 +954,7 @@ def test_a_measured_voltage_shifts_the_surplus_target(monkeypatch):
     direction that matters for the protection caps: assuming 230 V when the
     grid is really higher lets them overshoot their configured limit."""
     h = Harness(monkeypatch, sensors={"sensor.grid": -4140})
-    h.coordinator.data = _metrics(phases={"L1": types.SimpleNamespace(voltage=253.0)})
+    h.coordinator.data = _metrics(phases={"L1": types.SimpleNamespace(voltage=253.0, current=0.0)})
     h.tick()
     # 4140 W // 253 V = 16 A, vs 4140 // 230 = 18 A at the nominal voltage.
     assert h.controller.snapshot.target_current_a == 16
@@ -970,10 +970,16 @@ def _tick_with_phases(h, phases, times=1):
 
 
 _MULTI_PHASE = {
-    "L1": types.SimpleNamespace(voltage=230.0),
-    "L2": types.SimpleNamespace(voltage=230.0),
+    "L1": types.SimpleNamespace(voltage=230.0, current=10.0),
+    "L2": types.SimpleNamespace(voltage=230.0, current=10.0),
 }
-_SINGLE_PHASE = {"L1": types.SimpleNamespace(voltage=230.0)}
+_SINGLE_PHASE = {"L1": types.SimpleNamespace(voltage=230.0, current=10.0)}
+# A single-phase wallbox that still reports a voltage on L2/L3 (#35, #57).
+_VOLTAGE_ONLY_L2_L3 = {
+    "L1": types.SimpleNamespace(voltage=230.0, current=10.0),
+    "L2": types.SimpleNamespace(voltage=230.0, current=0.0),
+    "L3": types.SimpleNamespace(voltage=230.0, current=0.0),
+}
 
 
 def test_config_problems_suggests_three_phases_after_enough_polls(monkeypatch):
@@ -1008,6 +1014,16 @@ def test_config_problems_does_not_suggest_when_already_configured(monkeypatch):
 
     h = Harness(monkeypatch, options={"installation_phases": "3"})
     _tick_with_phases(h, _MULTI_PHASE, times=REQUIRED_PHASE_SAMPLES)
+    assert "installation_phases_likely_three" not in h.controller.config_problems()
+
+
+def test_a_voltage_on_unused_phases_is_not_a_three_phase_wiring(monkeypatch):
+    """A 7.4 kW single-phase wallbox shows L2/L3 entities with a voltage and no
+    current; that must not raise "set Installation phases to 3"."""
+    from tuya_ev_charger.config_diagnosis import REQUIRED_PHASE_SAMPLES
+
+    h = Harness(monkeypatch)
+    _tick_with_phases(h, _VOLTAGE_ONLY_L2_L3, times=2 * REQUIRED_PHASE_SAMPLES)
     assert "installation_phases_likely_three" not in h.controller.config_problems()
 
 

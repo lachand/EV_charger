@@ -56,7 +56,7 @@
       },
       "reauth_confirm": {
         "title": "Ressaisir la local key",
-        "description": "La borne \u00e0 l'adresse {host} r\u00e9pond, mais ses r\u00e9ponses ne peuvent plus \u00eatre d\u00e9chiffr\u00e9es, ce qui arrive apr\u00e8s un nouvel appairage. Saisissez la nouvelle local key.",
+        "description": "La borne \u00e0 l'adresse {host} r\u00e9pond, mais ses r\u00e9ponses ne peuvent plus \u00eatre d\u00e9chiffr\u00e9es, ce qui arrive apr\u00e8s un nouvel appairage. Saisissez la nouvelle local key. Si la cl\u00e9 n'a pas chang\u00e9, red\u00e9marrez la borne : son module Wi-Fi peut se bloquer et refuser la session tant qu'il n'est pas red\u00e9marr\u00e9.",
         "data": {
           "local_key": "Local key"
         }

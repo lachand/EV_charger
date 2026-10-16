@@ -56,7 +56,7 @@
       },
       "reauth_confirm": {
         "title": "Re-enter the local key",
-        "description": "The charger at {host} is answering but its replies can no longer be decrypted, which happens when it is re-paired. Enter the new local key.",
+        "description": "The charger at {host} is answering but its replies can no longer be decrypted, which happens when it is re-paired. Enter the new local key. If the key has not changed, power-cycle the charger: its Wi-Fi module can get stuck and refuse the session until it restarts.",
         "data": {
           "local_key": "Local key"
         }

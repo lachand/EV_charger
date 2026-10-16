@@ -7,6 +7,16 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## Unreleased
+
+- **A single-phase wallbox no longer triggers the "set Installation phases to 3"
+  repair (#35, #57).** Some single-phase units (the 7.4 kW) report a voltage on
+  L2/L3 with no current. A phase now counts as in use only when it carries
+  current.
+- **The re-enter-the-key prompt now says to power-cycle the charger (#34, #52).**
+  The charger's Wi-Fi module can get stuck and refuse the session with the key
+  unchanged; only a restart clears it.
+
 ## 2.27.0-beta4
 
 Pre-release: HACS offers it only with beta versions enabled.
