@@ -244,7 +244,10 @@ def _raised_keys() -> set[str]:
     return keys
 
 
-@pytest.mark.parametrize("name", ["strings.json", "translations/en.json", "translations/fr.json"])
+@pytest.mark.parametrize(
+    "name",
+    ["strings.json", "translations/en.json", "translations/fr.json", "translations/cs.json"],
+)
 def test_every_raised_error_key_is_translated(name):
     translated = set(json.loads((COMPONENT / name).read_text())["exceptions"])
     raised = _raised_keys()

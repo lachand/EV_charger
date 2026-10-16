@@ -3,47 +3,78 @@
     "step": {
       "user": {
         "title": "Configuration de la borne Tuya",
-        "description": "Saisissez les identifiants locaux de la borne.",
+        "description": "Comment voulez-vous trouver votre borne ?",
+        "data": {
+          "mode": "M\u00e9thode de d\u00e9couverte"
+        }
+      },
+      "scan": {
+        "title": "Bornes d\u00e9tect\u00e9es",
+        "description": "S\u00e9lectionnez la borne trouv\u00e9e sur votre r\u00e9seau, ou choisissez \u00ab Saisie manuelle \u00bb.",
+        "data": {
+          "device": "Borne"
+        }
+      },
+      "cloud": {
+        "title": "Identifiants Tuya Cloud",
+        "description": "Depuis iot.tuya.com : cr\u00e9ez un projet Cloud, liez votre compte Smart Life, puis collez ici l'Access ID et l'Access Secret. Utilis\u00e9s uniquement pour lire la liste de vos appareils (device_id + local key) \u2014 jamais pour la t\u00e9l\u00e9m\u00e9trie.",
+        "data": {
+          "cloud_api_key": "Access ID (cl\u00e9 API)",
+          "cloud_api_secret": "Access Secret",
+          "cloud_region": "R\u00e9gion du centre de donn\u00e9es",
+          "device_id": "Device ID (facultatif, fiabilise la recherche)"
+        }
+      },
+      "cloud_device": {
+        "title": "Choisissez votre borne",
+        "description": "Choisissez la borne parmi les appareils de votre compte Tuya. Sa local key est remplie automatiquement et son adresse IP est recherch\u00e9e sur votre r\u00e9seau.",
+        "data": {
+          "device": "Appareil"
+        }
+      },
+      "credentials": {
+        "title": "Identifiants de la borne",
+        "description": "Saisissez la local key et confirmez les autres param\u00e8tres.",
         "data": {
           "host": "Adresse IP locale",
           "device_id": "Device ID",
           "local_key": "Local key",
-          "protocol_version": "Version du protocole (defaut : 3.5)",
-          "charger_profile": "Profil chargeur / mapping DP"
+          "protocol_version": "Version du protocole (par d\u00e9faut : 3.5)",
+          "charger_profile": "Profil de la borne / mapping DP"
         }
       },
       "reconfigure": {
         "title": "Reconfigurer la borne",
-        "description": "Mettez a jour l'adresse ou les identifiants sans perdre l'historique.",
+        "description": "Mettez \u00e0 jour l'adresse ou les identifiants sans perdre l'historique.",
         "data": {
           "host": "Adresse IP locale",
           "device_id": "Device ID",
           "local_key": "Local key",
-          "protocol_version": "Version du protocole",
-          "charger_profile": "Profil chargeur"
+          "protocol_version": "Version du protocole (par d\u00e9faut : 3.5)",
+          "charger_profile": "Profil de la borne / mapping DP"
         }
       },
       "reauth_confirm": {
         "title": "Ressaisir la local key",
-        "description": "La borne a {host} repond mais ses reponses ne peuvent plus etre dechiffrees, ce qui arrive apres un re-appairage. Saisissez la nouvelle local key.",
+        "description": "La borne \u00e0 l'adresse {host} r\u00e9pond, mais ses r\u00e9ponses ne peuvent plus \u00eatre d\u00e9chiffr\u00e9es, ce qui arrive apr\u00e8s un nouvel appairage. Saisissez la nouvelle local key.",
         "data": {
           "local_key": "Local key"
         }
       }
     },
     "error": {
-      "cannot_connect": "Impossible de joindre la borne avec ces parametres.",
-      "cloud_auth_failed": "Connexion au cloud Tuya impossible. Verifiez l'Access ID, l'Access Secret et la region.",
-      "cloud_no_devices": "Aucun appareil dans ce projet Tuya IoT. Avez-vous bien lie votre compte Smart Life au projet ?",
-      "no_devices_found": "Aucun appareil Tuya trouve sur le reseau. Saisissez les identifiants manuellement.",
+      "cannot_connect": "Impossible de joindre la borne avec ces param\u00e8tres.",
+      "cloud_auth_failed": "Connexion au cloud Tuya impossible. V\u00e9rifiez l'Access ID, l'Access Secret et la r\u00e9gion.",
+      "cloud_no_devices": "Aucun appareil dans ce projet Tuya IoT. Avez-vous bien li\u00e9 votre compte Smart Life au projet ?",
+      "no_devices_found": "Aucun appareil Tuya trouv\u00e9 sur le r\u00e9seau. Saisissez les identifiants manuellement.",
       "unknown": "Erreur inattendue.",
-      "connection_refused": "La borne a refuse la connexion. Ces bornes n'acceptent qu'une seule connexion locale a la fois : fermez l'appli Smart Life et desactivez toute autre integration Tuya qui la vise, puis reessayez.",
-      "invalid_credentials": "La borne a repondu mais ses reponses n'ont pas pu etre dechiffrees. Ca signifie generalement que la local key ou la version du protocole est fausse (un re-appairage change la cle) -- mais le meme message apparait aussi pour un accroc de session passager, par exemple si autre chose occupe brievement l'unique connexion locale de la borne. Si vous etes sur que la cle n'a pas change, attendez une minute et reessayez avant de re-appairer."
+      "connection_refused": "La borne a refus\u00e9 la connexion. Ces bornes n'acceptent qu'une seule connexion locale \u00e0 la fois : fermez l'appli Smart Life et d\u00e9sactivez toute autre int\u00e9gration Tuya qui la vise, puis r\u00e9essayez.",
+      "invalid_credentials": "La borne a r\u00e9pondu mais ses r\u00e9ponses n'ont pas pu \u00eatre d\u00e9chiffr\u00e9es. Cela signifie g\u00e9n\u00e9ralement que la local key ou la version du protocole est fausse (un nouvel appairage change la cl\u00e9) \u2014 mais le m\u00eame message appara\u00eet aussi lors d'un accroc de session passager, par exemple si autre chose occupe bri\u00e8vement l'unique connexion locale de la borne. Si vous \u00eates s\u00fbr que la cl\u00e9 n'a pas chang\u00e9, attendez une minute et r\u00e9essayez avant de r\u00e9-appairer."
     },
     "abort": {
-      "already_configured": "Cette borne est deja configuree.",
-      "not_tuya_ev_charger": "L'appareil dont l'IP a change n'est pas une borne Tuya configuree.",
-      "reauth_successful": "Re-authentification reussie."
+      "already_configured": "Cette borne est d\u00e9j\u00e0 configur\u00e9e.",
+      "not_tuya_ev_charger": "L'appareil dont l'IP a chang\u00e9 n'est pas une borne Tuya configur\u00e9e.",
+      "reauth_successful": "R\u00e9-authentification r\u00e9ussie."
     }
   },
   "options": {
@@ -192,7 +223,7 @@
         "name": "Derniere raison decision surplus",
         "state": {
           "adjust_cooldown_active": "Attente avant de rechanger le courant",
-          "protection_hold": "Courant maintenu : une limite de protection vient de le réduire",
+          "protection_hold": "Courant maintenu : une limite de protection vient de le r\u00e9duire",
           "adjust_current": "Ajustement du courant au surplus",
           "battery_floor_off_peak_charging": "Charge sur le reseau en heures creuses - batterie maison au plancher",
           "battery_floor_off_peak_start": "Batterie maison au plancher - demarrage d'une charge reseau en heures creuses",

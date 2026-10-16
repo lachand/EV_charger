@@ -126,7 +126,12 @@ def test_every_trigger_has_a_translated_name():
     from tuya_ev_charger.device_trigger import TRIGGER_TRANSITIONS
 
     root = pathlib.Path(__file__).resolve().parents[1] / "custom_components/tuya_ev_charger"
-    for name in ("strings.json", "translations/en.json", "translations/fr.json"):
+    for name in (
+        "strings.json",
+        "translations/en.json",
+        "translations/fr.json",
+        "translations/cs.json",
+    ):
         payload = json.loads((root / name).read_text(encoding="utf-8"))
         names = payload["device_automation"]["trigger_type"]
         assert set(names) == set(TRIGGER_TRANSITIONS), name

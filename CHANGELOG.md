@@ -7,6 +7,16 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## Unreleased
+
+- **Czech translation (#51).** Contributed by @vsajer: every key of the English
+  file, with the `{placeholders}` intact.
+- **The French config flow was missing.** `fr.json` had no entry for the mode,
+  scan, cloud, cloud-device and credentials steps, so a French Home Assistant
+  showed a mix of an old form and English fallbacks. They are translated now,
+  and a test checks that every locale has exactly the English keys and
+  placeholders, so a new string can no longer ship in one language only.
+
 ## 2.27.0-beta3
 
 Pre-release: HACS offers it only with beta versions enabled.

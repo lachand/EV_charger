@@ -153,6 +153,40 @@ def test_translation_files_are_valid_and_aligned():
     assert set(english["entity"]["sensor"]) == set(french["entity"]["sensor"])
 
 
+def _leaves(node, prefix=""):
+    if isinstance(node, dict):
+        for key, value in node.items():
+            yield from _leaves(value, f"{prefix}.{key}" if prefix else key)
+    else:
+        yield prefix, node
+
+
+def test_every_translation_has_exactly_the_english_keys():
+    """A locale that lags behind shows a half-translated flow (fr.json once lacked
+    the whole config flow), and a stray key is dead weight hassfest rejects."""
+    import re
+
+    english = dict(_leaves(json.loads((COMPONENT / "translations" / "en.json").read_text())))
+    placeholder = re.compile(r"\{[a-z_]+\}")
+
+    files = sorted((COMPONENT / "translations").glob("*.json"))
+    assert {path.stem for path in files} >= {"en", "fr", "cs"}
+    for path in files:
+        translated = dict(_leaves(json.loads(path.read_text(encoding="utf-8"))))
+        assert set(translated) == set(english), (
+            f"{path.name}: missing {sorted(set(english) - set(translated))}, "
+            f"extra {sorted(set(translated) - set(english))}"
+        )
+        # A dropped or renamed {placeholder} raises KeyError when HA formats it.
+        broken = [
+            key
+            for key, text in translated.items()
+            if sorted(placeholder.findall(str(text)))
+            != sorted(placeholder.findall(str(english[key])))
+        ]
+        assert not broken, f"{path.name}: placeholders differ in {broken}"
+
+
 def test_fault_diagnosis_is_throttled():
     """Diagnosing costs a TCP connect and often a full read.
 

@@ -1,0 +1,604 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Nastaven\u00ed Tuya nab\u00edje\u010dky",
+        "description": "Jak chcete naj\u00edt svou nab\u00edje\u010dku?",
+        "data": {
+          "mode": "Zp\u016fsob zji\u0161t\u011bn\u00ed"
+        }
+      },
+      "scan": {
+        "title": "Nalezen\u00e9 nab\u00edje\u010dky",
+        "description": "Vyberte nab\u00edje\u010dku nalezenou ve va\u0161\u00ed s\u00edti, nebo zvolte \u201eZadat ru\u010dn\u011b\u201c.",
+        "data": {
+          "device": "Nab\u00edje\u010dka"
+        }
+      },
+      "cloud": {
+        "title": "P\u0159ihla\u0161ovac\u00ed \u00fadaje Tuya Cloud",
+        "description": "Z iot.tuya.com: vytvo\u0159te Cloud projekt, propojte \u00fa\u010det Smart Life a vlo\u017ete zde Access ID a Access Secret. Pou\u017e\u00edv\u00e1 se pouze ke \u010dten\u00ed seznamu za\u0159\u00edzen\u00ed (device_id + local key) \u2014 nikdy pro telemetrii.",
+        "data": {
+          "cloud_api_key": "Access ID (API kl\u00ed\u010d)",
+          "cloud_api_secret": "Access Secret",
+          "cloud_region": "Datov\u00e9 centrum (region)",
+          "device_id": "Device ID (voliteln\u00e9, zlep\u0161uje spolehlivost vyhled\u00e1n\u00ed)"
+        }
+      },
+      "cloud_device": {
+        "title": "Vyberte svou nab\u00edje\u010dku",
+        "description": "Vyberte nab\u00edje\u010dku mezi za\u0159\u00edzen\u00edmi ve va\u0161em Tuya \u00fa\u010dtu. Jej\u00ed lok\u00e1ln\u00ed kl\u00ed\u010d se vypln\u00ed automaticky a IP adresa se najde ve va\u0161\u00ed s\u00edti.",
+        "data": {
+          "device": "Za\u0159\u00edzen\u00ed"
+        }
+      },
+      "credentials": {
+        "title": "P\u0159ihla\u0161ovac\u00ed \u00fadaje nab\u00edje\u010dky",
+        "description": "Zadejte lok\u00e1ln\u00ed kl\u00ed\u010d a potvr\u010fte ostatn\u00ed nastaven\u00ed.",
+        "data": {
+          "host": "Lok\u00e1ln\u00ed IP adresa",
+          "device_id": "Device ID",
+          "local_key": "Lok\u00e1ln\u00ed kl\u00ed\u010d",
+          "protocol_version": "Verze protokolu (v\u00fdchoz\u00ed: 3.5)",
+          "charger_profile": "Profil nab\u00edje\u010dky / mapov\u00e1n\u00ed DP"
+        }
+      },
+      "reconfigure": {
+        "title": "P\u0159enastavit nab\u00edje\u010dku",
+        "description": "Aktualizujte adresu nebo p\u0159ihla\u0161ovac\u00ed \u00fadaje bez ztr\u00e1ty historie.",
+        "data": {
+          "host": "Lok\u00e1ln\u00ed IP adresa",
+          "device_id": "Device ID",
+          "local_key": "Lok\u00e1ln\u00ed kl\u00ed\u010d",
+          "protocol_version": "Verze protokolu (v\u00fdchoz\u00ed: 3.5)",
+          "charger_profile": "Profil nab\u00edje\u010dky / mapov\u00e1n\u00ed DP"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Zadejte znovu lok\u00e1ln\u00ed kl\u00ed\u010d",
+        "description": "Nab\u00edje\u010dka na adrese {host} odpov\u00edd\u00e1, ale jej\u00ed odpov\u011bdi ji\u017e nelze de\u0161ifrovat, co\u017e se st\u00e1v\u00e1 po nov\u00e9m p\u00e1rov\u00e1n\u00ed. Zadejte nov\u00fd lok\u00e1ln\u00ed kl\u00ed\u010d.",
+        "data": {
+          "local_key": "Lok\u00e1ln\u00ed kl\u00ed\u010d"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "S t\u011bmito nastaven\u00edmi se k nab\u00edje\u010dce nelze p\u0159ipojit.",
+      "cloud_auth_failed": "Nepoda\u0159ilo se p\u0159ipojit k Tuya Cloud. Zkontrolujte Access ID, Access Secret a region.",
+      "cloud_no_devices": "V tomto Tuya IoT projektu nejsou \u017e\u00e1dn\u00e1 za\u0159\u00edzen\u00ed. Propojili jste \u00fa\u010det Smart Life?",
+      "no_devices_found": "V s\u00edti nebyla nalezena \u017e\u00e1dn\u00e1 Tuya za\u0159\u00edzen\u00ed. Zadejte \u00fadaje ru\u010dn\u011b.",
+      "unknown": "Neo\u010dek\u00e1van\u00e1 chyba.",
+      "connection_refused": "Nab\u00edje\u010dka odm\u00edtla p\u0159ipojen\u00ed. Tyto nab\u00edje\u010dky p\u0159ij\u00edmaj\u00ed pouze jedno lok\u00e1ln\u00ed p\u0159ipojen\u00ed najednou \u2014 zav\u0159ete aplikaci Smart Life a deaktivujte jakoukoli jinou Tuya integraci, kter\u00e1 na ni m\u00ed\u0159\u00ed, a zkuste to znovu.",
+      "invalid_credentials": "Nab\u00edje\u010dka odpov\u011bd\u011bla, ale jej\u00ed odpov\u011bdi se nepoda\u0159ilo de\u0161ifrovat. To obvykle znamen\u00e1 \u0161patn\u00fd lok\u00e1ln\u00ed kl\u00ed\u010d nebo verzi protokolu (nov\u00e9 p\u00e1rov\u00e1n\u00ed kl\u00ed\u010d oto\u010d\u00ed) \u2014 stejn\u00e1 zpr\u00e1va se v\u0161ak m\u016f\u017ee objevit i p\u0159i p\u0159echodn\u00e9m v\u00fdpadku relace, nap\u0159. kdy\u017e n\u011bco jin\u00e9ho kr\u00e1tce dr\u017e\u00ed jedin\u00e9 lok\u00e1ln\u00ed p\u0159ipojen\u00ed nab\u00edje\u010dky. Pokud jste si jisti, \u017ee se kl\u00ed\u010d nezm\u011bnil, po\u010dkejte minutu a zkuste to znovu p\u0159ed nov\u00fdm p\u00e1rov\u00e1n\u00edm."
+    },
+    "abort": {
+      "already_configured": "Tato nab\u00edje\u010dka je ji\u017e nakonfigurov\u00e1na.",
+      "not_tuya_ev_charger": "Za\u0159\u00edzen\u00ed, kter\u00e9 zm\u011bnilo IP, nen\u00ed nakonfigurovan\u00e1 Tuya nab\u00edje\u010dka.",
+      "reauth_successful": "Op\u011btovn\u00e9 ov\u011b\u0159en\u00ed bylo \u00fasp\u011b\u0161n\u00e9."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Mo\u017enosti Tuya nab\u00edje\u010dky",
+        "description": "Zjednodu\u0161en\u00fd re\u017eim sol\u00e1rn\u00edho p\u0159ebytku.",
+        "sections": {
+          "device": {
+            "name": "Nab\u00edje\u010dka a polling",
+            "description": "Jak \u010dasto se nab\u00edje\u010dka \u010dte a kterou mapu datov\u00fdch bod\u016f pou\u017e\u00edt.",
+            "data": {
+              "scan_interval": "Interval obnoven\u00ed (sekundy)",
+              "charger_profile": "Profil nab\u00edje\u010dky / mapov\u00e1n\u00ed DP",
+              "charger_profile_json": "Vlastn\u00ed mapov\u00e1n\u00ed DP (JSON, voliteln\u00e9)"
+            }
+          },
+          "current": {
+            "name": "Nab\u00edjec\u00ed proud",
+            "description": "Nab\u00edzen\u00fd rozsah proudu a limity va\u0161\u00ed instalace.",
+            "data": {
+              "continuous_current": "Upravovat proud po 1 A",
+              "max_charge_current_a": "Maxim\u00e1ln\u00ed nab\u00edjec\u00ed proud (A, 0 = limit nab\u00edje\u010dky) \u2013 jmenovit\u00e1 hodnota va\u0161eho obvodu, ne nab\u00edje\u010dky",
+              "min_charge_current_a": "Minim\u00e1ln\u00ed nab\u00edjec\u00ed proud (A, 0 = limit nab\u00edje\u010dky)",
+              "installation_phases": "F\u00e1ze instalace (1 nebo 3) \u2013 na kolik f\u00e1z\u00ed je nab\u00edje\u010dka zapojena; pou\u017e\u00edv\u00e1 se pro p\u0159evod dostupn\u00e9ho v\u00fdkonu na proud pro regulaci p\u0159ebytku a limity z\u00e1t\u011b\u017ee/st\u0159\u00edda\u010de"
+            }
+          },
+          "protection": {
+            "name": "Ochrann\u00e9 limity",
+            "description": "Udr\u017eet cel\u00fd d\u016fm nebo hybridn\u00ed st\u0159\u00edda\u010d pod jmenovitou hodnotou.",
+            "data": {
+              "max_house_power_w": "Maxim\u00e1ln\u00ed v\u00fdkon domu pro vyva\u017eov\u00e1n\u00ed z\u00e1t\u011b\u017ee (W, 0 = vypnuto)",
+              "cap_only_regulation": "Regulovat pouze podle ochrann\u00fdch limit\u016f (re\u017eim p\u0159ebytku vypnut): stoupat zp\u011bt na nejvy\u0161\u0161\u00ed proud, kter\u00fd limity dovoluj\u00ed",
+              "max_inverter_power_w": "Maxim\u00e1ln\u00ed v\u00fdstup st\u0159\u00edda\u010de (W, 0 = vypnuto) \u2013 chr\u00e1n\u00ed hybridn\u00ed st\u0159\u00edda\u010d; vy\u017eaduje senzor celkov\u00e9 z\u00e1t\u011b\u017ee n\u00ed\u017ee",
+              "total_load_sensor_entity_id": "Senzor celkov\u00e9 dom\u00e1c\u00ed z\u00e1t\u011b\u017ee (pro limit st\u0159\u00edda\u010de) \u2013 celkov\u00e1 spot\u0159eba, ne elektrom\u011br s\u00edt\u011b",
+              "external_charge_allowed_sensor_entity_id": "Extern\u00ed senzor povolen\u00ed nab\u00edjen\u00ed (binary_sensor/input_boolean, voliteln\u00e9) \u2013 nap\u0159. stav on-grid st\u0159\u00edda\u010de; p\u0159i \u201ene\u201c zcela blokuje nab\u00edjen\u00ed",
+              "external_charge_allowed_sensor_inverted": "Invertovat extern\u00ed senzor povolen\u00ed nab\u00edjen\u00ed (za\u0161krtn\u011bte, pokud \u201eon\u201c znamen\u00e1 blokov\u00e1no, nap\u0159. indik\u00e1tor off-grid)",
+              "load_reservations": "Entity ohla\u0161uj\u00edc\u00ed velkou z\u00e1t\u011b\u017e (nap\u0159. switch.hob: 3000, switch.oven: 2500)"
+            }
+          },
+          "vehicles": {
+            "name": "Vozidla",
+            "description": "N\u00e1zvy aut sd\u00edlej\u00edc\u00edch tuto nab\u00edje\u010dku pro sledov\u00e1n\u00ed energie podle vozidla.",
+            "data": {
+              "vehicles": "Vozidla pro sledov\u00e1n\u00ed energie podle auta (odd\u011blen\u00e1 \u010d\u00e1rkou)"
+            }
+          },
+          "tariff": {
+            "name": "N\u00edzk\u00fd tarif, odjezd a ceny",
+            "description": "Kdy nab\u00edjet a za kolik. V\u0161e voliteln\u00e9 a neaktivn\u00ed, dokud je pr\u00e1zdn\u00e9.",
+            "data": {
+              "off_peak_windows": "Okna n\u00edzk\u00e9ho tarifu (nap\u0159. 22:00-06:00, 12:30-14:30; pr\u00e1zdn\u00e9 = nab\u00edjet kdykoli)",
+              "off_peak_sensor_entity_id": "Senzor n\u00edzk\u00e9ho tarifu (binary_sensor/input_boolean, voliteln\u00e9) \u2013 hl\u00e1s\u00ed p\u0159\u00edmo \u201en\u00edzk\u00fd tarif te\u010f\u201c; po nastaven\u00ed p\u0159eb\u00edr\u00e1 \u0159\u00edzen\u00ed od oken n\u00edzk\u00e9ho tarifu",
+              "off_peak_sensor_inverted": "Invertovat senzor n\u00edzk\u00e9ho tarifu (za\u0161krtn\u011bte, pokud \u201eon\u201c znamen\u00e1 \u0161pi\u010dku)",
+              "critical_peak_sensor_entity_id": "Senzor kritick\u00e9 \u0161pi\u010dky (binary_sensor/input_boolean, voliteln\u00e9) \u2013 hl\u00e1s\u00ed \u201edne\u0161n\u00ed \u0161pi\u010dkov\u00e9 hodiny jsou v\u00fdjime\u010dn\u011b drah\u00e9\u201c (nap\u0159. z \u0161ablony na senzoru Tempo barvy); kdy\u017e je zapnut\u00fd, deadline odjezdu ji\u017e nep\u0159eb\u00edj\u00ed nab\u00edjen\u00ed ve \u0161pi\u010dce",
+              "critical_peak_sensor_inverted": "Invertovat senzor kritick\u00e9 \u0161pi\u010dky (za\u0161krtn\u011bte, pokud \u201eon\u201c znamen\u00e1 b\u011b\u017en\u00e9 ceny)",
+              "departure_time": "\u010cas odjezdu (HH:MM, pr\u00e1zdn\u00e9 = bez deadlinu)",
+              "departure_energy_kwh": "Energie pot\u0159ebn\u00e1 do odjezdu (kWh, 0 = vypnuto)",
+              "off_peak_price": "Cena n\u00edzk\u00e9ho tarifu za kWh (0 = bez sledov\u00e1n\u00ed n\u00e1klad\u016f)",
+              "peak_price": "Cena \u0161pi\u010dky za kWh (0 = bez sledov\u00e1n\u00ed n\u00e1klad\u016f)"
+            }
+          },
+          "surplus": {
+            "name": "Sol\u00e1rn\u00ed p\u0159ebytek",
+            "description": "Nab\u00edjet pouze z voln\u00e9 sol\u00e1rn\u00ed v\u00fdroby.",
+            "data": {
+              "surplus_mode_enabled": "Povolit re\u017eim sol\u00e1rn\u00edho p\u0159ebytku",
+              "surplus_sensor_entity_id": "Entita senzoru s\u00ed\u0165ov\u00e9ho v\u00fdkonu (W) (sensor.xxx)",
+              "surplus_sensor_inverted": "Invertovat znam\u00e9nko senzoru s\u00edt\u011b",
+              "surplus_curtailment_sensor_entity_id": "Entita potenci\u00e1ln\u00edho o\u0159\u00edznut\u00e9ho v\u00fdkonu (W) (voliteln\u00e9)",
+              "surplus_curtailment_sensor_inverted": "Invertovat znam\u00e9nko senzoru o\u0159\u00edznut\u00e9ho v\u00fdkonu",
+              "surplus_start_threshold_w": "Pr\u00e1h spu\u0161t\u011bn\u00ed p\u0159ebytku (W)",
+              "surplus_stop_threshold_w": "Pr\u00e1h zastaven\u00ed p\u0159ebytku (W)",
+              "surplus_forecast_sensor_entity_id": "Entita 1h sol\u00e1rn\u00ed p\u0159edpov\u011bdi (W) (voliteln\u00e9)"
+            }
+          },
+          "battery": {
+            "name": "Dom\u00e1c\u00ed baterie",
+            "description": "Zda a kolik m\u016f\u017ee dom\u00e1c\u00ed baterie nap\u00e1jet auto.",
+            "data": {
+              "surplus_battery_soc_sensor_entity_id": "Entita SOC baterie (voliteln\u00e9)",
+              "surplus_battery_soc_high_threshold_pct": "Horn\u00ed pr\u00e1h baterie (%)",
+              "surplus_battery_soc_low_threshold_pct": "Doln\u00ed pr\u00e1h baterie (%)",
+              "surplus_battery_net_discharge_sensor_entity_id": "Entita \u010dist\u00e9ho vyb\u00edjec\u00edho v\u00fdkonu baterie (W) (voliteln\u00e9)",
+              "surplus_battery_net_discharge_sensor_inverted": "Invertovat znam\u00e9nko senzoru \u010dist\u00e9ho vyb\u00edjen\u00ed baterie",
+              "surplus_allow_battery_discharge_for_ev": "Povolit vyb\u00edjen\u00ed baterie pro nab\u00edjen\u00ed EV",
+              "surplus_max_battery_discharge_for_ev_w": "Maxim\u00e1ln\u00ed povolen\u00fd v\u00fdkon vyb\u00edjen\u00ed baterie pro EV (W)"
+            }
+          }
+        }
+      }
+    },
+    "error": {
+      "invalid_dp_profile": "Vlastn\u00ed mapov\u00e1n\u00ed DP odm\u00edtnuto: {dp_profile_problem}. Platn\u00e1 pole: {dp_profile_fields}."
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "surplus_regulation_active": {
+        "name": "Regulace p\u0159ebytku aktivn\u00ed"
+      }
+    },
+    "button": {
+      "reboot_charger": {
+        "name": "Restartovat nab\u00edje\u010dku"
+      },
+      "ready_to_charge": {
+        "name": "P\u0159ipraveno k nab\u00edjen\u00ed"
+      }
+    },
+    "sensor": {
+      "voltage_l1": {
+        "name": "Nap\u011bt\u00ed L1"
+      },
+      "current_l1": {
+        "name": "Proud L1"
+      },
+      "power_l1": {
+        "name": "V\u00fdkon L1"
+      },
+      "temperature": {
+        "name": "Teplota"
+      },
+      "work_state": {
+        "name": "Pracovn\u00ed stav"
+      },
+      "work_state_debug": {
+        "name": "Pracovn\u00ed stav (debug)"
+      },
+      "downcounter": {
+        "name": "Odpo\u010det"
+      },
+      "selftest": {
+        "name": "V\u00fdsledek self-testu"
+      },
+      "alarm": {
+        "name": "Alarm"
+      },
+      "adjust_current_options": {
+        "name": "Dostupn\u00e9 proudy"
+      },
+      "product_variant": {
+        "name": "Varianta produktu"
+      },
+      "surplus_last_decision_reason": {
+        "name": "D\u016fvod posledn\u00edho rozhodnut\u00ed p\u0159ebytku",
+        "state": {
+          "adjust_cooldown_active": "\u010cek\u00e1n\u00ed p\u0159ed dal\u0161\u00ed zm\u011bnou proudu",
+          "protection_hold": "Dr\u017een\u00ed proudu: ochrann\u00fd limit jej pr\u00e1v\u011b sn\u00ed\u017eil",
+          "adjust_current": "\u00daprava proudu podle p\u0159ebytku",
+          "battery_floor_off_peak_charging": "Nab\u00edjen\u00ed ze s\u00edt\u011b v dob\u011b n\u00edzk\u00e9ho tarifu \u2014 dom\u00e1c\u00ed baterie je na doln\u00ed hranici",
+          "battery_floor_off_peak_start": "Dom\u00e1c\u00ed baterie na doln\u00ed hranici \u2014 spu\u0161t\u011bn\u00ed nab\u00edjen\u00ed ze s\u00edt\u011b v okn\u011b n\u00edzk\u00e9ho tarifu",
+          "battery_soc_below_threshold": "\u010cek\u00e1n\u00ed: dom\u00e1c\u00ed baterie je p\u0159\u00edli\u0161 n\u00edzk\u00e1",
+          "below_start_threshold": "P\u0159ebytek pod prahem spu\u0161t\u011bn\u00ed",
+          "below_stop_threshold": "Zastaveno: p\u0159ebytek pod prahem zastaven\u00ed",
+          "evaluation_exception": "Vyhodnocen\u00ed selhalo \u2014 viz log",
+          "external_charge_blocked": "Blokov\u00e1no: extern\u00ed podm\u00ednka (nap\u0159. v\u00fdpadek s\u00edt\u011b) br\u00e1n\u00ed nab\u00edjen\u00ed",
+          "failed_set_startup_current": "Nab\u00edje\u010dka odm\u00edtla startovac\u00ed proud",
+          "failed_start_charge": "Nab\u00edje\u010dka odm\u00edtla start",
+          "force_charge_adjust_current": "Vynucen\u00e9 nab\u00edjen\u00ed \u2014 nastaven\u00ed proudu",
+          "force_charge_failed_set_current": "Vynucen\u00e9 nab\u00edjen\u00ed \u2014 nab\u00edje\u010dka odm\u00edtla proud",
+          "force_charge_failed_start": "Vynucen\u00e9 nab\u00edjen\u00ed \u2014 nab\u00edje\u010dka odm\u00edtla start",
+          "force_charge_holding": "Vynucen\u00e9 nab\u00edjen\u00ed prob\u00edh\u00e1",
+          "force_charge_requested": "Vynucen\u00e9 nab\u00edjen\u00ed po\u017eadov\u00e1no",
+          "force_charge_start": "Vynucen\u00e9 nab\u00edjen\u00ed se spou\u0161t\u00ed",
+          "grid_sensor_unavailable": "Senzor s\u00ed\u0165ov\u00e9ho v\u00fdkonu je nedostupn\u00fd",
+          "holding_current": "Dr\u017een\u00ed proudu",
+          "insufficient_surplus_current": "P\u0159ebytek je p\u0159\u00edli\u0161 mal\u00fd pro minim\u00e1ln\u00ed proud",
+          "inverter_limit_no_headroom": "Zastaveno: st\u0159\u00edda\u010d je na limitu v\u00fdstupu",
+          "inverter_limit_reduced": "Sn\u00ed\u017eeno, aby se z\u016fstal pod limitem v\u00fdstupu st\u0159\u00edda\u010de",
+          "load_limit_no_headroom": "Zastaveno: d\u016fm je na limitu v\u00fdkonu",
+          "load_limit_reduced": "Sn\u00ed\u017eeno, aby se z\u016fstal pod limitem v\u00fdkonu domu",
+          "min_runtime_guard": "Dr\u017een\u00ed: relace je p\u0159\u00edli\u0161 kr\u00e1tk\u00e1 na zastaven\u00ed",
+          "missing_grid_sensor": "Nen\u00ed nakonfigurov\u00e1n senzor s\u00ed\u0165ov\u00e9ho v\u00fdkonu",
+          "cap_only_regulating": "Regulace pouze podle ochrann\u00fdch limit\u016f",
+          "cap_only_start": "Spu\u0161t\u011bn\u00ed: ochrann\u00e9 limity nech\u00e1vaj\u00ed rezervu",
+          "mode_disabled": "Re\u017eim p\u0159ebytku je vypnut\u00fd",
+          "no_allowed_currents": "Nab\u00edje\u010dka nenab\u00edz\u00ed \u017e\u00e1dn\u00fd pou\u017eiteln\u00fd proud",
+          "no_coordinator_data": "Zat\u00edm \u017e\u00e1dn\u00e1 data z nab\u00edje\u010dky",
+          "no_target_current": "\u017d\u00e1dn\u00fd proud, kter\u00fd by p\u0159ebytek unesl",
+          "rerun": "Op\u011btovn\u00e9 vyhodnocen\u00ed",
+          "session_limit_duration": "Zastaveno: dosa\u017een limit d\u00e9lky relace",
+          "session_limit_end_time": "Zastaveno: dosa\u017een konec relace",
+          "session_limit_energy": "Zastaveno: dosa\u017een limit energie relace",
+          "start_delay_pending": "Chyst\u00e1 se start \u2014 \u010dek\u00e1n\u00ed na potvrzen\u00ed, \u017ee p\u0159ebytek dr\u017e\u00ed",
+          "startup": "Spou\u0161t\u011bn\u00ed",
+          "stop_delay_pending": "Chyst\u00e1 se stop \u2014 \u010dek\u00e1n\u00ed na potvrzen\u00ed, \u017ee p\u0159ebytek zmizel",
+          "surplus_paused": "Regulace p\u0159ebytku pozastavena",
+          "surplus_paused_active": "Regulace p\u0159ebytku je pozastavena",
+          "surplus_start": "Spu\u0161t\u011bn\u00ed na sol\u00e1rn\u00edm p\u0159ebytku",
+          "target_already_reached": "Ji\u017e na proudu, kter\u00fd p\u0159ebytek dovoluje",
+          "tariff_deadline": "Nab\u00edjen\u00ed nyn\u00ed kv\u016fli \u010dasu odjezdu",
+          "tariff_critical_peak": "\u010cek\u00e1n\u00ed \u2014 kritick\u00e9 \u0161pi\u010dkov\u00e9 ceny",
+          "tariff_off_peak": "Nab\u00edjen\u00ed v dob\u011b n\u00edzk\u00e9ho tarifu",
+          "tariff_unrestricted": "Bez omezen\u00ed tarifu",
+          "tariff_waiting_for_off_peak": "\u010cek\u00e1n\u00ed na n\u00edzk\u00fd tarif"
+        }
+      },
+      "surplus_raw_w": {
+        "name": "Surov\u00fd p\u0159ebytek"
+      },
+      "surplus_effective_w": {
+        "name": "Efektivn\u00ed p\u0159ebytek"
+      },
+      "surplus_battery_discharge_over_limit_w": {
+        "name": "Vyb\u00edjen\u00ed baterie nad limit"
+      },
+      "surplus_target_current_a": {
+        "name": "C\u00edlov\u00fd proud p\u0159ebytku"
+      },
+      "voltage_l2": {
+        "name": "Nap\u011bt\u00ed L2"
+      },
+      "current_l2": {
+        "name": "Proud L2"
+      },
+      "power_l2": {
+        "name": "V\u00fdkon L2"
+      },
+      "voltage_l3": {
+        "name": "Nap\u011bt\u00ed L3"
+      },
+      "current_l3": {
+        "name": "Proud L3"
+      },
+      "power_l3": {
+        "name": "V\u00fdkon L3"
+      },
+      "power_total": {
+        "name": "Celkov\u00fd v\u00fdkon"
+      },
+      "energy_session": {
+        "name": "Energie relace"
+      },
+      "session_duration": {
+        "name": "D\u00e9lka relace"
+      },
+      "last_session_energy": {
+        "name": "Energie posledn\u00ed relace"
+      },
+      "last_session_duration": {
+        "name": "D\u00e9lka posledn\u00ed relace"
+      },
+      "status": {
+        "name": "Stav",
+        "state": {
+          "sleep": "Pohotovost",
+          "idle": "P\u0159ipraveno",
+          "plugged_in": "Zastr\u010deno",
+          "charging": "Nab\u00edjen\u00ed",
+          "waiting": "\u010cek\u00e1n\u00ed",
+          "fault": "Porucha",
+          "paused": "Pozastaveno",
+          "charged": "Nabito"
+        }
+      },
+      "evcc_status": {
+        "name": "Stav evcc"
+      },
+      "last_session_cost": {
+        "name": "N\u00e1klady posledn\u00ed relace"
+      },
+      "session_count": {
+        "name": "Zaznamenan\u00e9 relace"
+      },
+      "connection_health": {
+        "name": "Zdrav\u00ed p\u0159ipojen\u00ed"
+      }
+    },
+    "number": {
+      "charge_current": {
+        "name": "Nastaven\u00fd proud"
+      },
+      "surplus_battery_soc_high_threshold_pct": {
+        "name": "Horn\u00ed pr\u00e1h baterie pro p\u0159ebytek"
+      },
+      "surplus_battery_soc_low_threshold_pct": {
+        "name": "Doln\u00ed pr\u00e1h baterie pro p\u0159ebytek"
+      },
+      "surplus_start_threshold_w": {
+        "name": "Pr\u00e1h spu\u0161t\u011bn\u00ed p\u0159ebytku"
+      },
+      "surplus_stop_threshold_w": {
+        "name": "Pr\u00e1h zastaven\u00ed p\u0159ebytku"
+      },
+      "surplus_max_battery_discharge_for_ev_w": {
+        "name": "Max. vyb\u00edjen\u00ed baterie pro EV"
+      }
+    },
+    "switch": {
+      "charge_session": {
+        "name": "Nab\u00edjec\u00ed relace"
+      },
+      "force_charge": {
+        "name": "Vynucen\u00e9 nab\u00edjen\u00ed"
+      },
+      "nfc_enabled": {
+        "name": "NFC"
+      },
+      "surplus_mode": {
+        "name": "Re\u017eim sol\u00e1rn\u00edho p\u0159ebytku"
+      },
+      "schedule_enabled": {
+        "name": "Pl\u00e1novan\u00e9 nab\u00edjen\u00ed"
+      }
+    },
+    "time": {
+      "schedule_start": {
+        "name": "\u010cas za\u010d\u00e1tku pl\u00e1nu"
+      },
+      "schedule_end": {
+        "name": "\u010cas konce pl\u00e1nu"
+      }
+    },
+    "select": {
+      "surplus_profile": {
+        "name": "Profil p\u0159ebytku"
+      },
+      "active_vehicle": {
+        "name": "Aktivn\u00ed vozidlo"
+      },
+      "plug_in_action": {
+        "name": "Akce p\u0159i zastr\u010den\u00ed",
+        "state": {
+          "prompt": "Zeptat se",
+          "charge": "Spustit nab\u00edjen\u00ed",
+          "idle": "Ned\u011blat nic"
+        }
+      }
+    }
+  },
+  "issues": {
+    "connection_refused": {
+      "title": "Nab\u00edje\u010dka odm\u00edtla p\u0159ipojen\u00ed",
+      "description": "Nab\u00edje\u010dka na adrese {host} je dostupn\u00e1, ale odm\u00edt\u00e1 \u0159\u00eddic\u00ed port. Tyto nab\u00edje\u010dky p\u0159ij\u00edmaj\u00ed pouze jedno lok\u00e1ln\u00ed p\u0159ipojen\u00ed najednou \u2014 zkontrolujte, zda aplikace Smart Life nebo jin\u00e1 Tuya integrace jej nedr\u017e\u00ed."
+    },
+    "tidy_entities": {
+      "title": "Skr\u00fdt pokro\u010dil\u00e9 entity",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Skr\u00fdt pokro\u010dil\u00e9 entity",
+            "description": "Tato nab\u00edje\u010dka zaregistrovala {count} pokro\u010dil\u00fdch nebo diagnostick\u00fdch entit, kter\u00e9 by \u010dist\u00e1 instalace nyn\u00ed skryla (surov\u00e9 k\u00f3dy stav\u016f, self-test, intern\u00ed p\u0159ebytek). Jejich deaktivace uklid\u00ed str\u00e1nku za\u0159\u00edzen\u00ed; kteroukoli m\u016f\u017eete pozd\u011bji znovu povolit a u\u017e se jich nedotkne."
+          }
+        }
+      }
+    },
+    "load_limit_without_sensor": {
+      "title": "Vyva\u017eov\u00e1n\u00ed z\u00e1t\u011b\u017ee nem\u00e1 senzor s\u00edt\u011b",
+      "description": "Je nastaven maxim\u00e1ln\u00ed v\u00fdkon domu, ale nen\u00ed nakonfigurov\u00e1n senzor s\u00ed\u0165ov\u00e9ho v\u00fdkonu, tak\u017ee vyva\u017eov\u00e1n\u00ed z\u00e1t\u011b\u017ee se nikdy nespust\u00ed a hlavn\u00ed jisti\u010d nen\u00ed chr\u00e1n\u011bn. Nastavte **Senzor s\u00ed\u0165ov\u00e9ho v\u00fdkonu** v mo\u017enostech integrace, nebo nastavte maximum zp\u011bt na 0 pro vypnut\u00ed vyva\u017eov\u00e1n\u00ed z\u00e1t\u011b\u017ee."
+    },
+    "inverter_limit_without_sensor": {
+      "title": "Limit st\u0159\u00edda\u010de nem\u00e1 senzor celkov\u00e9 z\u00e1t\u011b\u017ee",
+      "description": "Je nastaven maxim\u00e1ln\u00ed v\u00fdstup st\u0159\u00edda\u010de, ale nen\u00ed nakonfigurov\u00e1n senzor celkov\u00e9 dom\u00e1c\u00ed z\u00e1t\u011b\u017ee, tak\u017ee limit se nikdy nespust\u00ed. Tento limit z\u00e1m\u011brn\u011b nem\u016f\u017ee pou\u017e\u00edt senzor s\u00edt\u011b: u hybridn\u00edho st\u0159\u00edda\u010de baterie skr\u00fdv\u00e1 p\u0159et\u00ed\u017een\u00ed p\u0159ed elektrom\u011brem, co\u017e je cel\u00fd d\u016fvod existence limitu. Nastavte **Senzor celkov\u00e9 dom\u00e1c\u00ed z\u00e1t\u011b\u017ee**, nebo nastavte maximum zp\u011bt na 0."
+    },
+    "surplus_without_sensor": {
+      "title": "Re\u017eim p\u0159ebytku nem\u00e1 senzor s\u00edt\u011b",
+      "description": "Re\u017eim p\u0159ebytku je zapnut\u00fd, ale nen\u00ed nakonfigurov\u00e1n senzor s\u00ed\u0165ov\u00e9ho v\u00fdkonu, tak\u017ee nev\u00ed, kolik sol\u00e1ru zb\u00fdv\u00e1, a nikdy nespust\u00ed nab\u00edjen\u00ed. Nastavte **Senzor s\u00ed\u0165ov\u00e9ho v\u00fdkonu** v mo\u017enostech integrace."
+    },
+    "off_peak_windows_malformed": {
+      "title": "\u017d\u00e1dn\u00e9 okno n\u00edzk\u00e9ho tarifu se nepoda\u0159ilo na\u010d\u00edst",
+      "description": "Okna n\u00edzk\u00e9ho tarifu jsou nastavena, ale \u017e\u00e1dn\u00e9 se nepoda\u0159ilo parsovat, tak\u017ee nab\u00edjen\u00ed nen\u00ed omezeno na \u017e\u00e1dn\u00e9 hodiny. O\u010dek\u00e1van\u00fd form\u00e1t je `22:00-06:00`, v\u00edce oken odd\u011blen\u00fdch \u010d\u00e1rkou: `22:00-06:00, 12:30-14:30`."
+    },
+    "departure_without_energy": {
+      "title": "\u010cas odjezdu nem\u00e1 c\u00edl energie",
+      "description": "Je nastaven \u010das odjezdu, ale pot\u0159ebn\u00e1 energie do t\u00e9 doby je 0, tak\u017ee deadline nelze napl\u00e1novat a je ignorov\u00e1n. Nastavte **Energie pot\u0159ebn\u00e1 do odjezdu**, nebo vyma\u017ete \u010das odjezdu."
+    },
+    "grid_sensor_sign_inverted": {
+      "title": "Znam\u00e9nko senzoru s\u00edt\u011b vypad\u00e1 invertovan\u00e9",
+      "description": "Hodnota s\u00edt\u011b konzistentn\u011b kles\u00e1, kdy\u017e auto odeb\u00edr\u00e1 v\u00edce, co\u017e je opak toho, co d\u011bl\u00e1 elektrom\u011br s kladn\u00fdm importem. Pokud to tak nech\u00e1te, regulace p\u0159ebytku hon\u00ed vlastn\u00ed ocas a vyva\u017eov\u00e1n\u00ed z\u00e1t\u011b\u017ee po\u010d\u00edt\u00e1 v\u011bt\u0161\u00ed rezervu, ne\u017e m\u00e1 va\u0161e p\u0159\u00edpojka. Za\u0161krtn\u011bte **Invertovat znam\u00e9nko senzoru s\u00edt\u011b** v mo\u017enostech integrace. Pokud je va\u0161e zapojen\u00ed opravdu neobvykl\u00e9 a \u00fadaj je spr\u00e1vn\u00fd, toto upozorn\u011bn\u00ed m\u016f\u017eete ignorovat."
+    },
+    "installation_phases_likely_three": {
+      "title": "F\u00e1ze instalace mo\u017en\u00e1 pot\u0159ebuj\u00ed nastavit na 3",
+      "description": "Nab\u00edje\u010dka hl\u00e1s\u00ed \u00fadaje na v\u00edce ne\u017e jedn\u00e9 f\u00e1zi (L2/L3), ale F\u00e1ze instalace jsou st\u00e1le na v\u00fdchoz\u00ed hodnot\u011b 1. Pokud je nab\u00edje\u010dka zapojena na t\u0159i f\u00e1ze, c\u00edlen\u00ed p\u0159ebytku a ochrann\u00e9 limity se aktu\u00e1ln\u011b po\u010d\u00edtaj\u00ed jako u jednof\u00e1zov\u00e9, co\u017e m\u016f\u017ee oboje v\u00fdrazn\u011b p\u0159ekro\u010dit. Nastavte F\u00e1ze instalace na 3 v mo\u017enostech integrace. Pokud je nab\u00edje\u010dka opravdu jednof\u00e1zov\u00e1 a toto je fale\u0161n\u00fd \u00fadaj, upozorn\u011bn\u00ed m\u016f\u017eete ignorovat."
+    },
+    "charging_slower_than_usual": {
+      "title": "Nab\u00edjen\u00ed pomalej\u0161\u00ed ne\u017e obvykle u tohoto auta",
+      "description": "N\u011bkolik posledn\u00edch relac\u00ed nab\u00edjelo v\u00fdrazn\u011b pod nejvy\u0161\u0161\u00ed rychlost\u00ed, kterou toto auto d\u0159\u00edve p\u0159edvedlo. M\u016f\u017ee to znamenat hor\u0161\u00ed kontakt konektoru nebo kabelu, derating styka\u010de nebo zah\u0159\u00edv\u00e1n\u00ed z\u00e1str\u010dky. Stoj\u00ed za to zkontrolovat kabel a konektor; upozorn\u011bn\u00ed se samo vyma\u017ee po zaznamen\u00e1n\u00ed relace norm\u00e1ln\u00ed rychlosti. Pokud jste v posledn\u00ed dob\u011b nab\u00edjeli jen na sol\u00e1rn\u00edm p\u0159ebytku, nen\u00ed se \u010deho ob\u00e1vat."
+    },
+    "repeated_short_sessions": {
+      "title": "N\u011bkolik nab\u00edjen\u00ed po sob\u011b skon\u010dilo brzy",
+      "description": "Posledn\u00ed relace ka\u017ed\u00e1 dodala mnohem m\u00e9n\u011b energie ne\u017e obvykl\u00e9 nabit\u00ed tohoto auta, co\u017e m\u016f\u017ee ukazovat na odpad\u00e1vaj\u00edc\u00ed kabel nebo to, \u017ee auto samo relaci ukon\u010dilo. Pokud m\u011bly b\u00fdt nab\u00edjen\u00ed kr\u00e1tk\u00e1, lze ignorovat; jinak zkontrolujte usazen\u00ed kabelu. Upozorn\u011bn\u00ed se vyma\u017ee po zaznamen\u00e1n\u00ed pln\u00e9 relace."
+    }
+  },
+  "services": {
+    "force_charge_for": {
+      "name": "Vynutit nab\u00edjen\u00ed na dobu",
+      "description": "Nab\u00edjet bezpodm\u00edne\u010dn\u011b po ur\u010dit\u00fd po\u010det minut, ignorovat regulaci p\u0159ebytku.",
+      "fields": {
+        "entry_id": {
+          "name": "Nab\u00edje\u010dka",
+          "description": "Na kterou nab\u00edje\u010dku p\u016fsobit. Povinn\u00e9, pokud jich je nakonfigurov\u00e1no v\u00edce."
+        },
+        "duration_minutes": {
+          "name": "Doba",
+          "description": "Kolik minut vynucen\u011b nab\u00edjet."
+        },
+        "current_a": {
+          "name": "Proud",
+          "description": "Voliteln\u00fd nab\u00edjec\u00ed proud v amp\u00e9rech."
+        }
+      }
+    },
+    "pause_surplus": {
+      "name": "Pozastavit re\u017eim p\u0159ebytku",
+      "description": "Pozastavit regulaci sol\u00e1rn\u00edho p\u0159ebytku na ur\u010dit\u00fd po\u010det minut.",
+      "fields": {
+        "entry_id": {
+          "name": "Nab\u00edje\u010dka",
+          "description": "Na kterou nab\u00edje\u010dku p\u016fsobit. Povinn\u00e9, pokud jich je nakonfigurov\u00e1no v\u00edce."
+        },
+        "duration_minutes": {
+          "name": "Doba",
+          "description": "Kolik minut regulaci pozastavit."
+        }
+      }
+    },
+    "profile_assistant": {
+      "name": "Navrhnout profil p\u0159ebytku",
+      "description": "Analyzovat ned\u00e1vn\u00e9 chov\u00e1n\u00ed a navrhnout profil p\u0159ebytku, voliteln\u011b jej pou\u017e\u00edt.",
+      "fields": {
+        "entry_id": {
+          "name": "Nab\u00edje\u010dka",
+          "description": "Kterou nab\u00edje\u010dku analyzovat. Povinn\u00e9, pokud jich je nakonfigurov\u00e1no v\u00edce."
+        },
+        "apply": {
+          "name": "Pou\u017e\u00edt",
+          "description": "Pou\u017e\u00edt navr\u017een\u00fd profil m\u00edsto pouh\u00e9ho nahl\u00e1\u0161en\u00ed."
+        }
+      }
+    },
+    "set_surplus_profile": {
+      "name": "Nastavit profil p\u0159ebytku",
+      "description": "P\u0159epnout profil regulace p\u0159ebytku (eco, balanced nebo fast).",
+      "fields": {
+        "entry_id": {
+          "name": "Nab\u00edje\u010dka",
+          "description": "Na kterou nab\u00edje\u010dku p\u016fsobit. Povinn\u00e9, pokud jich je nakonfigurov\u00e1no v\u00edce."
+        },
+        "profile": {
+          "name": "Profil",
+          "description": "Jeden z: eco, balanced nebo fast."
+        }
+      }
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "charge_started": "{entity_name} za\u010dala nab\u00edjet",
+      "charge_complete": "{entity_name} dokon\u010dila nab\u00edjen\u00ed",
+      "fault": "{entity_name} nahl\u00e1sila poruchu",
+      "plugged_in": "Do {entity_name} byl zastr\u010den kabel",
+      "unplugged_while_charging": "{entity_name} byla odpojena b\u011bhem nab\u00edjen\u00ed"
+    }
+  },
+  "exceptions": {
+    "ready_to_charge_failed": {
+      "message": "Nepoda\u0159ilo se nastavit nab\u00edje\u010dku do stavu p\u0159ipraveno k nab\u00edjen\u00ed."
+    },
+    "reboot_failed": {
+      "message": "Nepoda\u0159ilo se odeslat p\u0159\u00edkaz k restartu nab\u00edje\u010dky."
+    },
+    "schedule_start_failed": {
+      "message": "Nepoda\u0159ilo se aktualizovat \u010das za\u010d\u00e1tku pl\u00e1nu."
+    },
+    "schedule_end_failed": {
+      "message": "Nepoda\u0159ilo se aktualizovat \u010das konce pl\u00e1nu."
+    },
+    "unsupported_current": {
+      "message": "Nepodporovan\u00fd nastaven\u00fd proud: {amperage} A (povolen\u00e9: {allowed})."
+    },
+    "set_current_failed": {
+      "message": "Nepoda\u0159ilo se aktualizovat nastaven\u00fd proud na nab\u00edje\u010dce."
+    },
+    "integer_required": {
+      "message": "Tato hodnota mus\u00ed b\u00fdt cel\u00e9 \u010d\u00edslo."
+    },
+    "charge_start_failed": {
+      "message": "Nepoda\u0159ilo se spustit nab\u00edjec\u00ed relaci."
+    },
+    "charge_stop_failed": {
+      "message": "Nepoda\u0159ilo se zastavit nab\u00edjec\u00ed relaci."
+    },
+    "surplus_controller_unavailable": {
+      "message": "\u0158adi\u010d sol\u00e1rn\u00edho p\u0159ebytku je nedostupn\u00fd."
+    },
+    "nfc_enable_failed": {
+      "message": "Nepoda\u0159ilo se povolit NFC."
+    },
+    "nfc_disable_failed": {
+      "message": "Nepoda\u0159ilo se zak\u00e1zat NFC."
+    },
+    "schedule_update_failed": {
+      "message": "Nepoda\u0159ilo se aktualizovat pl\u00e1n nab\u00edjen\u00ed."
+    },
+    "plug_in_action_failed": {
+      "message": "Nepoda\u0159ilo se aktualizovat akci p\u0159i zastr\u010den\u00ed."
+    },
+    "unknown_vehicle": {
+      "message": "Nezn\u00e1m\u00e9 vozidlo \u201e{vehicle}\u201c."
+    },
+    "vehicle_tracking_unavailable": {
+      "message": "Sledov\u00e1n\u00ed vozidel je nedostupn\u00e9."
+    },
+    "unsupported_surplus_profile": {
+      "message": "Nepodporovan\u00fd profil p\u0159ebytku \u201e{profile}\u201c. Pou\u017eijte eco, balanced nebo fast."
+    },
+    "unknown_vehicle_configured": {
+      "message": "Nezn\u00e1m\u00e9 vozidlo \u201e{vehicle}\u201c. Nakonfigurovan\u00e1 vozidla: {configured}."
+    },
+    "entry_not_loaded": {
+      "message": "Z\u00e1znam \u201e{entry_id}\u201c nen\u00ed na\u010dten."
+    },
+    "no_loaded_entries": {
+      "message": "Nen\u00ed na\u010dten \u017e\u00e1dn\u00fd z\u00e1znam Tuya EV Charger Local."
+    },
+    "multiple_entries": {
+      "message": "Je na\u010dteno n\u011bkolik z\u00e1znam\u016f Tuya EV Charger Local; zadejte \u201e{field}\u201c."
+    },
+    "vehicle_tracking_disabled": {
+      "message": "Sledov\u00e1n\u00ed podle vozidel nen\u00ed pro z\u00e1znam \u201e{entry_id}\u201c povoleno. Nejprve nastavte volbu \u201evehicles\u201c."
+    },
+    "surplus_controller_unavailable_entry": {
+      "message": "\u0158adi\u010d sol\u00e1rn\u00edho p\u0159ebytku je pro z\u00e1znam \u201e{entry_id}\u201c nedostupn\u00fd."
+    }
+  }
+}
