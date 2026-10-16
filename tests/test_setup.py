@@ -79,6 +79,16 @@ def test_the_scan_interval_is_clamped_and_forgiving(options, expected):
     assert _scan_interval_seconds(_entry(options=options)) == wanted
 
 
+def test_the_current_ceiling_comes_from_the_options_and_defaults_to_none():
+    from tuya_ev_charger import _max_charge_current_a
+
+    assert _max_charge_current_a(_entry()) == 0
+    assert _max_charge_current_a(_entry(options={"max_charge_current_a": 32})) == 32
+    assert _max_charge_current_a(_entry(options={"max_charge_current_a": "25"})) == 25
+    assert _max_charge_current_a(_entry(options={"max_charge_current_a": "junk"})) == 0
+    assert _max_charge_current_a(_entry(options={"max_charge_current_a": -4})) == 0
+
+
 def test_the_charger_profile_prefers_options_then_data_then_the_default():
     from tuya_ev_charger import _charger_profile
     from tuya_ev_charger.const import CHARGER_PROFILES, DEFAULT_CHARGER_PROFILE

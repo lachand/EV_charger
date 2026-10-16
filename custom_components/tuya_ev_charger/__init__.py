@@ -27,6 +27,7 @@ from .const import (
     CONF_DEVICE_ID,
     CONF_LOCAL_KEY,
     CONF_MAC,
+    CONF_MAX_CHARGE_CURRENT_A,
     CONF_PROTOCOL_VERSION,
     CONF_SCAN_INTERVAL,
     CONF_VEHICLES,
@@ -186,6 +187,14 @@ def _charger_profile_json(entry: ConfigEntry) -> str:
     return str(configured_value or "").strip()
 
 
+def _max_charge_current_a(entry: ConfigEntry) -> int:
+    """The user's current ceiling, 0 when unset or unparseable (no limit)."""
+    try:
+        return max(0, int(entry.options.get(CONF_MAX_CHARGE_CURRENT_A, 0)))
+    except (TypeError, ValueError):
+        return 0
+
+
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Bring an older config entry up to the current schema.
 
@@ -237,6 +246,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         protocol_version=entry.data[CONF_PROTOCOL_VERSION],
         charger_profile=_charger_profile(entry),
         charger_profile_json=_charger_profile_json(entry),
+        max_current_a=_max_charge_current_a(entry),
     )
 
     try:

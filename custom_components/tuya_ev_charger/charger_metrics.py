@@ -209,7 +209,9 @@ QCCDZ_PILOT_STATE_MAP: dict[str, str] = {
 }
 
 
-def decode_qccdz_metrics(dps: dict[str, Any], dp: DPProfile) -> EVMetrics:
+def decode_qccdz_metrics(
+    dps: dict[str, Any], dp: DPProfile, max_current_a: int = QCCDZ_MAX_CURRENT_A
+) -> EVMetrics:
     """Decode a `qccdz` firmware's scalar DPs into ``EVMetrics`` (#46).
 
     Power, current and voltage arrive as plain integers in tenths (DP 48/49/50)
@@ -263,7 +265,7 @@ def decode_qccdz_metrics(dps: dict[str, Any], dp: DPProfile) -> EVMetrics:
         plug_in_action=None,
         do_charge=_qccdz_do_charge(dps.get(dp.do_charge)),
         current_target=coerce_optional_int(dps.get(dp.current_target)),
-        max_current_cfg=QCCDZ_MAX_CURRENT_A,
+        max_current_cfg=max_current_a,
         nfc_enabled=None,
         downcounter=None,
         selftest=None,

@@ -596,7 +596,7 @@ charging, instead of holding the last value.
 | `scan_interval` | Polling interval, seconds |
 | `charger_profile` / `charger_profile_json` | DP mapping; custom JSON overrides, validated on save |
 | `continuous_current` | 1 A steps (default **on**) |
-| `max_charge_current_a` / `min_charge_current_a` | Your circuit's rating; `0` uses the charger's |
+| `max_charge_current_a` / `min_charge_current_a` | Your circuit's rating; `0` uses the charger's. On the `qccdz_v1` profile the charger reports no limit of its own, so `0` means 16 A and a higher value (up to 32) raises it for a 32 A unit |
 | `installation_phases` | `1` or `3`; scales every watts-to-amps conversion (surplus target, both protection caps) |
 | `max_inverter_power_w` / `total_load_sensor_entity_id` | Cap total load under a hybrid inverter's rating; `0` disables |
 | `cap_only_regulation` | With surplus mode off, climb back to the highest current the protection caps allow and restart after a no-headroom stop (default off) |

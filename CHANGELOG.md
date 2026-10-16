@@ -9,6 +9,10 @@ published normally** and HACS offers them without enabling beta versions.
 
 ## Unreleased
 
+- **`qccdz_v1` no longer caps a 32 A charger at 16 A.** That layout has no DP 152
+  to report the charger's own limit, so 16 A was assumed and the circuit-rating
+  option could only lower it. A non-zero *Maximum charge current* now replaces the
+  16 A default on this profile, up to 32 A.
 - **Czech translation (#51).** Contributed by @vsajer: every key of the English
   file, with the `{placeholders}` intact.
 - **The French config flow was missing.** `fr.json` had no entry for the mode,

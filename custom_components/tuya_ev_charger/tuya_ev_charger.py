@@ -21,6 +21,7 @@ from .const import (
     CHARGER_PROFILE_QCCDZ_V1,
     DEFAULT_CHARGER_PROFILE,
     DEFAULT_CHARGER_PROFILE_JSON,
+    QCCDZ_MAX_CURRENT_A,
     TUYA_CONTROL_PORT,
     ConnectionFault,
 )
@@ -61,7 +62,11 @@ class TuyaEVChargerClient:
         protocol_version: str,
         charger_profile: str = DEFAULT_CHARGER_PROFILE,
         charger_profile_json: str = DEFAULT_CHARGER_PROFILE_JSON,
+        max_current_a: int = 0,
     ) -> None:
+        # Only the qccdz profile reads it: that layout has no DP 152 to report the
+        # charger's own limit, so the user's setting stands in for it. 0 = default.
+        self._max_current_a = max_current_a
         self._device_id = device_id
         self._host = host
         self._local_key = local_key
@@ -316,7 +321,7 @@ class TuyaEVChargerClient:
         if dps is None:
             return None
         if self._dp_profile == CHARGER_PROFILE_QCCDZ_V1:
-            return decode_qccdz_metrics(dps, self._dp)
+            return decode_qccdz_metrics(dps, self._dp, self._max_current_a or QCCDZ_MAX_CURRENT_A)
         return decode_metrics(dps, self._dp)
 
     async def async_set_schedule(self, enabled: bool, start: str, end: str) -> bool:

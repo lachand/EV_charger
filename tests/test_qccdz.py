@@ -283,3 +283,41 @@ def test_the_schedule_is_not_written_on_a_firmware_without_it():
 
     assert asyncio.run(client.async_set_schedule(True, "22:00", "06:00")) is False
     assert client._device.set_calls == []
+
+
+def test_the_current_ceiling_defaults_to_16_a():
+    assert _decode(CHARGING).max_current_cfg == 16
+
+
+def test_a_configured_ceiling_replaces_the_16_a_default():
+    """A 32 A unit on this layout must be able to go past 16 A (#57)."""
+    from tuya_ev_charger.charger_metrics import decode_qccdz_metrics
+
+    assert decode_qccdz_metrics(CHARGING, _profile(), 32).max_current_cfg == 32
+    assert decode_qccdz_metrics(CHARGING, _profile(), 10).max_current_cfg == 10
+
+
+def test_the_client_hands_its_ceiling_to_the_decoder():
+    from tuya_ev_charger.tuya_ev_charger import TuyaEVChargerClient
+
+    client = TuyaEVChargerClient(
+        "dev", "1.2.3.4", "key", "3.5", charger_profile="qccdz_v1", max_current_a=32
+    )
+    client._device = _FakeDevice(CHARGING)
+
+    assert asyncio.run(client.async_get_metrics()).max_current_cfg == 32
+    assert asyncio.run(_client(CHARGING).async_get_metrics()).max_current_cfg == 16
+
+
+def test_the_offered_currents_follow_the_configured_ceiling():
+    from tuya_ev_charger.helpers import allowed_currents
+
+    wide = _decode_with(32)
+    assert max(allowed_currents(wide, {})) == 32
+    assert max(allowed_currents(_decode(CHARGING), {})) == 16
+
+
+def _decode_with(ceiling):
+    from tuya_ev_charger.charger_metrics import decode_qccdz_metrics
+
+    return decode_qccdz_metrics(CHARGING, _profile(), ceiling)

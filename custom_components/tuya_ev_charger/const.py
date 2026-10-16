@@ -460,6 +460,8 @@ QCCDZ_DP_POWER = "48"  # charge_power, 0.1 kW
 QCCDZ_DP_CURRENT = "49"  # charge_current, 0.1 A
 QCCDZ_DP_VOLTAGE = "50"  # charge_voltage, 0.1 V
 # Upper bound of charge_cur_set in the Thing Model; there is no DP 152 equivalent.
+# The default only: a non-zero `max_charge_current_a` replaces it, which is how a
+# 32 A unit on this layout gets past 16 A.
 QCCDZ_MAX_CURRENT_A = 16
 QCCDZ_FAULT_LABELS: tuple[str, ...] = (
     "ov_cr",
