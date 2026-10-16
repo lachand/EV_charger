@@ -132,3 +132,28 @@ def test_a_healthy_history_has_no_anomalies():
         _session(duration_s=7200, energy_kwh=14.8),
     ]
     assert _detect(sessions) == []
+
+
+# --- plug-in time is not charging time (#59) ----------------------------------
+
+
+def test_overnight_sessions_that_sat_plugged_in_are_not_slow():
+    """An 11 kW charger that charged ~9.6 kW for under two hours, then stayed plugged
+    in until the afternoon, reads ~1 kW over DP 105's plug-in duration."""
+    from tuya_ev_charger.charge_curve import learned_power_kw
+    from tuya_ev_charger.session_anomaly import SessionAnomaly
+
+    overnight = {"duration_s": 55857, "energy_kwh": 16.7, "charging_s": 6300}
+    sessions = [overnight] * 5
+
+    best = learned_power_kw(sessions)
+    assert best is not None and best > 9
+    assert SessionAnomaly.CHARGING_SLOWER_THAN_USUAL not in _detect(sessions, best=best)
+
+
+def test_records_without_a_charging_time_fall_back_to_the_recorded_duration():
+    from tuya_ev_charger.charge_curve import charging_seconds
+
+    assert charging_seconds({"duration_s": 7200}) == 7200
+    assert charging_seconds({"duration_s": 7200, "charging_s": None}) == 7200
+    assert charging_seconds({"duration_s": 55857, "charging_s": 6300}) == 6300

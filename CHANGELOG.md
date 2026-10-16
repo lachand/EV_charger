@@ -16,6 +16,14 @@ published normally** and HACS offers them without enabling beta versions.
 - **The re-enter-the-key prompt now says to power-cycle the charger (#34, #52).**
   The charger's Wi-Fi module can get stuck and refuse the session with the key
   unchanged; only a restart clears it.
+- **"Charging slower than this car usually does" no longer fires on a healthy
+  charger that stays plugged in (#59).** Reported by @MarianBe: on some firmwares
+  DP 105's duration runs from plug-in to unplug, so an overnight session of ~9.6
+  kW read as ~1 kW. Each session now also records the time spent charging (from
+  DP 102, which counts charging only) and the average power, the repair and the
+  learned rate use it. Sessions recorded before this release keep the old figure
+  until they age out of the last five. The off-peak/peak cost split still uses the
+  reported duration.
 
 ## 2.27.0-beta4
 

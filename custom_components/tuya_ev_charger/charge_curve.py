@@ -36,6 +36,16 @@ MIN_SESSIONS = 3
 SAFETY_FACTOR = 0.95
 
 
+def charging_seconds(record: Mapping[str, Any]) -> Any:
+    """The time a recorded session spent charging, for averaging its power.
+
+    `charging_s` when the record has it, else `duration_s`, which on some firmwares
+    also counts the time the car sat plugged in afterwards (#59) -- the best that
+    can be said about a record written before `charging_s` existed.
+    """
+    return record.get("charging_s") or record.get("duration_s")
+
+
 def session_average_kw(duration_s: Any, energy_kwh: Any) -> float | None:
     """Average power of one session, or None when it cannot be trusted.
 
@@ -77,7 +87,7 @@ def learned_power_kw(
     for record in sessions:
         if vehicle is not None and record.get("vehicle") != vehicle:
             continue
-        average = session_average_kw(record.get("duration_s"), record.get("energy_kwh"))
+        average = session_average_kw(charging_seconds(record), record.get("energy_kwh"))
         if average is not None:
             averages.append(average)
 

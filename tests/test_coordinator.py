@@ -125,6 +125,7 @@ def _metrics(**overrides):
     base = {
         "status": "idle",
         "session_energy_kwh": 0.0,
+        "session_duration_s": None,
         "last_session_duration_s": None,
         "last_session_energy_kwh": None,
     }
@@ -674,6 +675,38 @@ def test_a_session_record_prefers_the_controllers_live_off_peak_split(monkeypatc
     assert (record.off_peak_minutes, record.peak_minutes) == (40, 20)
     # Two thirds of 6 kWh at 0.10, one third at 0.30.
     assert record.cost == pytest.approx(4.0 * 0.10 + 2.0 * 0.30)
+
+
+def test_a_session_record_keeps_the_charging_time_apart_from_the_plug_in_time(monkeypatch):
+    """#59: DP 105's duration spans plug-in to unplug; DP 102's counts charging only."""
+    coord = _coordinator(monkeypatch)
+    coord.solar_surplus_controller = None
+
+    record = coord._build_session_record(_finished(session_duration_s=8301), 55857, 16.7)
+
+    assert record.duration_s == 55857  # DP 105 as reported: it is the session signature
+    assert record.charging_s == 8301
+
+
+def test_the_charging_time_is_never_longer_than_the_recorded_duration(monkeypatch):
+    coord = _coordinator(monkeypatch)
+    coord.solar_surplus_controller = None
+
+    assert (
+        coord._build_session_record(_finished(session_duration_s=9999), 3600, 6.0).charging_s
+        == 3600
+    )
+
+
+@pytest.mark.parametrize("live", [None, 0])
+def test_an_unknown_charging_time_is_left_unset(monkeypatch, live):
+    coord = _coordinator(monkeypatch)
+    coord.solar_surplus_controller = None
+
+    assert (
+        coord._build_session_record(_finished(session_duration_s=live), 3600, 6.0).charging_s
+        is None
+    )
 
 
 def test_without_a_live_split_the_windows_are_reconstructed(monkeypatch):

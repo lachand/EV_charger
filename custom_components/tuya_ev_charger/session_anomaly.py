@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
-from .charge_curve import session_average_kw
+from .charge_curve import charging_seconds, session_average_kw
 
 
 class SessionAnomaly(StrEnum):
@@ -52,7 +52,7 @@ def _prepare(sessions: Iterable[Mapping[str, Any]]) -> list[_Session]:
     prepared: list[_Session] = []
     for record in sessions:
         try:
-            duration = int(record.get("duration_s") or 0)
+            duration = int(charging_seconds(record) or 0)
             energy = float(record.get("energy_kwh") or 0.0)
         except (TypeError, ValueError):
             continue

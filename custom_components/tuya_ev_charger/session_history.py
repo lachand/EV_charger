@@ -36,6 +36,10 @@ class SessionRecord:
     peak_minutes: int
     cost: float | None = None
     vehicle: str | None = None
+    # Time actually spent charging. `duration_s` is DP 105's `d`, which on some
+    # firmwares runs from plug-in to unplug (#59), so an overnight session reads as
+    # ~1 kW. Absent on records written before this field existed.
+    charging_s: int | None = None
 
 
 class SessionHistory:

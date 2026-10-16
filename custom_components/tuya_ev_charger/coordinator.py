@@ -59,6 +59,19 @@ def _looks_like_gwid(device_id: str) -> bool:
     return len(device_id) >= 12 and "." not in device_id
 
 
+def _charging_seconds(live_s: int | None, recorded_s: int) -> int | None:
+    """The time the finished session spent charging, or None when not known.
+
+    DP 105's duration can run from plug-in to unplug (#59), whereas DP 102's counts
+    only the charging, and it still holds that value right after the session ends.
+    Never more than the recorded duration: if the counter was already reset for a
+    new session, a smaller number would be a different session's.
+    """
+    if not live_s or live_s <= 0:
+        return None
+    return int(min(live_s, recorded_s))
+
+
 class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
     def __init__(
         self,
@@ -427,6 +440,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         return SessionRecord(
             ended_at=ended_at.isoformat(timespec="seconds"),
             duration_s=int(duration_s),
+            charging_s=_charging_seconds(metrics.session_duration_s, duration_s),
             energy_kwh=float(energy_kwh),
             off_peak_minutes=split.off_peak_minutes,
             peak_minutes=split.peak_minutes,
