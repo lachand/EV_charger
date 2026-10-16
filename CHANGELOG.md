@@ -16,6 +16,13 @@ published normally** and HACS offers them without enabling beta versions.
   showed a mix of an old form and English fallbacks. They are translated now,
   and a test checks that every locale has exactly the English keys and
   placeholders, so a new string can no longer ship in one language only.
+- **A short clash over the charger's single connection no longer ends in a
+  permanent outage (#52).** Three undecryptable polls (30 s at a 10 s interval)
+  raised the "re-enter the local key" banner, and Home Assistant stops polling a
+  coordinator after that, so the integration stayed down until the key was typed
+  in again -- the same key. The banner now needs the replies to stay unreadable
+  for 10 minutes as well; until then the poll keeps retrying. The connection
+  health report gained `undecryptable_for_s` to tell the two cases apart.
 
 ## 2.27.0-beta3
 

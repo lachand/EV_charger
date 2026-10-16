@@ -90,6 +90,7 @@ def _coordinator(monkeypatch, *, entry_data=None, options=None, client=None, dat
     coord._last_key_refresh_at = 0.0
     coord._last_fault = None
     coord._last_fault_at = 0.0
+    coord._undecryptable_since = None
     coord._polls_ok = 0
     coord._polls_failed = 0
     coord._consecutive_failures = 0
@@ -202,15 +203,72 @@ def test_a_failed_poll_raises_update_failed_and_counts_it(monkeypatch):
     assert coord._last_failure_at is not None
 
 
-def test_repeated_undecryptable_polls_ask_for_reauthentication(monkeypatch):
-    from tuya_ev_charger.const import UNDECRYPTABLE_FAILURES_BEFORE_REAUTH, ConnectionFault
+def test_undecryptable_polls_ask_for_reauthentication_once_the_grace_period_is_over(monkeypatch):
+    from tuya_ev_charger.const import (
+        UNDECRYPTABLE_FAILURES_BEFORE_REAUTH,
+        UNDECRYPTABLE_GRACE_SECONDS,
+        ConnectionFault,
+    )
     from tuya_ev_charger.coordinator import ConfigEntryAuthFailed
 
     coord = _failing(monkeypatch, fault=ConnectionFault.UNDECRYPTABLE)
     coord._consecutive_failures = UNDECRYPTABLE_FAILURES_BEFORE_REAUTH - 1
+    coord._undecryptable_since = coord.clock.now - UNDECRYPTABLE_GRACE_SECONDS
 
     with pytest.raises(ConfigEntryAuthFailed, match="cannot be decrypted"):
         asyncio.run(coord._async_update_data())
+
+
+def test_many_undecryptable_polls_inside_the_grace_period_do_not_stop_polling(monkeypatch):
+    """#52: HA stops polling after ConfigEntryAuthFailed, so a short clash with another
+    client over the charger's single connection must not raise it, however many
+    polls it spans."""
+    from tuya_ev_charger.const import (
+        UNDECRYPTABLE_FAILURES_BEFORE_REAUTH,
+        UNDECRYPTABLE_GRACE_SECONDS,
+        ConnectionFault,
+    )
+    from tuya_ev_charger.coordinator import ConfigEntryAuthFailed, UpdateFailed
+
+    coord = _failing(monkeypatch, fault=ConnectionFault.UNDECRYPTABLE)
+    coord._consecutive_failures = 10 * UNDECRYPTABLE_FAILURES_BEFORE_REAUTH
+    coord._undecryptable_since = coord.clock.now - (UNDECRYPTABLE_GRACE_SECONDS - 1)
+
+    with pytest.raises(UpdateFailed) as caught:
+        asyncio.run(coord._async_update_data())
+    assert not isinstance(caught.value, ConfigEntryAuthFailed)
+
+
+def test_the_first_undecryptable_poll_starts_the_grace_clock(monkeypatch):
+    from tuya_ev_charger.const import ConnectionFault
+    from tuya_ev_charger.coordinator import UpdateFailed
+
+    coord = _failing(monkeypatch, fault=ConnectionFault.UNDECRYPTABLE)
+
+    with pytest.raises(UpdateFailed):
+        asyncio.run(coord._async_update_data())
+
+    assert coord._undecryptable_since == coord.clock.now
+    coord.clock.now += 42
+    assert coord.connection_health["undecryptable_for_s"] == 42
+
+
+def test_a_different_fault_or_a_good_poll_resets_the_grace_clock(monkeypatch):
+    from tuya_ev_charger.const import ConnectionFault
+    from tuya_ev_charger.coordinator import UpdateFailed
+
+    # The charger stops answering altogether: no longer an undecryptable run.
+    coord = _failing(monkeypatch, fault=ConnectionFault.UNREACHABLE)
+    coord._undecryptable_since = coord.clock.now - 500
+    with pytest.raises(UpdateFailed):
+        asyncio.run(coord._async_update_data())
+    assert coord._undecryptable_since is None
+
+    # Readable replies again.
+    coord._undecryptable_since = coord.clock.now - 500
+    coord._async_note_success()
+    assert coord._undecryptable_since is None
+    assert coord.connection_health["undecryptable_for_s"] is None
 
 
 def test_a_released_connection_skips_the_poll_and_keeps_the_last_value(monkeypatch):

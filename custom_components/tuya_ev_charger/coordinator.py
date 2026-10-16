@@ -30,6 +30,7 @@ from .const import (
     REDISCOVERY_COOLDOWN_SECONDS,
     REDISCOVERY_SCAN_SECONDS,
     UNDECRYPTABLE_FAILURES_BEFORE_REAUTH,
+    UNDECRYPTABLE_GRACE_SECONDS,
     ConnectionFault,
 )
 from .discovery import async_scan_devices_by_id
@@ -94,6 +95,9 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         # on every single poll.
         self._last_fault: ConnectionFault | None = None
         self._last_fault_at: float = 0.0
+        # Loop time of the first poll of the current unbroken run of undecryptable
+        # replies; None while the replies are readable. See _async_fail_poll.
+        self._undecryptable_since: float | None = None
         # Connection health. Kept here rather than derived from entity history
         # because the interesting events (a relocation, a key refresh) happen
         # between polls and leave no trace in the entity state.
@@ -149,17 +153,25 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         self._last_failure_at = dt_util.now()
 
         message = await self._async_failure_message()
-        if (
-            self._last_fault == ConnectionFault.UNDECRYPTABLE
-            and self._consecutive_failures >= UNDECRYPTABLE_FAILURES_BEFORE_REAUTH
-        ):
-            # The charger answers but nothing decrypts, and has for several polls
-            # in a row: the local_key was rotated by a re-pairing.
-            # ConfigEntryAuthFailed is what puts a "Reconfigure" banner in front
-            # of the user; UpdateFailed would just retry forever. A one-off
-            # undecryptable poll is a transient handshake glitch (#34) and only
-            # gets an UpdateFailed, so the next poll can recover on its own.
-            raise ConfigEntryAuthFailed(message)
+        if self._last_fault == ConnectionFault.UNDECRYPTABLE:
+            now = self.hass.loop.time()
+            if self._undecryptable_since is None:
+                self._undecryptable_since = now
+            if (
+                self._consecutive_failures >= UNDECRYPTABLE_FAILURES_BEFORE_REAUTH
+                and now - self._undecryptable_since >= UNDECRYPTABLE_GRACE_SECONDS
+            ):
+                # The charger answers but nothing decrypts, and has for several
+                # polls and minutes in a row: the local_key was rotated by a
+                # re-pairing. ConfigEntryAuthFailed is what puts a "Reconfigure"
+                # banner in front of the user, but it also stops Home Assistant
+                # polling until they act, so it is the last resort. A short run
+                # of undecryptable polls is a transient handshake glitch (#34) or
+                # another client briefly holding the connection (#52) and only
+                # gets an UpdateFailed, so the next poll can recover on its own.
+                raise ConfigEntryAuthFailed(message)
+        else:
+            self._undecryptable_since = None
         raise UpdateFailed(message)
 
     async def _async_failure_message(self) -> str:
@@ -299,6 +311,11 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
             if self._last_failure_at
             else None,
             "last_fault": str(self._last_fault) if self._last_fault else None,
+            # How long the replies have been unreadable: tells a transient clash
+            # with another client from a rotated key in a bug report (#52).
+            "undecryptable_for_s": round(self.hass.loop.time() - self._undecryptable_since)
+            if self._undecryptable_since is not None
+            else None,
             "host": self.client.host,
             "relocations": self._relocations,
             "key_refreshes": self._key_refreshes,
@@ -313,6 +330,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         """The charger answered: drop any stale diagnosis and repair issue."""
         self._polls_ok += 1
         self._consecutive_failures = 0
+        self._undecryptable_since = None
         self._last_success_at = dt_util.now()
         if self._last_fault is not None:
             self._last_fault = None

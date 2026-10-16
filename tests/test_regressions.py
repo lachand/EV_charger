@@ -247,6 +247,7 @@ def _bare_coordinator(**overrides):
     coordinator = TuyaEVChargerDataUpdateCoordinator.__new__(TuyaEVChargerDataUpdateCoordinator)
     coordinator._last_fault = None
     coordinator._last_fault_at = 0.0
+    coordinator._undecryptable_since = None
     coordinator._polls_ok = 0
     coordinator._polls_failed = 0
     coordinator._consecutive_failures = 0
@@ -278,18 +279,26 @@ def test_success_clears_the_cached_fault():
 
 
 def test_a_transient_undecryptable_poll_does_not_trigger_reauth():
-    """#34: one undecryptable poll is a handshake glitch, not a rotated key.
+    """#34, #52: undecryptable polls are a handshake glitch or another client holding
+    the charger's single connection until proven otherwise.
 
-    Only after several consecutive undecryptable polls does the coordinator raise
-    ConfigEntryAuthFailed (the reauth banner); before that it just fails and the
-    next poll can recover on its own.
+    ConfigEntryAuthFailed (the reauth banner) also stops Home Assistant polling, so
+    it needs both several consecutive failures and a grace period; before that the
+    poll just fails and the next one can recover on its own.
     """
     import asyncio
+    import types
 
-    from tuya_ev_charger.const import UNDECRYPTABLE_FAILURES_BEFORE_REAUTH, ConnectionFault
+    from tuya_ev_charger.const import (
+        UNDECRYPTABLE_FAILURES_BEFORE_REAUTH,
+        UNDECRYPTABLE_GRACE_SECONDS,
+        ConnectionFault,
+    )
     from tuya_ev_charger.coordinator import ConfigEntryAuthFailed, UpdateFailed
 
+    now = [5_000.0]
     coordinator = _bare_coordinator()
+    coordinator.hass = types.SimpleNamespace(loop=types.SimpleNamespace(time=lambda: now[0]))
 
     async def _no_metrics():
         return None
@@ -306,17 +315,23 @@ def test_a_transient_undecryptable_poll_does_not_trigger_reauth():
     coordinator._async_try_refresh_local_key = _no
     coordinator._async_failure_message = _message
 
-    for i in range(1, UNDECRYPTABLE_FAILURES_BEFORE_REAUTH):
-        with pytest.raises(UpdateFailed):
+    # Far more polls than the threshold, all inside the grace period: still just failing.
+    for i in range(1, 3 * UNDECRYPTABLE_FAILURES_BEFORE_REAUTH):
+        with pytest.raises(UpdateFailed) as caught:
             asyncio.run(coordinator._async_update_data())
+        assert not isinstance(caught.value, ConfigEntryAuthFailed)
         assert coordinator._consecutive_failures == i
+        now[0] += 10
 
+    # Unreadable for the whole grace period: now it really looks like a rotated key.
+    now[0] += UNDECRYPTABLE_GRACE_SECONDS
     with pytest.raises(ConfigEntryAuthFailed):
         asyncio.run(coordinator._async_update_data())
 
     # And a good poll wipes the streak, so a later blip starts from zero again.
     coordinator._async_note_success()
     assert coordinator._consecutive_failures == 0
+    assert coordinator._undecryptable_since is None
 
 
 def test_connection_health_starts_unknown_not_perfect():
