@@ -820,6 +820,43 @@ def test_tally_is_not_cleared_on_stop_only_on_the_next_session(monkeypatch):
     assert h.controller.session_off_peak_split() is None
 
 
+# --- live price tally ----------------------------------------------------------
+
+
+def test_the_session_price_is_weighted_across_a_tariff_change(monkeypatch):
+    """A night charge crossing a Tempo day change is priced at both rates."""
+    h = _charging_harness(
+        monkeypatch,
+        sensors={"sensor.grid": -5000, "sensor.price": "0.10"},
+        options={"price_sensor_entity_id": "sensor.price"},
+    )
+    h.controller._start_session(h.now)
+    h.tick(60)
+
+    h.hass.set("sensor.price", "0.40")
+    h.tick(180)
+
+    assert h.controller.session_price() == pytest.approx((1 * 0.10 + 3 * 0.40) / 4)
+
+
+def test_an_unsampled_session_is_priced_at_the_current_rate(monkeypatch):
+    h = _charging_harness(
+        monkeypatch,
+        sensors={"sensor.grid": -5000, "sensor.price": "0.25"},
+        options={"price_sensor_entity_id": "sensor.price"},
+    )
+
+    assert h.controller.session_price() == pytest.approx(0.25)
+
+
+def test_no_price_sensor_means_no_session_price(monkeypatch):
+    h = _charging_harness(monkeypatch, sensors={"sensor.grid": -5000})
+    h.controller._start_session(h.now)
+    h.tick(120)
+
+    assert h.controller.session_price() is None
+
+
 # --- protection caps ------------------------------------------------------
 
 

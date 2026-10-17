@@ -134,7 +134,8 @@
               "departure_time": "Heure de depart (HH:MM, vide = aucune echeance)",
               "departure_energy_kwh": "Energie necessaire au depart (kWh, 0 = desactive)",
               "off_peak_price": "Prix du kWh en heures creuses (0 = pas de suivi des couts)",
-              "peak_price": "Prix du kWh en heures pleines (0 = pas de suivi des couts)"
+              "peak_price": "Prix du kWh en heures pleines (0 = pas de suivi des couts)",
+              "price_sensor_entity_id": "Capteur de prix actuel (par kWh, facultatif) - ex. un capteur Tempo ou de tarif dynamique ; une fois renseigné, il remplace les deux prix fixes"
             }
           },
           "surplus": {

@@ -709,6 +709,23 @@ def test_an_unknown_charging_time_is_left_unset(monkeypatch, live):
     )
 
 
+@pytest.mark.parametrize(("price", "cost"), [(0.25, 1.5), (None, None)])
+def test_a_price_sensor_replaces_the_fixed_prices(monkeypatch, price, cost):
+    coord = _coordinator(
+        monkeypatch,
+        options={
+            "off_peak_price": 0.1,
+            "peak_price": 0.3,
+            "price_sensor_entity_id": "sensor.price",
+        },
+    )
+    coord.solar_surplus_controller = types.SimpleNamespace(
+        session_off_peak_split=lambda: None, session_price=lambda: price
+    )
+
+    assert coord._build_session_record(_finished(), 3600, 6.0).cost == cost
+
+
 def test_without_a_live_split_the_windows_are_reconstructed(monkeypatch):
     coord = _coordinator(monkeypatch, options={"off_peak_windows": ""})
     coord.solar_surplus_controller = types.SimpleNamespace(session_off_peak_split=lambda: None)

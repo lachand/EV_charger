@@ -22,6 +22,7 @@ from .const import (
     CONF_OFF_PEAK_PRICE,
     CONF_OFF_PEAK_WINDOWS,
     CONF_PEAK_PRICE,
+    CONF_PRICE_SENSOR_ENTITY_ID,
     DEFAULT_CLOUD_REGION,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
@@ -43,7 +44,7 @@ from .repairs import (
     async_sync_session_anomalies,
 )
 from .session_anomaly import detect_anomalies, typical_energy_kwh
-from .session_costing import session_cost, split_session
+from .session_costing import SessionSplit, session_cost, split_session
 from .session_history import SessionRecord
 from .tuya_ev_charger import TuyaEVChargerClient
 
@@ -444,13 +445,21 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
             energy_kwh=float(energy_kwh),
             off_peak_minutes=split.off_peak_minutes,
             peak_minutes=split.peak_minutes,
-            cost=session_cost(
-                energy_kwh=float(energy_kwh),
-                split=split,
-                off_peak_price=option_float(options, CONF_OFF_PEAK_PRICE),
-                peak_price=option_float(options, CONF_PEAK_PRICE),
-            ),
+            cost=self._session_cost(float(energy_kwh), split),
             vehicle=tracker.active_vehicle if tracker is not None else None,
+        )
+
+    def _session_cost(self, energy_kwh: float, split: SessionSplit) -> float | None:
+        options = self.entry.options
+        if option_text(options, CONF_PRICE_SENSOR_ENTITY_ID, ""):
+            controller = self.solar_surplus_controller
+            price = controller.session_price() if controller is not None else None
+            return None if price is None else round(energy_kwh * price, 4)
+        return session_cost(
+            energy_kwh=energy_kwh,
+            split=split,
+            off_peak_price=option_float(options, CONF_OFF_PEAK_PRICE),
+            peak_price=option_float(options, CONF_PEAK_PRICE),
         )
 
     async def _async_track_vehicle_energy(self, metrics: EVMetrics) -> None:

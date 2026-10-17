@@ -608,6 +608,7 @@ charging, instead of holding the last value.
 | `departure_time` / `departure_energy_kwh` | Deadline that overrides the off-peak wait |
 | `critical_peak_sensor_entity_id`, `critical_peak_sensor_inverted` | Optional binary_sensor/input_boolean; when on during peak hours, suppresses the departure-deadline override above |
 | `off_peak_price` / `peak_price` | Price per kWh, between -100 and 100 (a negative price is allowed); enables session cost estimation |
+| `price_sensor_entity_id` | Optional sensor holding the price per kWh right now (Tempo, dynamic tariff). Sampled while charging and weighted by energy; once set, replaces `off_peak_price` / `peak_price` |
 | `surplus_mode_enabled` | Master switch for surplus mode |
 | `surplus_sensor_entity_id`, `surplus_sensor_inverted` | Grid power sensor and its sign |
 | `surplus_start_threshold_w`, `surplus_stop_threshold_w` | Start/stop thresholds |

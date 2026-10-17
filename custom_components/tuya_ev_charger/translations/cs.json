@@ -134,7 +134,8 @@
               "departure_time": "\u010cas odjezdu (HH:MM, pr\u00e1zdn\u00e9 = bez deadlinu)",
               "departure_energy_kwh": "Energie pot\u0159ebn\u00e1 do odjezdu (kWh, 0 = vypnuto)",
               "off_peak_price": "Cena n\u00edzk\u00e9ho tarifu za kWh (0 = bez sledov\u00e1n\u00ed n\u00e1klad\u016f)",
-              "peak_price": "Cena \u0161pi\u010dky za kWh (0 = bez sledov\u00e1n\u00ed n\u00e1klad\u016f)"
+              "peak_price": "Cena \u0161pi\u010dky za kWh (0 = bez sledov\u00e1n\u00ed n\u00e1klad\u016f)",
+              "price_sensor_entity_id": "Senzor aktuální ceny (za kWh, volitelné) - např. senzor dynamického tarifu; po nastavení nahrazuje obě pevné ceny"
             }
           },
           "surplus": {

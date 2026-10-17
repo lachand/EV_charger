@@ -39,6 +39,7 @@ from .const import (
     CONF_OFF_PEAK_SENSOR_INVERTED,
     CONF_OFF_PEAK_WINDOWS,
     CONF_PEAK_PRICE,
+    CONF_PRICE_SENSOR_ENTITY_ID,
     CONF_SCAN_INTERVAL,
     CONF_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
     CONF_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
@@ -78,6 +79,7 @@ from .const import (
     DEFAULT_OFF_PEAK_SENSOR_INVERTED,
     DEFAULT_OFF_PEAK_WINDOWS,
     DEFAULT_PEAK_PRICE,
+    DEFAULT_PRICE_SENSOR_ENTITY_ID,
     DEFAULT_SCAN_INTERVAL_SECONDS,
     DEFAULT_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
     DEFAULT_SURPLUS_BATTERY_NET_DISCHARGE_SENSOR_ENTITY_ID,
@@ -136,6 +138,7 @@ OPTIONAL_ENTITY_OPTIONS: tuple[str, ...] = (
     CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
     CONF_EXTERNAL_CHARGE_ALLOWED_SENSOR_ENTITY_ID,
     CONF_OFF_PEAK_SENSOR_ENTITY_ID,
+    CONF_PRICE_SENSOR_ENTITY_ID,
 )
 
 # Optional free-text fields (kind "text"/"multiline"). Same omission behaviour
@@ -306,6 +309,12 @@ _OPTIONS_FORM: tuple[_Opt, ...] = (
     ),
     _Opt(CONF_OFF_PEAK_PRICE, "price", DEFAULT_OFF_PEAK_PRICE, section=SECTION_TARIFF),
     _Opt(CONF_PEAK_PRICE, "price", DEFAULT_PEAK_PRICE, section=SECTION_TARIFF),
+    _Opt(
+        CONF_PRICE_SENSOR_ENTITY_ID,
+        "entity",
+        DEFAULT_PRICE_SENSOR_ENTITY_ID,
+        section=SECTION_TARIFF,
+    ),
     _Opt(CONF_SURPLUS_MODE_ENABLED, "bool", DEFAULT_SURPLUS_MODE_ENABLED, section=SECTION_SURPLUS),
     _Opt(
         CONF_SURPLUS_SENSOR_ENTITY_ID,
@@ -558,6 +567,7 @@ class TuyaEVChargerOptionsFlow(config_entries.OptionsFlow):
                 cleaned_input,
                 CONF_CRITICAL_PEAK_SENSOR_ENTITY_ID,
             )
+            _normalize_optional_entity_value(cleaned_input, CONF_PRICE_SENSOR_ENTITY_ID)
             _normalize_text_value(
                 cleaned_input,
                 CONF_CHARGER_PROFILE_JSON,

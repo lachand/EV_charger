@@ -134,7 +134,8 @@
               "departure_time": "Departure time (HH:MM, empty = no deadline)",
               "departure_energy_kwh": "Energy needed by departure (kWh, 0 = off)",
               "off_peak_price": "Off-peak price per kWh (0 = no cost tracking)",
-              "peak_price": "Peak price per kWh (0 = no cost tracking)"
+              "peak_price": "Peak price per kWh (0 = no cost tracking)",
+              "price_sensor_entity_id": "Current price sensor (per kWh, optional) - e.g. a Tempo or dynamic-tariff sensor; once set, it replaces the two fixed prices"
             }
           },
           "surplus": {

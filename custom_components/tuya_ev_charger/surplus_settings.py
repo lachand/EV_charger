@@ -28,6 +28,7 @@ from .const import (
     CONF_OFF_PEAK_SENSOR_ENTITY_ID,
     CONF_OFF_PEAK_SENSOR_INVERTED,
     CONF_OFF_PEAK_WINDOWS,
+    CONF_PRICE_SENSOR_ENTITY_ID,
     CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
     CONF_SURPLUS_ADJUST_UP_COOLDOWN_S,
     CONF_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
@@ -61,6 +62,7 @@ from .const import (
     DEFAULT_OFF_PEAK_SENSOR_ENTITY_ID,
     DEFAULT_OFF_PEAK_SENSOR_INVERTED,
     DEFAULT_OFF_PEAK_WINDOWS,
+    DEFAULT_PRICE_SENSOR_ENTITY_ID,
     DEFAULT_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
     DEFAULT_SURPLUS_ADJUST_UP_COOLDOWN_S,
     DEFAULT_SURPLUS_ALLOW_BATTERY_DISCHARGE_FOR_EV,
@@ -112,6 +114,7 @@ class SolarSurplusSettings:
     off_peak_windows: str
     off_peak_sensor_entity_id: str
     off_peak_sensor_inverted: bool
+    price_sensor_entity_id: str
     critical_peak_sensor_entity_id: str
     critical_peak_sensor_inverted: bool
     departure_time: str
@@ -218,6 +221,11 @@ def settings_from_entry(entry: ConfigEntry) -> SolarSurplusSettings:
             options,
             CONF_OFF_PEAK_SENSOR_INVERTED,
             DEFAULT_OFF_PEAK_SENSOR_INVERTED,
+        ),
+        price_sensor_entity_id=_option_str(
+            options,
+            CONF_PRICE_SENSOR_ENTITY_ID,
+            DEFAULT_PRICE_SENSOR_ENTITY_ID,
         ),
         critical_peak_sensor_entity_id=_option_str(
             options,

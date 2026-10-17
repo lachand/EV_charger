@@ -137,6 +137,9 @@ class SolarSurplusController:
         # `session_off_peak_split`.
         self._session_total_s: float = 0.0
         self._session_off_peak_s: float = 0.0
+        # Same for the price sensor: energy that was priced, and what it cost.
+        self._session_priced_kwh: float = 0.0
+        self._session_live_cost: float = 0.0
 
         self._regulation_active = False
         self._last_decision_reason = "startup"
@@ -873,6 +876,8 @@ class SolarSurplusController:
         # `_session_energy_kwh` for the departure estimate across that gap.
         self._session_total_s = 0.0
         self._session_off_peak_s = 0.0
+        self._session_priced_kwh = 0.0
+        self._session_live_cost = 0.0
 
     def _register_stop(self, now: float) -> None:
         self._session_active = False
@@ -916,6 +921,11 @@ class SolarSurplusController:
             if self._inputs.resolve_off_peak_now():
                 self._session_off_peak_s += elapsed_s
 
+        price = self._inputs.read_price_now()
+        if price is not None and session_increment_kwh > 0:
+            self._session_priced_kwh += session_increment_kwh
+            self._session_live_cost += session_increment_kwh * price
+
     def session_off_peak_split(self) -> SessionSplit | None:
         """The live-sampled off-peak/peak split for the session just ended.
 
@@ -939,6 +949,21 @@ class SolarSurplusController:
         total_minutes = max(0, int(self._session_total_s) // 60)
         off_peak_minutes = min(total_minutes, round(self._session_off_peak_s / 60))
         return SessionSplit(off_peak_minutes, total_minutes - off_peak_minutes)
+
+    def session_price(self) -> float | None:
+        """Average price per kWh of the session just ended, from the price sensor.
+
+        Weighted by the energy sampled live, so a night charge that crosses a
+        tariff change (a Tempo day starting at 06:00) is priced at the rates in
+        force while it ran. A session this controller did not sample (started
+        from the app, or before a restart) falls back to the price right now.
+        None without a price sensor, or with one that cannot be read.
+        """
+        if not self._settings.price_sensor_entity_id:
+            return None
+        if self._session_priced_kwh > 0:
+            return self._session_live_cost / self._session_priced_kwh
+        return self._inputs.read_price_now()
 
     def _record_curve_sample(self, power_kw: float) -> None:
         """Feed one (delivered, power) reading into this car's charge curve.

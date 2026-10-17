@@ -172,6 +172,17 @@ class SurplusReader:
             return None
         return is_within_windows(dt_util.now().time(), windows)
 
+    def read_price_now(self) -> float | None:
+        """The price per kWh right now, or None when unset or unreadable."""
+        entity_id = self._settings.price_sensor_entity_id
+        state = self._hass.states.get(entity_id) if entity_id else None
+        if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            return None
+        try:
+            return float(state.state)
+        except ValueError:
+            return None
+
     def resolve_critical_peak_now(self, is_off_peak: bool | None) -> bool:
         """Whether right now is worth treating as exceptionally expensive.
 

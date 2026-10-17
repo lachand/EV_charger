@@ -116,6 +116,10 @@ CONF_DEPARTURE_ENERGY_KWH = "departure_energy_kwh"
 # converts, it only multiplies.
 CONF_OFF_PEAK_PRICE = "off_peak_price"
 CONF_PEAK_PRICE = "peak_price"
+# Alternative to the two fixed prices: a sensor holding the price per kWh right
+# now (a Tempo or dynamic-tariff sensor). Sampled while charging; once set, the
+# fixed prices are ignored.
+CONF_PRICE_SENSOR_ENTITY_ID = "price_sensor_entity_id"
 # The circuit's rating, which is not the charger's rating: a 32 A unit is often
 # wired to a smaller breaker. 0 means "no override", i.e. trust the charger.
 CONF_MAX_CHARGE_CURRENT_A = "max_charge_current_a"
@@ -270,6 +274,7 @@ MAX_DEPARTURE_ENERGY_KWH = 200
 # than as zero.
 DEFAULT_OFF_PEAK_PRICE = 0.0
 DEFAULT_PEAK_PRICE = 0.0
+DEFAULT_PRICE_SENSOR_ENTITY_ID = ""
 DEFAULT_MAX_CHARGE_CURRENT_A = 0
 DEFAULT_MIN_CHARGE_CURRENT_A = 0
 # Single-phase: what every install implicitly assumed before this option
