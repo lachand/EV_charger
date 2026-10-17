@@ -136,6 +136,16 @@ def test_evse_state_maps_onto_the_existing_status_vocabulary(evse_state, work_st
     assert m.status == status
 
 
+@pytest.mark.parametrize(
+    ("charge_discharge", "status"),
+    [("disabled", "paused"), ("charge", "charged"), (None, "charged")],
+)
+def test_a_session_stopped_through_dp_35_reads_paused_not_charged(charge_discharge, status):
+    dps = {**IDLE_SINCE_BOOT, "38": "session_ending", "35": charge_discharge}
+
+    assert _decode({k: v for k, v in dps.items() if v is not None}).status == status
+
+
 def test_an_unmapped_evse_state_is_kept_but_has_no_status():
     m = _decode({**IDLE_SINCE_BOOT, "38": "plugged_in_discharging"})
 

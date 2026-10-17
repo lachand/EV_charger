@@ -228,6 +228,11 @@ def decode_qccdz_metrics(
         work_state_debug = QCCDZ_PILOT_STATE_MAP.get(pilot.lower(), "UNKNOWN")
     else:
         work_state_debug = "UNKNOWN"
+    do_charge = _qccdz_do_charge(dps.get(dp.do_charge))
+    # DP 38 reads `session_ending` both when the car is full and when the session
+    # was stopped through DP 35; only the latter leaves DP 35 at "disabled".
+    if work_state_debug == "STOP" and do_charge is False:
+        work_state_debug = "PAUSE"
     charging = work_state_debug == WORK_STATE_CHARGING
 
     phases: dict[str, PhaseMetrics] = {}
@@ -263,7 +268,7 @@ def decode_qccdz_metrics(
         work_state_debug=work_state_debug,
         status=STATUS_MAP.get(work_state_debug),
         plug_in_action=None,
-        do_charge=_qccdz_do_charge(dps.get(dp.do_charge)),
+        do_charge=do_charge,
         current_target=coerce_optional_int(dps.get(dp.current_target)),
         max_current_cfg=max_current_a,
         nfc_enabled=None,
