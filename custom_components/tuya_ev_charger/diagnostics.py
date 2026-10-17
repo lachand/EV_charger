@@ -110,7 +110,8 @@ async def async_get_config_entry_diagnostics(
             "data": dict(entry.data),
             "options": dict(entry.options),
         },
-        "integration": {"version": _integration_version()},
+        # Reading the manifest is file I/O; HA flags it when done in the event loop.
+        "integration": {"version": await hass.async_add_executor_job(_integration_version)},
         "client": {"dp_profile": profile},
         "connection": connection,
         "coordinator_data": coordinator_data,

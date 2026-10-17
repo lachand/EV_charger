@@ -66,9 +66,16 @@ def _entry(options=None, runtime=True):
 
 
 def _hass(states=None):
-    return types.SimpleNamespace(
-        states=types.SimpleNamespace(get=lambda eid: (states or {}).get(eid))
+    async def async_add_executor_job(func, *args):
+        hass.executor_jobs.append(func.__name__)
+        return func(*args)
+
+    hass = types.SimpleNamespace(
+        states=types.SimpleNamespace(get=lambda eid: (states or {}).get(eid)),
+        async_add_executor_job=async_add_executor_job,
+        executor_jobs=[],
     )
+    return hass
 
 
 @pytest.fixture(autouse=True)
@@ -121,6 +128,14 @@ def test_the_integration_version_comes_from_the_manifest():
     )
 
     assert _dump(_entry())["integration"]["version"] == manifest["version"]
+
+
+def test_the_manifest_is_read_off_the_event_loop():
+    hass = _hass()
+
+    _dump(_entry(), hass)
+
+    assert hass.executor_jobs == ["_integration_version"]
 
 
 def test_an_entry_that_failed_to_load_still_produces_a_dump():
