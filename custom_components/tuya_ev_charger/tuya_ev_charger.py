@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import socket
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -26,6 +27,7 @@ from .const import (
     ConnectionFault,
 )
 from .dp_profile import resolve_profile
+from .qccdz_session import QccdzSessionClock
 
 LOGGER = logging.getLogger(__name__)
 # The charger's relay and status can lag a re-read by several seconds, notably
@@ -67,6 +69,7 @@ class TuyaEVChargerClient:
         # Only the qccdz profile reads it: that layout has no DP 152 to report the
         # charger's own limit, so the user's setting stands in for it. 0 = default.
         self._max_current_a = max_current_a
+        self._qccdz_session = QccdzSessionClock()
         self._device_id = device_id
         self._host = host
         self._local_key = local_key
@@ -321,7 +324,10 @@ class TuyaEVChargerClient:
         if dps is None:
             return None
         if self._dp_profile == CHARGER_PROFILE_QCCDZ_V1:
-            return decode_qccdz_metrics(dps, self._dp, self._max_current_a or QCCDZ_MAX_CURRENT_A)
+            metrics = decode_qccdz_metrics(
+                dps, self._dp, self._max_current_a or QCCDZ_MAX_CURRENT_A
+            )
+            return self._qccdz_session.apply(metrics, dps, time.time())
         return decode_metrics(dps, self._dp)
 
     async def async_set_schedule(self, enabled: bool, start: str, end: str) -> bool:

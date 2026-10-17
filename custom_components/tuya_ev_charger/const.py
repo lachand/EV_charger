@@ -456,6 +456,7 @@ QCCDZ_DP_TEMPERATURE = "24"  # degrees C
 QCCDZ_DP_SESSION_ENERGY = "25"  # charge_energy_once, 0.01 kWh
 QCCDZ_DP_CHARGE_DISCHARGE = "35"  # charge / discharge / disabled: the app's start/stop
 QCCDZ_DP_EVSE_STATE = "38"
+QCCDZ_DP_SESSION_START = "54"  # charge_start_moment, Unix timestamp as a string
 QCCDZ_DP_POWER = "48"  # charge_power, 0.1 kW
 QCCDZ_DP_CURRENT = "49"  # charge_current, 0.1 A
 QCCDZ_DP_VOLTAGE = "50"  # charge_voltage, 0.1 V
