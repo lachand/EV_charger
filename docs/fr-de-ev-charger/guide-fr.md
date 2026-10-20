@@ -2,13 +2,13 @@
 
 **Tuya EV Charger Local + Smart Life / Tuya Smart + local_key**
 
-![Capture 01](images/01-CRO-etiquette-signaletique.webp)
+**Terminologie :** ce guide présente un chargeur portable dé, souvent appelé **CRO** (« câble de recharge occasionnelle »). Pour la suite, nous employons **« borne dé »** pour désigner cet appareil.
+
+![Capture 01](images/01-borne-de-etiquette-signaletique.webp)
 
 *Capture 01 - Étiquette du modèle réellement testé : deM2D03B7AB.*
 
-Version illustrée V4 - octobre 2026
-
-> **Périmètre :** ce guide couvre l'appairage, la récupération de la `local_key` et l'intégration locale du CRO. Le Shelly Pro 3EM, le délestage dynamique et la recharge solaire feront l'objet d'un second guide.
+> **Périmètre :** ce guide couvre l'appairage, la récupération de la `local_key` et l'intégration locale de la borne dé. Le Shelly Pro 3EM, le délestage dynamique et la recharge solaire feront l'objet d'un second guide.
 
 # 1. Configuration testée et principe
 
@@ -20,14 +20,14 @@ Configuration de référence :
 - HACS
 - Smart Life pour l'appairage initial sur l'installation de référence ; Tuya Smart également utilisé lors du second test communautaire
 - protocole Tuya 3.5
-- profil `depow_v2` dans Tuya EV Charger Local
+- profil `depow_v2` dans Tuya EV Charger Local (firmware 1.9.9 sur le matériel testé)
 
-> **Sécurité :** l'étiquette du CRO prévoit un mode « no-grounding ». Ne l'activez pas pour contourner une absence ou un défaut de terre. La recharge d'un véhicule doit rester sur une installation électrique conforme et correctement protégée.
+> **Sécurité :** l'étiquette de la borne dé prévoit un mode « no-grounding ». Ne l'activez pas pour contourner une absence ou un défaut de terre. La recharge d'un véhicule doit rester sur une installation électrique conforme et correctement protégée.
 
 Le principe général est simple :
 
 ```text
-CRO dé
+borne dé
   ↓
 Smart Life ou Tuya Smart
 (appairage Wi-Fi)
@@ -58,34 +58,34 @@ Deux méthodes permettent de récupérer la `local_key` :
    - plus longue à configurer
    - permet à Tuya EV Charger Local de récupérer automatiquement une nouvelle `local_key` si celle-ci change après un réappairage
 
-# 2. Appairer le CRO dans Smart Life ou Tuya Smart
+# 2. Appairer la borne dé dans Smart Life ou Tuya Smart
 
-1. Branchez le CRO sur le secteur, sans véhicule si vous souhaitez seulement effectuer la configuration.
+1. Branchez la borne dé sur le secteur, sans véhicule si vous souhaitez seulement effectuer la configuration.
 2. Maintenez le bouton **A** environ 5 secondes jusqu'au clignotement de l'icône Wi-Fi.
 3. Dans Smart Life ou Tuya Smart, ajoutez l'appareil et connectez-le au réseau Wi-Fi **2,4 GHz**.
 4. Une fois l'appairage terminé, vérifiez les informations de l'appareil et les mises à jour disponibles.
 
-![Capture 02](images/02-SmartLife-CRO-ecran-principal.webp)
+![Capture 02](images/02-SmartLife-borne-de-ecran-principal.webp)
 
 *Capture 02 - Écran principal du dé EV Charger dans Smart Life.*
 
-![Capture 03](images/03-SmartLife-informations-CRO.webp)
+![Capture 03](images/03-SmartLife-informations-borne-de.webp)
 
-*Capture 03 - Informations du CRO dans Smart Life : version, courant maximal et informations réseau.*
+*Capture 03 - Informations de la borne dé dans Smart Life : version, courant maximal et informations réseau.*
 
-![Capture 04](images/04-SmartLife-mise-a-jour-CRO.webp)
+![Capture 04](images/04-SmartLife-mise-a-jour-borne-de.webp)
 
 *Capture 04 - Vérification de la mise à jour du micrologiciel.*
 
-> **Conseil :** évitez de réappairer inutilement le CRO une fois l'installation fonctionnelle. Un nouvel appairage peut modifier la `local_key`.
+> **Conseil :** évitez de réappairer inutilement la borne dé une fois l'installation fonctionnelle. Un nouvel appairage peut modifier la `local_key`.
 
 # 3. Facultatif : ce que donne l'intégration Tuya officielle
 
-**Cette étape n'est pas nécessaire pour suivre le guide.** Dans l'installation testée, l'intégration Tuya officielle de Home Assistant voit bien le CRO, mais le classe comme appareil non pris en charge et ne crée aucune entité exploitable.
+**Cette étape n'est pas nécessaire pour suivre le guide.** Dans l'installation testée, l'intégration Tuya officielle de Home Assistant voit bien la borne dé, mais la classe comme appareil non pris en charge et ne crée aucune entité exploitable.
 
-![Capture 05](images/05-HA-Tuya-officiel-CRO-sans-entites.webp)
+![Capture 05](images/05-HA-Tuya-officiel-borne-de-sans-entites.webp)
 
-*Capture 05 - Le CRO apparaît dans Tuya officiel comme « unsupported » avec 0 entité.*
+*Capture 05 - La borne dé apparaît dans Tuya officiel comme « unsupported » avec 0 entité.*
 
 ![Capture 06](images/06-HA-Tuya-officiel-liste-appareils.webp)
 
@@ -161,7 +161,7 @@ Si vous utilisez **Tuya Smart**, ouvrez la configuration de l'application Tuya L
 
 Après connexion, la liste des appareils du compte apparaît. **Tuya Local Key récupère directement le Device ID et la `local_key` du chargeur.**
 
-## 5.3 Copier la local_key du CRO
+## 5.3 Copier la local_key de la borne dé
 
 Dans la liste des appareils :
 
@@ -170,15 +170,15 @@ Dans la liste des appareils :
 3. repérez son **Device ID**
 4. copiez sa **Local Key**
 
-![Capture 08](images/08-Tuya-Local-Key-CRO.webp)
+![Capture 08](images/08-Tuya-Local-Key-borne-de.webp)
 
-*Capture 08 - Le CRO apparaît dans Tuya Local Key avec son état, son Device ID, sa Local Key et son Product ID. Les identifiants sensibles sont masqués.*
+*Capture 08 - La borne dé apparaît dans Tuya Local Key avec son état, son Device ID, sa Local Key et son Product ID. Les identifiants sensibles sont masqués.*
 
 Le Device ID est utile pour vérifier que vous sélectionnez ensuite le bon appareil, mais vous n'avez pas besoin de le recopier manuellement si le scan de Tuya EV Charger Local fonctionne.
 
 > **Secret :** ne publiez jamais votre `local_key`. Tuya Local Key peut mettre en cache la liste des appareils dans Home Assistant ; traitez donc également les sauvegardes de cette application comme des données sensibles.
 
-# 6. Ajouter le CRO dans Tuya EV Charger Local
+# 6. Ajouter la borne dé dans Tuya EV Charger Local
 
 Dans **Paramètres → Appareils et services → Ajouter une intégration**, recherchez **Tuya EV Charger Local**.
 
@@ -194,9 +194,9 @@ Le scan de Tuya EV Charger Local écoute les annonces Tuya et préremplit :
 - le Device ID
 - la version de protocole Tuya
 
-> **Réseau :** ce scan nécessite que Home Assistant soit sur le **même sous-réseau** que le CRO. Les broadcasts UDP Tuya ne traversent pas les VLAN ni la plupart des répéteurs Wi-Fi fonctionnant en NAT.
+> **Réseau :** ce scan nécessite que Home Assistant soit sur le **même sous-réseau** que la borne dé. Les broadcasts UDP Tuya ne traversent pas les VLAN ni la plupart des répéteurs Wi-Fi fonctionnant en NAT.
 
-Sélectionnez le CRO correspondant au Device ID relevé dans Tuya Local Key.
+Sélectionnez la borne dé correspondant au Device ID relevé dans Tuya Local Key.
 
 Dans **Charger credentials** :
 
@@ -207,11 +207,11 @@ Dans **Charger credentials** :
    - **Charger profile / DP mapping : depow_v2**
 4. validez
 
-![Capture 10](images/10-HA-CRO-credentials-local-key-manquante.webp)
+![Capture 10](images/10-HA-borne-de-credentials-local-key-manquante.webp)
 
 *Capture 10 - Écran « Charger credentials ». Sur cette capture, la local_key n'était pas encore renseignée ; IP et Device ID sont masqués.*
 
-![Capture 11](images/11-HA-CRO-protocole-3.5-depow-v2.webp)
+![Capture 11](images/11-HA-borne-de-protocole-3.5-depow-v2.webp)
 
 *Capture 11 - Paramètres validés sur le modèle testé : protocole 3.5 et profil depow_v2.*
 
@@ -220,7 +220,9 @@ Protocol version: 3.5
 Charger profile / DP mapping: depow_v2
 ```
 
-### Si le scan réseau ne trouve pas le CRO
+> **Choix du profil selon le firmware :** `depow_v2` correspond au chargeur testé ici (firmware 1.9.9). Les modèles dé 3,5/3,7 kW de catégorie Tuya `qccdz` avec firmware 1.1.25 ou ultérieur utilisent `qccdz_v1`, ajouté par la [PR #62](https://github.com/lachand/EV_charger/pull/62) (qui remplace la PR #58). Si le statut reste `unknown` et que toutes les mesures sont à 0, vérifiez le profil sélectionné dans les options de l'intégration. Ce symptôme ne suffit pas, à lui seul, à diagnostiquer un défaut de profil.
+
+### Si le scan réseau ne trouve pas la borne dé
 
 Vous pouvez choisir **Enter everything manually** dans Tuya EV Charger Local si vous connaissez déjà l'IP, le Device ID, la `local_key` et le protocole.
 
@@ -232,7 +234,7 @@ Une fois l'intégration validée, Home Assistant crée l'appareil et expose les 
 
 Sans véhicule, une partie des mesures reste naturellement à zéro ou inconnue.
 
-![Capture 12](images/12-HA-CRO-configuration-diagnostic.webp)
+![Capture 12](images/12-HA-borne-de-configuration-diagnostic.webp)
 
 *Capture 12 - Exemple des sections Configuration et Diagnostic après intégration.*
 
@@ -240,7 +242,7 @@ Entités importantes :
 
 - **Current setpoint** : consigne de courant
 - **Voltage / Current / Power L1** : mesures électriques
-- **Temperature** : température remontée par le CRO
+- **Temperature** : température remontée par la borne dé
 - **Status** : état du chargeur
 - **Connection health** : santé de la communication locale
 - **Session energy** : énergie de la session
@@ -252,19 +254,19 @@ Le réglage de courant peut être testé sans véhicule.
 
 Sur l'exemplaire utilisé pour ce guide, les valeurs **6, 7, 8, 9 et 12 A** ont été écrites puis relues correctement.
 
-Cela confirme que le CRO accepte des pas de 1 A, même si Smart Life présente seulement quelques valeurs prédéfinies.
+Cela confirme que la borne dé accepte des pas de 1 A, même si Smart Life présente seulement quelques valeurs prédéfinies.
 
-![Capture 13](images/13-HA-CRO-test-reglage-6A-7A.webp)
+![Capture 13](images/13-HA-borne-de-test-reglage-6A-7A.webp)
 
 *Capture 13 - Historique Home Assistant montrant le passage de 6 A à 7 A et la nouvelle consigne relue.*
 
-> **Résultat du test :** la commande provoque un bip immédiat du CRO, puis Home Assistant relit la nouvelle consigne quelques secondes plus tard.
+> **Résultat du test :** la commande provoque un bip immédiat de la borne dé, puis Home Assistant relit la nouvelle consigne quelques secondes plus tard.
 
 # 9. Test de coupure secteur
 
 Un test complémentaire a été réalisé avec une consigne laissée à **8 A** :
 
-1. débrancher le CRO environ 30 secondes
+1. débrancher la borne dé environ 30 secondes
 2. le rebrancher
 3. attendre sa reconnexion
 
@@ -278,9 +280,9 @@ Après une coupure, le statut peut également rester temporairement `unknown` av
 
 La méthode Cloud reste disponible si vous préférez que **Tuya EV Charger Local** récupère directement le Device ID et la `local_key`.
 
-Elle est plus longue à configurer, mais présente un avantage : les identifiants Cloud permettent à l'intégration de récupérer automatiquement une nouvelle `local_key` après un réappairage du CRO.
+Elle est plus longue à configurer, mais présente un avantage : les identifiants Cloud permettent à l'intégration de récupérer automatiquement une nouvelle `local_key` après un réappairage de la borne dé.
 
-> **À savoir :** le README actuel de l'intégration indique que les projets d'essai Tuya IoT expirent après environ **1 mois** et peuvent être prolongés jusqu'à environ **6 mois**. Après expiration, la récupération Cloud cesse de fonctionner, mais le pilotage local du CRO continue.
+> **À savoir :** le README actuel de l'intégration indique que les projets d'essai Tuya IoT expirent après environ **1 mois** et peuvent être prolongés jusqu'à environ **6 mois**. Après expiration, la récupération Cloud cesse de fonctionner, mais le pilotage local de la borne dé continue.
 
 ## 10.1 Choisir Fetch credentials from Tuya Cloud
 
@@ -344,15 +346,15 @@ Dans **Overview**, relevez :
 
 ## 10.4 Relier le compte de l'application Tuya au projet
 
-Dans **Devices → Link Tuya App Account**, associez le compte de l'application dans laquelle le CRO est réellement appairé.
+Dans **Devices → Link Tuya App Account**, associez le compte de l'application dans laquelle la borne dé est réellement appairée.
 
 ![Capture 20](images/20-Tuya-Link-App-Account.webp)
 
 *Capture 20 - Fenêtre de liaison du compte.*
 
-Vous pouvez utiliser **Custom Link** pour n'associer que le CRO.
+Vous pouvez utiliser **Custom Link** pour n'associer que la borne dé.
 
-![Capture 21](images/21-Tuya-Link-Device-CRO.webp)
+![Capture 21](images/21-Tuya-Link-Device-borne-de.webp)
 
 *Capture 21 - Un seul appareil associé au projet.*
 
@@ -365,44 +367,45 @@ Dans **Tuya EV Charger Local** :
 3. choisissez la région correspondante
 4. sélectionnez le dé EV Charger
 
-![Capture 22](images/22-HA-selection-CRO-compte-Tuya.webp)
+![Capture 22](images/22-HA-selection-borne-de-compte-Tuya.webp)
 
-*Capture 22 - Sélection du CRO parmi les appareils retournés par Tuya Cloud.*
+*Capture 22 - Sélection de la borne dé parmi les appareils retournés par Tuya Cloud.*
 
 L'intégration remplit alors automatiquement la `local_key` et retrouve le chargeur sur le LAN.
 
 ## 10.6 Si Home Assistant indique « aucun appareil dans ce projet Tuya IoT »
 
-Avant de recréer le projet ou de réappairer le CRO, vérifiez les points suivants :
+Avant de recréer le projet ou de réappairer la borne dé, vérifiez les points suivants :
 
 | Vérification | Résultat attendu |
 |---|---|
-| Application utilisée | le compte lié correspond à l'application où le CRO est réellement appairé : Smart Life ou Tuya Smart |
+| Application utilisée | le compte lié correspond à l'application où la borne dé est réellement appairée : Smart Life ou Tuya Smart |
 | Data Center | le Cloud Project utilise le Data Center correspondant au compte |
 | App Account | le compte de l'application est bien lié au Cloud Project |
 | Manage Devices | le dé EV Charger apparaît réellement dans la liste |
 | Device Status | `Online` |
-| Associated devices | le CRO est compté parmi les appareils associés, par exemple `1/1` si seul le chargeur est lié |
+| Associated devices | la borne dé est comptée parmi les appareils associés, par exemple `1/1` si seul le chargeur est lié |
 | API Services | les services nécessaires au projet Smart Home sont autorisés |
 | Credentials | Access ID et Access Secret proviennent bien de ce même Cloud Project |
 
 Dans la configuration testée, les services proposés comprenaient notamment **IoT Core**, **Authorization Token Management** et **Smart Home Basic Service**.
 
-> **Important :** un compte d'application « lié » ne garantit pas à lui seul que le CRO est réellement associé au projet. Vérifiez toujours **Manage Devices** avant de chercher plus loin.
+> **Important :** un compte d'application « lié » ne garantit pas à lui seul que la borne dé est réellement associée au projet. Vérifiez toujours **Manage Devices** avant de chercher plus loin.
 
 Si cette méthode reste bloquée, la méthode **Tuya Local Key** décrite plus haut permet de récupérer directement le Device ID et la `local_key` sans dépendre du Cloud Project.
 
 # 11. Conseils réseau et dépannage
 
-- Utilisez un Wi-Fi 2,4 GHz stable au niveau du CRO.
+- Utilisez un Wi-Fi 2,4 GHz stable au niveau de la borne dé.
 - Home Assistant doit pouvoir joindre le chargeur sur le réseau local.
 - Une réservation DHCP de l'adresse IP est recommandée.
-- Si le CRO est réappairé, la `local_key` peut changer.
-- Tuya Local Key permet de relire la clé si elle a tourné.
+- Si la borne dé est réappairée, la `local_key` peut changer.
+- Pour une configuration avec clé renseignée manuellement, récupérez la nouvelle `local_key` avec Tuya Local Key, puis utilisez **Configurer → Reconfigurer** dans l'intégration Tuya EV Charger Local. Ne supprimez pas l'intégration : sa suppression ferait perdre l'historique des entités et les statistiques d'énergie.
+- Si des identifiants Tuya Cloud ont été configurés dans l'intégration, elle peut récupérer automatiquement une nouvelle `local_key`.
 - Laissez le planning interne désactivé tant que vous n'en avez pas besoin.
 - N'activez pas le mode « no-grounding » pour contourner un problème de terre.
 - Ne publiez jamais Access Secret, `local_key` ou identifiants de compte.
-- Un chargeur Tuya n'accepte qu'une seule connexion locale à la fois : Smart Life/Tuya Smart ou une autre intégration locale peut provoquer des refus de connexion intermittents.
+- **Un seul client local par borne :** le chargeur n'accepte qu'une connexion locale simultanée. Smart Life/Tuya Smart ou une autre intégration locale peuvent entrer en conflit avec Home Assistant et provoquer des échecs de communication intermittents.
 
 # 12. Et après ?
 
@@ -413,11 +416,11 @@ Le projet peut ensuite évoluer vers :
 - suivi des sessions et de l'énergie
 - notifications Home Assistant
 - mesure triphasée avec Shelly Pro 3EM
-- délestage de la phase du CRO
+- délestage de la phase de la borne dé
 - fail-safe en cas de perte des mesures
 - détection du surplus photovoltaïque
 - régulation dynamique de la charge
-- comparaison température interne du CRO / température externe du coffret
+- comparaison température interne de la borne dé / température externe du coffret
 
 > **Important :** ces fonctions avancées ne sont volontairement pas configurées dans ce guide. Elles feront l'objet d'un tutoriel séparé afin de garder cette procédure simple et reproductible.
 

@@ -64,6 +64,8 @@ You can also get the `local_key` with the [Tuya Local Key add-on](https://github
 
 [![Open your Home Assistant instance and show the app store with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_store.svg)](https://my.home-assistant.io/redirect/supervisor_store/?repository_url=https://github.com/vineetchoudhary/tuya-local-key)
 
+**French illustrated setup guide:** [Installing a dé portable charger in Home Assistant](docs/fr-de-ev-charger/guide-fr.md) (Smart Life, Tuya Local Key, local setup and alternative Tuya Cloud method).
+
 `local_key` is a secret, and it **changes if you re-pair or reset the charger**.
 
 ---
