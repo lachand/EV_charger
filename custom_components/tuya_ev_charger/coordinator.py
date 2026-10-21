@@ -284,8 +284,13 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         LOGGER.info("Released the local connection to %s for %ss", self.entry.title, duration_s)
 
     def async_resume_connection(self) -> None:
-        """Take the local connection back before the release would expire."""
-        self._release_until = None
+        """Take the local connection back before the release would expire.
+
+        The release is set to expire now rather than cleared, so the next poll goes
+        through the same reconnection path as a natural expiry. Nothing is read here:
+        the poll that follows does it.
+        """
+        self._release_until = self.hass.loop.time()
 
     @property
     def connection_released(self) -> bool:
@@ -302,6 +307,13 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         if self.connection_released:
             return self.data
         self._release_until = None
+        # Closing the client for the loan left it without a Device, and a closed
+        # client does not reopen by itself. Rebuilding it here rather than in
+        # async_close (via _needs_reconnect) is deliberate: that would let any write
+        # during the loan retake the slot from Smart Life, and unloading would
+        # reopen a zombie socket. async_connect only builds the Device; tinytuya
+        # connects on the first call, so this does no blocking I/O.
+        await self.client.async_connect()
         LOGGER.info("Resuming polling of %s; the release expired", self.entry.title)
         return None
 

@@ -71,8 +71,12 @@ def _coordinator():
     coordinator = TuyaEVChargerDataUpdateCoordinator.__new__(TuyaEVChargerDataUpdateCoordinator)
     clock = {"now": 1000.0}
     closes: list[int] = []
+    connects: list[int] = []
 
     class _Client:
+        async def async_connect(self):
+            connects.append(1)
+
         async def async_close(self):
             closes.append(1)
 
@@ -83,6 +87,7 @@ def _coordinator():
     coordinator.data = "last-known"
     coordinator.clock = clock
     coordinator.closes = closes
+    coordinator.connects = connects
     return coordinator
 
 
@@ -116,6 +121,8 @@ def test_polling_resumes_on_its_own_when_the_release_expires():
     # None tells the update loop to poll normally again.
     assert asyncio.run(coordinator._async_handle_release()) is None
     assert coordinator._release_until is None
+    # The client was closed for the loan; it must be rebuilt to poll again.
+    assert coordinator.connects == [1]
 
 
 def test_the_release_can_be_cancelled_early():

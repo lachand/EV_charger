@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+from typing import ClassVar
 
 import pytest
 import voluptuous as vol
@@ -856,3 +857,116 @@ def test_every_session_anomaly_has_a_translated_repair_notice():
         for key in anomalies:
             assert issues[key].get("title"), f"{name}: {key} has no title"
             assert issues[key].get("description"), f"{name}: {key} has no description"
+
+
+# --- a lent connection must come back (audit B1) ---------------------------
+
+
+class _FakeDevice:
+    """Stands in for tinytuya.Device: just enough surface for the client."""
+
+    built: ClassVar[list[_FakeDevice]] = []
+
+    def __init__(self, *args, **kwargs):
+        self.closed = False
+        _FakeDevice.built.append(self)
+
+    def status(self):
+        return {"dps": {"101": "charging"}}
+
+    def close(self):
+        self.closed = True
+
+    def set_socketTimeout(self, *_):
+        pass
+
+    def set_socketRetryLimit(self, *_):
+        pass
+
+    def set_socketRetryDelay(self, *_):
+        pass
+
+
+def _lent_connection(monkeypatch):
+    """A real client behind a coordinator with a simulated clock."""
+    import types
+
+    from tuya_ev_charger import tuya_ev_charger as client_module
+    from tuya_ev_charger.tuya_ev_charger import TuyaEVChargerClient
+
+    _FakeDevice.built = []
+    monkeypatch.setattr(client_module.tinytuya, "Device", _FakeDevice)
+    client = TuyaEVChargerClient("id", "192.0.2.1", "key", "3.4")
+    clock = {"now": 1000.0}
+    coordinator = _bare_coordinator(
+        client=client,
+        hass=types.SimpleNamespace(loop=types.SimpleNamespace(time=lambda: clock["now"])),
+        entry=types.SimpleNamespace(title="test", entry_id="test"),
+    )
+    coordinator.clock = clock
+    return coordinator, client
+
+
+def test_polling_reconnects_when_a_lent_connection_expires(monkeypatch):
+    """release_connection closed the client for good and nothing rebuilt it, so
+    every poll after the loan raised until the integration was reloaded."""
+    import asyncio
+
+    coordinator, client = _lent_connection(monkeypatch)
+
+    async def _run():
+        await client.async_connect()
+        await coordinator.async_release_connection(600)
+        coordinator.clock["now"] += 601
+        assert await coordinator._async_handle_release() is None
+        return await client.async_get_raw_dps()
+
+    assert asyncio.run(_run()) == {"101": "charging"}
+
+
+def test_resuming_a_lent_connection_early_reconnects(monkeypatch):
+    """The release service with 0 minutes takes the slot back before the loan ends."""
+    import asyncio
+
+    coordinator, client = _lent_connection(monkeypatch)
+
+    async def _read():
+        return await client.async_get_raw_dps()
+
+    async def _fetch():
+        return await _read()
+
+    async def _noop(*_):
+        return None
+
+    coordinator._async_fetch_metrics = _fetch
+    coordinator._async_note_success = lambda *_: None
+    coordinator._async_on_metrics = _noop
+    coordinator._async_retune_interval = lambda *_: None
+
+    async def _run():
+        await client.async_connect()
+        await coordinator.async_release_connection(600)
+        coordinator.async_resume_connection()
+        return await coordinator._async_update_data()
+
+    assert asyncio.run(_run()) == {"101": "charging"}
+
+
+def test_a_write_does_not_take_back_a_lent_connection(monkeypatch):
+    """The socket belongs to Smart Life during the loan: only the coordinator,
+    once the loan ends, may reopen it."""
+    import asyncio
+
+    coordinator, client = _lent_connection(monkeypatch)
+
+    async def _run():
+        await client.async_connect()
+        await coordinator.async_release_connection(600)
+        built = len(_FakeDevice.built)
+        with pytest.raises(RuntimeError):
+            await client.async_set_charge_enabled(True)
+        return built
+
+    built = asyncio.run(_run())
+    assert len(_FakeDevice.built) == built

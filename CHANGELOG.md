@@ -25,6 +25,9 @@ published normally** and HACS offers them without enabling beta versions.
   prices and is averaged by energy over the session. Contributed by @BTexier.
 - **Diagnostics read the manifest off the event loop (#66).** Contributed by
   @BTexier.
+- **Polling resumes after `release_connection`.** Once the loan expired, or was
+  ended early, the client stayed closed and every poll failed until the
+  integration was reloaded. It now reconnects by itself.
 
 ## 2.27.0-beta5
 
