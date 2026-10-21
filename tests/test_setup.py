@@ -267,6 +267,9 @@ def _patch_setup(monkeypatch, *, connect_error=None, rec=None):
         def __init__(self, **kwargs):
             rec.note("controller")
 
+        async def async_restore(self):
+            rec.note("controller_restore")
+
         async def async_start(self):
             rec.note("controller_start")
 
@@ -285,6 +288,7 @@ def _patch_setup(monkeypatch, *, connect_error=None, rec=None):
     monkeypatch.setattr(pkg, "SessionHistory", _Store("history"))
     monkeypatch.setattr(pkg, "VehicleChargeCurves", _Store("curves"))
     monkeypatch.setattr(pkg, "SolarSurplusController", _Controller)
+    monkeypatch.setattr(pkg, "Store", lambda *args, **kwargs: None)
     monkeypatch.setattr(pkg, "_async_tidy_entities", _tidy)
     monkeypatch.setattr(
         pkg,

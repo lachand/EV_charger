@@ -1011,3 +1011,107 @@ def test_a_refused_current_write_is_reported_not_the_decided_reason(decided):
     assert controller._last_decision_reason == "failed_set_current"
     assert controller._last_decision_trace["decided_reason"] == str(reason)
     assert coordinator.refreshes == 0
+
+
+# --- controller state survives a restart (audit B4) ---
+
+
+class _MemoryStore:
+    """A `Store` stand-in shared by two controllers = a restart in between."""
+
+    def __init__(self):
+        self.data = None
+
+    async def async_load(self):
+        return self.data
+
+    async def async_save(self, data):
+        self.data = data
+
+    def async_delay_save(self, data_func, delay=0):
+        self.data = data_func()
+
+
+def _restarted(monkeypatch, store, **kwargs):
+    """A fresh controller on the same store, restored the way setup does."""
+    import asyncio
+
+    from test_surplus_state_machine import Harness
+
+    h = Harness(monkeypatch, **kwargs)
+    h.controller._store = store
+    asyncio.run(h.controller.async_restore())
+    return h
+
+
+def _charging_metrics(**kwargs):
+    from test_surplus_state_machine import _metrics
+
+    metrics = _metrics(charging=True, current_target=10, total_power_kw=2.3, **kwargs)
+    metrics.status = "charging"
+    return metrics
+
+
+def test_a_pause_still_stops_a_surplus_session_after_a_restart(monkeypatch):
+    import asyncio
+
+    store = _MemoryStore()
+    first = _restarted(monkeypatch, store, metrics=_charging_metrics())
+    first.controller._start_session(first.now)
+
+    second = _restarted(monkeypatch, store, metrics=_charging_metrics())
+    asyncio.run(second.controller.async_pause_for(duration_s=600))
+    second.tick()
+    assert ("enabled", False) in second.writes
+
+
+def test_force_charge_survives_a_restart(monkeypatch):
+    import asyncio
+
+    store = _MemoryStore()
+    first = _restarted(monkeypatch, store)
+    asyncio.run(first.controller.async_force_charge_for(3600))
+
+    second = _restarted(monkeypatch, store)
+    assert second.controller.snapshot.force_charge_active is True
+
+
+def test_session_energy_survives_a_restart(monkeypatch):
+    store = _MemoryStore()
+    first = _restarted(monkeypatch, store, metrics=_charging_metrics())
+    first.controller._start_session(first.now)
+    first.tick(3600)  # 2.3 kW for an hour
+    energy = first.controller._session_energy_kwh
+    assert energy > 2.0
+
+    second = _restarted(monkeypatch, store, metrics=_charging_metrics())
+    assert second.controller._session_energy_kwh == pytest.approx(energy)
+
+
+def test_a_restored_session_is_dropped_when_no_vehicle_is_plugged_in(monkeypatch):
+    from test_surplus_state_machine import _metrics
+
+    store = _MemoryStore()
+    first = _restarted(monkeypatch, store, metrics=_charging_metrics())
+    first.controller._start_session(first.now)
+    first.controller._session_energy_kwh = 5.0
+    first.controller._schedule_save()
+
+    unplugged = _metrics(charging=False)
+    unplugged.status = None
+    second = _restarted(monkeypatch, store, metrics=unplugged)
+    assert second.controller._session_active is True
+    second.tick()
+    assert second.controller._session_active is False
+    assert second.controller._session_energy_kwh == 0.0
+
+
+def test_shutdown_writes_the_state(monkeypatch):
+    import asyncio
+
+    store = _MemoryStore()
+    h = _restarted(monkeypatch, store)
+    h.controller._pause_until_ts = h.now + 600
+    asyncio.run(h.controller.async_shutdown())
+    assert store.data is not None
+    assert store.data["pause_until"] is not None

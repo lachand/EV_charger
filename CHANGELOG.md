@@ -32,6 +32,13 @@ published normally** and HACS offers them without enabling beta versions.
   adjustment, the decision sensor still showed the reason the controller had
   decided (`adjust_current`, `load_limit_reduced`...). It now shows "The charger
   refused the current", with the decided reason kept in the trace.
+- **Surplus state survives a restart.** A Home Assistant restart (or an options
+  reload) used to forget the running surplus session, the force-charge switch and
+  any pause: a pause no longer stopped the charge in progress, force charge fell
+  back to off, and the departure deadline asked for the whole target energy
+  again. They are now saved and restored. A restored session is dropped if the
+  charger reports no vehicle on the first read; a car unplugged and replugged
+  during the outage cannot be detected.
 
 ## 2.27.0-beta5
 

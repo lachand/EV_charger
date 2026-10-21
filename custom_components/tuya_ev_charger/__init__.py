@@ -15,10 +15,12 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import format_mac
+from homeassistant.helpers.storage import Store
 
 if TYPE_CHECKING:
     from homeassistant.helpers.typing import ConfigType
 
+from . import controller_state
 from .const import (
     ADVANCED_ENTITY_KEYS,
     CHARGER_PROFILES,
@@ -300,8 +302,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry=entry,
         client=client,
         coordinator=coordinator,
+        store=Store(
+            hass,
+            controller_state.STORAGE_VERSION,
+            f"tuya_ev_charger_controller_{entry.entry_id}",
+        ),
     )
     coordinator.solar_surplus_controller = runtime_data.solar_surplus_controller
+    await runtime_data.solar_surplus_controller.async_restore()
     await runtime_data.solar_surplus_controller.async_start()
     entry.runtime_data = runtime_data
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))

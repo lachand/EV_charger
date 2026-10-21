@@ -16,8 +16,10 @@ from homeassistant.core import (
     callback,
 )
 from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
+from . import controller_state
 from .charge_curve import ChargeCurve, learned_power_kw, planning_power_kw
 from .charge_gates import (
     DecisionReason,
@@ -35,7 +37,7 @@ from .charge_planner import (
     parse_windows,
     plan_charge,
 )
-from .charger_metrics import EVMetrics
+from .charger_metrics import EVMetrics, evcc_status
 from .config_diagnosis import (
     ConfigProblem,
     DiagnosisInputs,
@@ -103,8 +105,13 @@ class SolarSurplusController:
         entry: ConfigEntry,
         client: TuyaEVChargerClient,
         coordinator: TuyaEVChargerDataUpdateCoordinator,
+        store: Store[dict[str, Any]] | None = None,
     ) -> None:
         self._hass = hass
+        # None = no persistence (tests, harnesses).
+        self._store = store
+        # A session restored from storage has not been seen on the charger yet.
+        self._restored_session_unverified = False
         self._entry = entry
         self._client = client
         self._coordinator = coordinator
@@ -178,6 +185,44 @@ class SolarSurplusController:
 
         return _unsubscribe
 
+    async def async_restore(self) -> None:
+        """Reload the session, force-charge and pause saved before a restart."""
+        if self._store is None:
+            return
+        state = controller_state.from_stored(
+            await self._store.async_load(), monotonic(), dt_util.utcnow().timestamp()
+        )
+        self._force_charge_until_ts = state.force_charge_until_ts
+        self._force_charge_current_a = state.force_charge_current_a
+        self._pause_until_ts = state.pause_until_ts
+        self._session_active = state.session_active
+        self._session_energy_kwh = state.session_energy_kwh
+        self._session_total_s = state.session_total_s
+        self._session_off_peak_s = state.session_off_peak_s
+        # `_last_energy_sample_ts` stays None: the energy delivered while HA was
+        # down is unknown. Leaving it out under-counts the session, so the
+        # departure deadline asks for a bit more, which is the safe direction.
+        self._restored_session_unverified = state.session_active
+
+    def _stored_state(self) -> dict[str, Any]:
+        return controller_state.to_stored(
+            controller_state.ControllerState(
+                force_charge_until_ts=self._force_charge_until_ts,
+                force_charge_current_a=self._force_charge_current_a,
+                pause_until_ts=self._pause_until_ts,
+                session_active=self._session_active,
+                session_energy_kwh=self._session_energy_kwh,
+                session_total_s=self._session_total_s,
+                session_off_peak_s=self._session_off_peak_s,
+            ),
+            monotonic(),
+            dt_util.utcnow().timestamp(),
+        )
+
+    def _schedule_save(self) -> None:
+        if self._store is not None:
+            self._store.async_delay_save(self._stored_state, 10)
+
     async def async_start(self) -> None:
         self._unsub_coordinator = self._coordinator.async_add_listener(
             self._handle_coordinator_update
@@ -236,6 +281,10 @@ class SolarSurplusController:
             self._evaluation_task.cancel()
             self._evaluation_task = None
         self._listeners.clear()
+        # An options reload recreates the controller before a delayed save would
+        # fire, so write now.
+        if self._store is not None:
+            await self._store.async_save(self._stored_state())
 
     async def async_force_charge_for(
         self,
@@ -246,6 +295,7 @@ class SolarSurplusController:
         clamped_duration = max(0, int(duration_s))
         self._force_charge_until_ts = now + clamped_duration if clamped_duration else None
         self._force_charge_current_a = current_a
+        self._schedule_save()
         self._set_decision("force_charge_requested" if clamped_duration else "force_charge_cleared")
         self._notify_state_listeners()
         self._schedule_evaluation("force_charge_service")
@@ -254,6 +304,7 @@ class SolarSurplusController:
         now = monotonic()
         clamped_duration = max(0, int(duration_s))
         self._pause_until_ts = now + clamped_duration if clamped_duration else None
+        self._schedule_save()
         self._set_decision("surplus_paused" if clamped_duration else "surplus_pause_cleared")
         self._notify_state_listeners()
         self._schedule_evaluation("pause_service")
@@ -324,6 +375,17 @@ class SolarSurplusController:
                 now=now,
             )
             return
+
+        if self._restored_session_unverified:
+            self._restored_session_unverified = False
+            # Known limit: unplugged and replugged during the outage is not
+            # detectable. A None status / sleeping charger reads as "A" too, in
+            # which case the session is dropped -- the pre-persistence behaviour.
+            if evcc_status(data.status, data.total_power) == "A":
+                self._register_stop(now)
+                self._session_energy_kwh = 0.0
+                self._session_total_s = 0.0
+                self._session_off_peak_s = 0.0
 
         charging = is_charging(data)
         grid_power_for_energy = (
@@ -879,11 +941,13 @@ class SolarSurplusController:
         self._session_off_peak_s = 0.0
         self._session_priced_kwh = 0.0
         self._session_live_cost = 0.0
+        self._schedule_save()
 
     def _register_stop(self, now: float) -> None:
         self._session_active = False
         self._session_started_ts = None
         self._last_energy_sample_ts = None
+        self._schedule_save()
 
     def _update_session_energy(
         self,
@@ -910,6 +974,7 @@ class SolarSurplusController:
         power_kw = ev_power_w(data) / 1000.0
         session_increment_kwh = power_kw * (elapsed_s / 3600.0)
         self._session_energy_kwh += max(0.0, session_increment_kwh)
+        self._schedule_save()
         self._record_curve_sample(power_kw)
 
         # Only worth tallying live when there is an off-peak sensor to sample --
