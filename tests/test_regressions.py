@@ -970,3 +970,44 @@ def test_a_write_does_not_take_back_a_lent_connection(monkeypatch):
 
     built = asyncio.run(_run())
     assert len(_FakeDevice.built) == built
+
+
+# --- a refused current write is reported (audit B2) ---------------------------------
+
+
+@pytest.mark.parametrize("decided", ["ADJUST_CURRENT", "LOAD_LIMIT_REDUCED"])
+def test_a_refused_current_write_is_reported_not_the_decided_reason(decided):
+    """`_async_apply` ignored the False from the current write, so the sensor
+    kept saying `adjust_current` / `load_limit_reduced` while the charger had
+    refused the value."""
+    import asyncio
+    import types
+
+    from tuya_ev_charger import solar_surplus
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction, Verdict
+
+    class _Client:
+        async def async_set_charge_current(self, value):
+            return False
+
+    class _Coordinator:
+        refreshes = 0
+        regulating = False
+
+        async def async_request_refresh(self):
+            self.refreshes += 1
+
+    coordinator = _Coordinator()
+    entry = types.SimpleNamespace(options={}, title="t", entry_id="e1")
+    hass = types.SimpleNamespace(states=types.SimpleNamespace(get=lambda _e: None))
+    controller = solar_surplus.SolarSurplusController(
+        hass=hass, entry=entry, client=_Client(), coordinator=coordinator
+    )
+    reason = DecisionReason[decided]
+    verdict = Verdict(GateAction.SET_CURRENT, reason, target_current=16, regulation_active=True)
+
+    asyncio.run(controller._async_apply(verdict, data=None, now=1000.0))
+
+    assert controller._last_decision_reason == "failed_set_current"
+    assert controller._last_decision_trace["decided_reason"] == str(reason)
+    assert coordinator.refreshes == 0

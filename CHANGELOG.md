@@ -28,6 +28,10 @@ published normally** and HACS offers them without enabling beta versions.
 - **Polling resumes after `release_connection`.** Once the loan expired, or was
   ended early, the client stayed closed and every poll failed until the
   integration was reloaded. It now reconnects by itself.
+- **A refused current write is now reported.** When the charger refused a ramp
+  adjustment, the decision sensor still showed the reason the controller had
+  decided (`adjust_current`, `load_limit_reduced`...). It now shows "The charger
+  refused the current", with the decided reason kept in the trace.
 
 ## 2.27.0-beta5
 

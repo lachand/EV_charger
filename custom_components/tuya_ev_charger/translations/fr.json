@@ -234,6 +234,7 @@
           "evaluation_exception": "Evaluation en echec - voir le journal",
           "external_charge_blocked": "Bloque : une condition externe (ex. coupure reseau) empeche la charge",
           "failed_set_startup_current": "La borne a refuse le courant de demarrage",
+          "failed_set_current": "La borne a refuse le courant",
           "failed_start_charge": "La borne a refuse de demarrer",
           "force_charge_adjust_current": "Charge forcee - reglage du courant",
           "force_charge_failed_set_current": "Charge forcee - la borne a refuse le courant",

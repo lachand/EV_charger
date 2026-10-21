@@ -234,6 +234,7 @@
           "evaluation_exception": "Vyhodnocen\u00ed selhalo \u2014 viz log",
           "external_charge_blocked": "Blokov\u00e1no: extern\u00ed podm\u00ednka (nap\u0159. v\u00fdpadek s\u00edt\u011b) br\u00e1n\u00ed nab\u00edjen\u00ed",
           "failed_set_startup_current": "Nab\u00edje\u010dka odm\u00edtla startovac\u00ed proud",
+          "failed_set_current": "Nab\u00edje\u010dka odm\u00edtla proud",
           "failed_start_charge": "Nab\u00edje\u010dka odm\u00edtla start",
           "force_charge_adjust_current": "Vynucen\u00e9 nab\u00edjen\u00ed \u2014 nastaven\u00ed proudu",
           "force_charge_failed_set_current": "Vynucen\u00e9 nab\u00edjen\u00ed \u2014 nab\u00edje\u010dka odm\u00edtla proud",

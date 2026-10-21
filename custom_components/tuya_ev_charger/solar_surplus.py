@@ -561,7 +561,8 @@ class SolarSurplusController:
         if verdict.action is GateAction.FORCE_CHARGE:
             reason = await self._async_force_charge_verdict(verdict, data, now)
         elif verdict.action is GateAction.SET_CURRENT and verdict.target_current is not None:
-            await self._async_write_current(verdict.target_current, data, now)
+            if not await self._async_write_current(verdict.target_current, data, now):
+                reason = DecisionReason.FAILED_SET_CURRENT
         elif verdict.action is GateAction.START_CHARGE:
             reason = await self._async_start_charge(verdict, data, now)
         elif verdict.action is GateAction.STOP_CHARGE:

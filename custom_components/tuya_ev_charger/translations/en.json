@@ -234,6 +234,7 @@
           "evaluation_exception": "Evaluation failed \u2014 see the log",
           "external_charge_blocked": "Blocked: an external condition (e.g. a grid outage) is preventing charging",
           "failed_set_startup_current": "The charger refused the starting current",
+          "failed_set_current": "The charger refused the current",
           "failed_start_charge": "The charger refused to start",
           "force_charge_adjust_current": "Forced charge \u2014 setting the current",
           "force_charge_failed_set_current": "Forced charge \u2014 the charger refused the current",

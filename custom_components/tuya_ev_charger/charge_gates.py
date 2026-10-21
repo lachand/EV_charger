@@ -125,6 +125,7 @@ class DecisionReason(StrEnum):
     # they describe what the charger did, not what we decided.
     FAILED_SET_STARTUP_CURRENT = "failed_set_startup_current"
     FAILED_START_CHARGE = "failed_start_charge"
+    FAILED_SET_CURRENT = "failed_set_current"
 
 
 @dataclass(slots=True)

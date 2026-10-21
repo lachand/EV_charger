@@ -355,18 +355,15 @@ def test_ramp_moves_one_step_and_then_waits_for_the_cooldown(monkeypatch):
     assert [v for kind, v in h.writes if kind == "current"] == [11, 12]
 
 
-def test_a_failed_ramp_write_is_not_surfaced_as_a_failure(monkeypatch):
-    """Pins a real asymmetry: unlike a start or a force charge, a plain
-    regulation write's outcome is never checked at all -- the reported reason
-    stays "adjust_current" whether or not the charger actually accepted it.
-    Documented so a future fix to surface it has a test to update rather than
-    a silent behaviour to rediscover."""
+def test_a_failed_ramp_write_is_surfaced_as_a_failure(monkeypatch):
+    """A refused regulation write is reported like a refused start or force
+    charge, not as the "adjust_current" that was decided (audit B2)."""
     h = _charging_harness(
         monkeypatch,
         sensors={"sensor.grid": -5000},
         client=_Client(set_current_ok=False),
     )
-    assert h.tick() == "adjust_current"
+    assert h.tick() == "failed_set_current"
     assert [v for kind, v in h.writes if kind == "current"] == [11]
 
 
@@ -1108,9 +1105,9 @@ def test_force_charge_is_clamped_to_the_cap_not_dropped_to_the_minimum(monkeypat
 
 
 def test_a_failed_force_charge_current_write_is_reported(monkeypatch):
-    """Unlike a plain ramp adjustment, force charge does check its write and
-    surfaces the failure -- every existing force-charge test uses a client
-    that always succeeds, so this path had never actually run."""
+    """Force charge surfaces a refused write -- every existing force-charge
+    test uses a client that always succeeds, so this path had never actually
+    run. A plain ramp adjustment reports it too (see test_regressions.py)."""
     h = Harness(
         monkeypatch,
         sensors={"sensor.grid": -3000},
