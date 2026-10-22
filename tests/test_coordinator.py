@@ -51,6 +51,9 @@ class _Client:
         self.calls.append(("classify",))
         return self.fault
 
+    async def async_connect(self):
+        self.calls.append(("connect",))
+
     async def async_tcp_reachable(self):
         return self.tcp_reachable
 
@@ -91,6 +94,7 @@ def _coordinator(monkeypatch, *, entry_data=None, options=None, client=None, dat
     coord._last_fault = None
     coord._last_fault_at = 0.0
     coord._undecryptable_since = None
+    coord._reconnect_tried = False
     coord._polls_ok = 0
     coord._polls_failed = 0
     coord._consecutive_failures = 0
@@ -179,7 +183,8 @@ def test_a_poll_failure_after_a_key_refresh_succeeds_on_the_retry(monkeypatch):
 
 def _failing(monkeypatch, *, fault):
     coord = _coordinator(monkeypatch)
-    coord.client.metrics_results = [None]
+    # The second read is only consumed by the one reconnect after the grace period.
+    coord.client.metrics_results = [None, None]
     coord.client.fault = fault
 
     async def _no():
@@ -218,6 +223,51 @@ def test_undecryptable_polls_ask_for_reauthentication_once_the_grace_period_is_o
 
     with pytest.raises(ConfigEntryAuthFailed, match="cannot be decrypted"):
         asyncio.run(coord._async_update_data())
+
+
+def test_the_client_is_rebuilt_once_before_the_reauth_and_a_good_read_recovers(monkeypatch):
+    """#52: a reload cleared the stuck state with the same key, so rebuild the client
+    after the grace period and only ask for the key if that does not help."""
+    from tuya_ev_charger.const import (
+        UNDECRYPTABLE_FAILURES_BEFORE_REAUTH,
+        UNDECRYPTABLE_GRACE_SECONDS,
+        ConnectionFault,
+    )
+
+    coord = _failing(monkeypatch, fault=ConnectionFault.UNDECRYPTABLE)
+    coord.client.metrics_results = [None, "recovered"]
+    coord._consecutive_failures = UNDECRYPTABLE_FAILURES_BEFORE_REAUTH - 1
+    coord._undecryptable_since = coord.clock.now - UNDECRYPTABLE_GRACE_SECONDS
+
+    assert asyncio.run(coord._async_update_data()) == "recovered"
+
+    assert ("connect",) in coord.client.calls
+    assert coord._undecryptable_since is None
+    assert coord._consecutive_failures == 0
+
+
+def test_the_client_is_rebuilt_only_once_per_undecryptable_run(monkeypatch):
+    from tuya_ev_charger.const import (
+        UNDECRYPTABLE_FAILURES_BEFORE_REAUTH,
+        UNDECRYPTABLE_GRACE_SECONDS,
+        ConnectionFault,
+    )
+    from tuya_ev_charger.coordinator import ConfigEntryAuthFailed
+
+    coord = _failing(monkeypatch, fault=ConnectionFault.UNDECRYPTABLE)
+    coord._consecutive_failures = UNDECRYPTABLE_FAILURES_BEFORE_REAUTH - 1
+    coord._undecryptable_since = coord.clock.now - UNDECRYPTABLE_GRACE_SECONDS
+
+    with pytest.raises(ConfigEntryAuthFailed):
+        asyncio.run(coord._async_update_data())
+    assert coord.client.calls.count(("connect",)) == 1
+
+    # A later poll of the same run (HA may poll again after a reauth is dismissed)
+    # goes straight to the reauth: no second rebuild.
+    coord.client.metrics_results = [None]
+    with pytest.raises(ConfigEntryAuthFailed):
+        asyncio.run(coord._async_update_data())
+    assert coord.client.calls.count(("connect",)) == 1
 
 
 def test_many_undecryptable_polls_inside_the_grace_period_do_not_stop_polling(monkeypatch):

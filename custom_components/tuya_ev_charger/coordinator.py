@@ -112,6 +112,9 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         # Loop time of the first poll of the current unbroken run of undecryptable
         # replies; None while the replies are readable. See _async_fail_poll.
         self._undecryptable_since: float | None = None
+        # Whether the client was rebuilt during the current run of undecryptable
+        # replies: it is tried once, after the grace period, before the reauth.
+        self._reconnect_tried = False
         # Connection health. Kept here rather than derived from entity history
         # because the interesting events (a relocation, a key refresh) happen
         # between polls and leave no trace in the entity state.
@@ -183,10 +186,37 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
                 # of undecryptable polls is a transient handshake glitch (#34) or
                 # another client briefly holding the connection (#52) and only
                 # gets an UpdateFailed, so the next poll can recover on its own.
+                #
+                # Before giving up, rebuild the client once: a reload cleared this
+                # state without touching the key (#52), so the stuck part is on our
+                # side of the session, not in the key.
+                metrics = await self._async_reconnect_and_fetch()
+                if metrics is not None:
+                    return metrics
                 raise ConfigEntryAuthFailed(message)
         else:
             self._undecryptable_since = None
+            self._reconnect_tried = False
         raise UpdateFailed(message)
+
+    async def _async_reconnect_and_fetch(self) -> EVMetrics | None:
+        """Rebuild the client and read once, at most once per undecryptable run."""
+        if self._reconnect_tried:
+            return None
+        self._reconnect_tried = True
+        LOGGER.warning(
+            "Charger at %s has been unreadable for %s s: rebuilding the connection once "
+            "before asking for the local key.",
+            self.client.host,
+            round(self.hass.loop.time() - (self._undecryptable_since or 0)),
+        )
+        await self.client.async_connect()
+        metrics = await self._async_fetch_metrics()
+        if metrics is None:
+            return None
+        self._async_note_success()
+        await self._async_on_metrics(metrics)
+        return metrics
 
     async def _async_failure_message(self) -> str:
         """Explain *why* the poll failed, and raise a repair issue when useful."""
@@ -358,6 +388,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         self._polls_ok += 1
         self._consecutive_failures = 0
         self._undecryptable_since = None
+        self._reconnect_tried = False
         self._last_success_at = dt_util.now()
         if self._last_fault is not None:
             self._last_fault = None

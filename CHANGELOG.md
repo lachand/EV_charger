@@ -7,6 +7,14 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## Unreleased
+
+- **The connection is rebuilt once before the key is asked for again (#52).** After
+  the 10-minute grace period of unreadable replies, the client is rebuilt and read
+  once before the "re-enter the local key" request is raised. A reload cleared this
+  state with the same key for @tiiiit74, so the stuck part was the session, not the
+  key. If the read still fails, the request appears as before.
+
 ## 2.27.0-beta6
 
 Pre-release: HACS offers it only with beta versions enabled.

@@ -249,6 +249,7 @@ def _bare_coordinator(**overrides):
     coordinator._last_fault = None
     coordinator._last_fault_at = 0.0
     coordinator._undecryptable_since = None
+    coordinator._reconnect_tried = False
     coordinator._polls_ok = 0
     coordinator._polls_failed = 0
     coordinator._consecutive_failures = 0
@@ -263,7 +264,11 @@ def _bare_coordinator(**overrides):
     coordinator.update_interval = None
     coordinator.hass = types.SimpleNamespace()
     coordinator.entry = types.SimpleNamespace(entry_id="test")
-    coordinator.client = types.SimpleNamespace(host="192.168.1.237")
+
+    async def _connect():
+        return None
+
+    coordinator.client = types.SimpleNamespace(host="192.168.1.237", async_connect=_connect)
     for name, value in overrides.items():
         setattr(coordinator, name, value)
     return coordinator
