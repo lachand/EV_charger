@@ -55,7 +55,8 @@ def test_three_phase_is_summed():
 @pytest.mark.parametrize("state", ["IDLEINS", "IDLE", "STOP", "PAUSE", "SLEEP"])
 def test_power_resets_when_not_charging(charging_dps, state):
     """The charger keeps echoing its last power reading once a session ends."""
-    data = _metrics({**charging_dps, "109": state})
+    # DP 101 leaves 300 when a charge ends (200 = ready); 300 with SLEEP is #57.
+    data = _metrics({**charging_dps, "109": state, "101": 200})
     assert data.power_l1 == 0.0
     assert data.total_power == 0.0
     # Voltage is still reported, so this is a deliberate reset, not missing data.
@@ -65,7 +66,7 @@ def test_power_resets_when_not_charging(charging_dps, state):
 @pytest.mark.parametrize("state", ["IDLEINS", "IDLE", "STOP", "PAUSE", "SLEEP"])
 def test_current_resets_when_not_charging(charging_dps, state):
     """Some firmwares also keep echoing the last current reading (issue #35)."""
-    data = _metrics({**charging_dps, "109": state})
+    data = _metrics({**charging_dps, "109": state, "101": 200})
     assert data.current_l1 == 0.0
 
 
@@ -118,7 +119,7 @@ def test_temperature_is_tenths(charging_dps):
     ],
 )
 def test_status_enum(charging_dps, raw, expected):
-    assert _metrics({**charging_dps, "109": raw}).status == expected
+    assert _metrics({**charging_dps, "109": raw, "101": 200}).status == expected
 
 
 def test_unknown_status_is_none(charging_dps):

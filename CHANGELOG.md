@@ -7,6 +7,25 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## Unreleased
+
+- **A charge is no longer read as asleep when a 7.4 kW wallbox dims its display
+  (#57).** Reported by @nikolaycenov: DP 109 says `SLEEP` during a real charge
+  while DP 101 stays at 300, so current and power were forced to 0, the status
+  read `sleep` and polling slowed to 40 s. `SLEEP` with DP 101 at 300 is now a
+  charge in progress. A paused charge with a stale reading still reads 0.
+- **A dé qccdz session stopped from the app reads `paused`, not `charged`
+  (#67).** The `charge_complete` trigger no longer fires on a manual stop.
+  Contributed by @BTexier.
+- **qccdz sessions are logged (#68).** The session log, its cost and the anomaly
+  checks now work on firmwares without DP 105, from DP 54 and DP 25.
+  Contributed by @BTexier.
+- **Session cost can follow a price sensor (#69, #70).** The new optional
+  `price_sensor_entity_id` (Tempo, Tibber, Nord Pool...) replaces the two fixed
+  prices and is averaged by energy over the session. Contributed by @BTexier.
+- **Diagnostics read the manifest off the event loop (#66).** Contributed by
+  @BTexier.
+
 ## 2.27.0-beta5
 
 Pre-release: HACS offers it only with beta versions enabled.

@@ -34,6 +34,10 @@ PHASE_NAMES: tuple[str, ...] = ("L1", "L2", "L3")
 # DP 109 states observed across models: SLEEP (standby), IDLE (ready, unplugged),
 # IDLEINS (cable inserted, not charging), WORKING (charging).
 WORK_STATE_CHARGING = "WORKING"
+# DP 101 reads 300 while charging. Some 7.4 kW wallboxes report DP 109 SLEEP
+# during a real charge once their display goes dark, while DP 101 stays at 300
+# (#57); 204 (paused) and 200 (ready) never carry that value.
+WORK_STATE_CODE_CHARGING = 300
 
 # Friendly, translatable status decoded from the raw DP 109 string. The mapping
 # matches tuya_local's config for this exact product (`dewall_evcharger.yaml`,
@@ -145,7 +149,11 @@ def decode_metrics(dps: dict[str, Any], dp: DPProfile) -> EVMetrics:
     # reports DP 140 counts as charging when it says so, even if its DP 109
     # string is one we do not map to "charging" (#35).
     plug_in_raw = coerce_optional_int(dps.get(dp.plug_in_action))
-    charging = work_state_debug == WORK_STATE_CHARGING or do_charge is True
+    work_state = coerce_optional_int(dps.get(dp.work_state))
+    # Only SLEEP is overridden: PAUSE with a stale DP 102 must keep reading as
+    # zero (#35), and DP 101 changes to 204 as soon as the charge is paused.
+    asleep_but_charging = work_state_debug == "SLEEP" and work_state == WORK_STATE_CODE_CHARGING
+    charging = work_state_debug == WORK_STATE_CHARGING or do_charge is True or asleep_but_charging
     phases = _parse_phases(metrics_dict, charging)
     l1 = phases.get("L1")
 
@@ -164,9 +172,11 @@ def decode_metrics(dps: dict[str, Any], dp: DPProfile) -> EVMetrics:
         last_session_energy_kwh=_tenths(history_dict.get("c")),
         last_session_duration_s=coerce_optional_int(history_dict.get("d")),
         temperature=_coerce_float(metrics_dict.get("t", 0)) / 10.0,
-        work_state=coerce_optional_int(dps.get(dp.work_state)),
+        work_state=work_state,
         work_state_debug=work_state_debug,
-        status=STATUS_MAP.get(work_state_debug),
+        status=STATUS_MAP[WORK_STATE_CHARGING]
+        if asleep_but_charging
+        else STATUS_MAP.get(work_state_debug),
         plug_in_action=(PLUG_IN_ACTION_MAP.get(plug_in_raw) if plug_in_raw is not None else None),
         do_charge=do_charge,
         current_target=coerce_optional_int(dps.get(dp.current_target)),

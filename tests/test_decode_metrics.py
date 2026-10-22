@@ -116,6 +116,44 @@ def test_a_model_reporting_dp140_counts_as_charging_even_with_an_unmapped_state(
     assert m.status is None  # the state string is unmapped; the reading is still live
 
 
+def test_a_charge_with_the_display_asleep_is_still_a_charge():
+    """#57: a 7.4 kW wallbox says SLEEP on DP 109 while DP 101 still reads 300."""
+    m = _decode(_dps(metrics=L1_CHARGING, work_state_debug="SLEEP", work_state=300))
+
+    assert m.current_l1 == pytest.approx(8.7)
+    assert m.total_power == pytest.approx(1.975)
+    assert m.status == "charging"
+    assert m.work_state_debug == "SLEEP"  # the raw string is kept for diagnostics
+
+
+def test_the_7_4_kw_dump_from_57_reads_as_a_live_charge():
+    """Reporter's dump taken mid-charge: DP 109 SLEEP, DP 101 300, 21.8 A on L1."""
+    blob = '{"L1":[2270,218,49],"L2":[2270,0,0],"L3":[2270,0,0],"t":280,"p":49,"d":43050,"e":26}'
+    m = _decode(_dps(metrics=blob, work_state_debug="SLEEP", work_state=300, current_target=23))
+
+    assert m.current_l1 == pytest.approx(21.8)
+    assert m.power_l1 == pytest.approx(4.949, abs=0.01)
+    assert m.session_energy_kwh == pytest.approx(2.6)
+    assert m.status == "charging"
+
+
+@pytest.mark.parametrize("work_state", [101, 200, 204, None])
+def test_sleep_without_the_charging_code_keeps_power_at_zero(work_state):
+    m = _decode(_dps(metrics=L1_CHARGING, work_state_debug="SLEEP", work_state=work_state))
+
+    assert m.current_l1 == 0.0
+    assert m.total_power == 0.0
+    assert m.status == "sleep"
+
+
+def test_a_paused_charge_with_a_stale_reading_stays_at_zero_even_if_the_code_lingers():
+    """#35: only SLEEP is overridden by DP 101, a PAUSE is never read as charging."""
+    m = _decode(_dps(metrics=L1_CHARGING, work_state_debug="PAUSE", work_state=300))
+
+    assert m.current_l1 == 0.0
+    assert m.status == "paused"
+
+
 def test_the_operating_state_is_normalised_before_it_is_mapped():
     m = _decode(_dps(work_state_debug="  working "))
 
