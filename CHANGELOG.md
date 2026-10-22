@@ -25,20 +25,21 @@ published normally** and HACS offers them without enabling beta versions.
   prices and is averaged by energy over the session. Contributed by @BTexier.
 - **Diagnostics read the manifest off the event loop (#66).** Contributed by
   @BTexier.
-- **Polling resumes after `release_connection`.** Once the loan expired, or was
+- **Polling resumes after `release_connection` (#71).** Once the loan expired, or was
   ended early, the client stayed closed and every poll failed until the
-  integration was reloaded. It now reconnects by itself.
-- **A refused current write is now reported.** When the charger refused a ramp
+  integration was reloaded. It now reconnects by itself. Contributed by
+  @gaetanars.
+- **A refused current write is now reported (#73).** When the charger refused a ramp
   adjustment, the decision sensor still showed the reason the controller had
   decided (`adjust_current`, `load_limit_reduced`...). It now shows "The charger
-  refused the current", with the decided reason kept in the trace.
-- **Surplus state survives a restart.** A Home Assistant restart (or an options
+  refused the current", with the decided reason kept in the trace. Contributed by @gaetanars.
+- **Surplus state survives a restart (#76).** A Home Assistant restart (or an options
   reload) used to forget the running surplus session, the force-charge switch and
   any pause: a pause no longer stopped the charge in progress, force charge fell
   back to off, and the departure deadline asked for the whole target energy
   again. They are now saved and restored. A restored session is dropped if the
   charger reports no vehicle on the first read; a car unplugged and replugged
-  during the outage cannot be detected.
+  during the outage cannot be detected. Contributed by @gaetanars.
 
 ## 2.27.0-beta5
 
