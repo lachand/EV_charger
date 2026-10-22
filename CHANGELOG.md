@@ -7,7 +7,9 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
-## Unreleased
+## 2.27.0-beta7
+
+Pre-release: HACS offers it only with beta versions enabled.
 
 - **A pause after a surplus stop, before the next surplus start (#75).** Reported by
   @gaetanars: surplus mode stopped after 60 s and restarted after 30 s with
