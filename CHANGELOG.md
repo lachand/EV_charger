@@ -7,6 +7,13 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## Unreleased
+
+- **English version of the dé charger setup guide (#55).** The illustrated guide
+  written by @tiiiit74 (Smart Life pairing, `local_key`, first test in Home
+  Assistant, Tuya Cloud alternative) is now also available in English, with links
+  between the two versions and from the README.
+
 ## 2.27.0-beta7
 
 Pre-release: HACS offers it only with beta versions enabled.
