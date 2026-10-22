@@ -7,7 +7,9 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
-## Unreleased
+## 2.27.0-beta6
+
+Pre-release: HACS offers it only with beta versions enabled.
 
 - **A charge is no longer read as asleep when a 7.4 kW wallbox dims its display
   (#57).** Reported by @nikolaycenov: DP 109 says `SLEEP` during a real charge
