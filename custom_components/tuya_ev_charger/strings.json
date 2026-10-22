@@ -108,8 +108,8 @@
             "data": {
               "max_house_power_w": "Maximum house power for load balancing (W, 0 = off)",
               "cap_only_regulation": "Regulate on the protection limits alone (surplus mode off): climb back to the highest current they allow",
-              "max_inverter_power_w": "Maximum inverter output (W, 0 = off) - protects a hybrid inverter; needs the total-load sensor below",
-              "total_load_sensor_entity_id": "Total household load sensor (for the inverter limit) - total consumption, not the grid meter",
+              "max_inverter_power_w": "Maximum measured-load power (W, 0 = off) - inverter output or charger's phase; requires the total-load sensor below",
+              "total_load_sensor_entity_id": "Total-load power sensor - inverter output or charger's phase, including EV charging (not the grid meter)",
               "external_charge_allowed_sensor_entity_id": "External charge-allowed sensor (binary_sensor/input_boolean, optional) - e.g. an inverter's on-grid status; blocks charging entirely when it says no",
               "external_charge_allowed_sensor_inverted": "Invert external charge-allowed sensor (tick if 'on' means blocked, e.g. an off-grid indicator)",
               "load_reservations": "Entities announcing a large load (e.g. switch.hob: 3000, switch.oven: 2500)"
@@ -436,8 +436,8 @@
       "description": "A maximum house power is set, but no grid power sensor is configured, so load balancing never engages and your main breaker is not being protected. Set **Grid power sensor** in the integration's options, or set the maximum back to 0 to turn load balancing off."
     },
     "inverter_limit_without_sensor": {
-      "title": "The inverter limit has no total-load sensor",
-      "description": "A maximum inverter output is set, but no total household load sensor is configured, so the limit never engages. This limit deliberately cannot use the grid sensor: on a hybrid inverter the battery hides the overload from the grid meter, which is the whole reason the limit exists. Set **Total household load sensor**, or set the maximum back to 0."
+      "title": "The measured-load power limit has no sensor",
+      "description": "A maximum measured-load power limit is set, but no total-load power sensor is configured, so the limit does not apply. Measure the inverter output or the charger's phase (EV included), not the grid meter: on a hybrid inverter the battery can hide the load from the grid meter. Set **Total-load power sensor**, or reset the limit to 0."
     },
     "surplus_without_sensor": {
       "title": "Surplus mode has no grid sensor",

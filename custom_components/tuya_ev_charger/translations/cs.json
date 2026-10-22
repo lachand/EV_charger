@@ -108,8 +108,8 @@
             "data": {
               "max_house_power_w": "Maxim\u00e1ln\u00ed v\u00fdkon domu pro vyva\u017eov\u00e1n\u00ed z\u00e1t\u011b\u017ee (W, 0 = vypnuto)",
               "cap_only_regulation": "Regulovat pouze podle ochrann\u00fdch limit\u016f (re\u017eim p\u0159ebytku vypnut): stoupat zp\u011bt na nejvy\u0161\u0161\u00ed proud, kter\u00fd limity dovoluj\u00ed",
-              "max_inverter_power_w": "Maxim\u00e1ln\u00ed v\u00fdstup st\u0159\u00edda\u010de (W, 0 = vypnuto) \u2013 chr\u00e1n\u00ed hybridn\u00ed st\u0159\u00edda\u010d; vy\u017eaduje senzor celkov\u00e9 z\u00e1t\u011b\u017ee n\u00ed\u017ee",
-              "total_load_sensor_entity_id": "Senzor celkov\u00e9 dom\u00e1c\u00ed z\u00e1t\u011b\u017ee (pro limit st\u0159\u00edda\u010de) \u2013 celkov\u00e1 spot\u0159eba, ne elektrom\u011br s\u00edt\u011b",
+              "max_inverter_power_w": "Limit celkového měřeného výkonu (W, 0 = vypnuto) – výstup střídače nebo fáze nabíječky; vyžaduje senzor níže",
+              "total_load_sensor_entity_id": "Senzor celkového výkonu – výstup střídače nebo fáze nabíječky, včetně nabíjení auta (ne elektroměr sítě)",
               "external_charge_allowed_sensor_entity_id": "Extern\u00ed senzor povolen\u00ed nab\u00edjen\u00ed (binary_sensor/input_boolean, voliteln\u00e9) \u2013 nap\u0159. stav on-grid st\u0159\u00edda\u010de; p\u0159i \u201ene\u201c zcela blokuje nab\u00edjen\u00ed",
               "external_charge_allowed_sensor_inverted": "Invertovat extern\u00ed senzor povolen\u00ed nab\u00edjen\u00ed (za\u0161krtn\u011bte, pokud \u201eon\u201c znamen\u00e1 blokov\u00e1no, nap\u0159. indik\u00e1tor off-grid)",
               "load_reservations": "Entity ohla\u0161uj\u00edc\u00ed velkou z\u00e1t\u011b\u017e (nap\u0159. switch.hob: 3000, switch.oven: 2500)"
@@ -436,8 +436,8 @@
       "description": "Je nastaven maxim\u00e1ln\u00ed v\u00fdkon domu, ale nen\u00ed nakonfigurov\u00e1n senzor s\u00ed\u0165ov\u00e9ho v\u00fdkonu, tak\u017ee vyva\u017eov\u00e1n\u00ed z\u00e1t\u011b\u017ee se nikdy nespust\u00ed a hlavn\u00ed jisti\u010d nen\u00ed chr\u00e1n\u011bn. Nastavte **Senzor s\u00ed\u0165ov\u00e9ho v\u00fdkonu** v mo\u017enostech integrace, nebo nastavte maximum zp\u011bt na 0 pro vypnut\u00ed vyva\u017eov\u00e1n\u00ed z\u00e1t\u011b\u017ee."
     },
     "inverter_limit_without_sensor": {
-      "title": "Limit st\u0159\u00edda\u010de nem\u00e1 senzor celkov\u00e9 z\u00e1t\u011b\u017ee",
-      "description": "Je nastaven maxim\u00e1ln\u00ed v\u00fdstup st\u0159\u00edda\u010de, ale nen\u00ed nakonfigurov\u00e1n senzor celkov\u00e9 dom\u00e1c\u00ed z\u00e1t\u011b\u017ee, tak\u017ee limit se nikdy nespust\u00ed. Tento limit z\u00e1m\u011brn\u011b nem\u016f\u017ee pou\u017e\u00edt senzor s\u00edt\u011b: u hybridn\u00edho st\u0159\u00edda\u010de baterie skr\u00fdv\u00e1 p\u0159et\u00ed\u017een\u00ed p\u0159ed elektrom\u011brem, co\u017e je cel\u00fd d\u016fvod existence limitu. Nastavte **Senzor celkov\u00e9 dom\u00e1c\u00ed z\u00e1t\u011b\u017ee**, nebo nastavte maximum zp\u011bt na 0."
+      "title": "Pro limit měřeného výkonu chybí senzor",
+      "description": "Je nastaven limit celkového měřeného výkonu, ale není nakonfigurován senzor celkového výkonu, takže se limit neuplatní. Měřte výstup střídače nebo fázi nabíječky včetně nabíjení auta, nikoli údaj z elektroměru: baterie hybridního střídače může zátěž před elektroměrem skrýt. Nastavte **Senzor celkového výkonu**, nebo limit vraťte na 0."
     },
     "surplus_without_sensor": {
       "title": "Re\u017eim p\u0159ebytku nem\u00e1 senzor s\u00edt\u011b",
