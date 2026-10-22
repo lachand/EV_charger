@@ -2,6 +2,8 @@
 
 **Tuya EV Charger Local + Smart Life / Tuya Smart + local_key**
 
+🇬🇧 [English version](guide-en.md)
+
 **Terminologie :** ce guide présente un chargeur portable dé, souvent appelé **CRO** (« câble de recharge occasionnelle »). Pour la suite, nous employons **« borne dé »** pour désigner cet appareil.
 
 ![Capture 01](images/01-borne-de-etiquette-signaletique.webp)
