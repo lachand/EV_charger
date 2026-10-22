@@ -787,6 +787,217 @@ def test_a_pause_is_still_ignored_with_surplus_off_and_no_cap_only():
     assert verdict.reason.value == "mode_disabled"
 
 
+# --- restart lock after a surplus stop (#75) -------------------------------
+
+
+def _stop_then_ask_again(*, after_s, restart_lock_s):
+    """Run a surplus stop at t=1000+, then the next idle evaluation `after_s` later."""
+    timers = _timers()
+    dying = _charging(available_surplus_w=500.0, max_supported_current=2)
+    _run(dying, timers)
+    stopped = _run(_ctx(**{**_fields(dying), "now": 1061.0}), timers)
+    assert stopped.action.value == "stop_charge"
+
+    idle = _ctx(
+        now=1061.0 + after_s,
+        available_surplus_w=3000.0,
+        max_supported_current=13,
+        restart_lock_s=restart_lock_s,
+    )
+    # The first evaluation after a lock starts the start delay, the second serves it.
+    first = _run(idle, timers)
+    later = _run(_ctx(**{**_fields(idle), "now": idle.now + 31.0}), timers)
+    return first, later
+
+
+def test_a_surplus_stop_locks_the_next_start_for_the_configured_time():
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    first, later = _stop_then_ask_again(after_s=60.0, restart_lock_s=300.0)
+
+    assert first.action is GateAction.IDLE
+    assert first.reason is DecisionReason.RESTART_LOCK_ACTIVE
+    assert later.reason is DecisionReason.RESTART_LOCK_ACTIVE
+
+
+def test_the_start_delay_is_served_after_the_lock_not_during_it():
+    from tuya_ev_charger.charge_gates import DecisionReason
+
+    # Lock over: the first evaluation only arms the 30 s delay, as for any start.
+    first, later = _stop_then_ask_again(after_s=301.0, restart_lock_s=300.0)
+
+    assert first.reason is DecisionReason.START_DELAY_PENDING
+    assert later.action.value == "start_charge"
+
+
+def test_without_a_restart_lock_a_surplus_stop_changes_nothing():
+    from tuya_ev_charger.charge_gates import DecisionReason
+
+    first, later = _stop_then_ask_again(after_s=5.0, restart_lock_s=0.0)
+
+    assert first.reason is DecisionReason.START_DELAY_PENDING
+    assert later.action.value == "start_charge"
+
+
+def test_only_a_surplus_stop_arms_the_lock():
+    """A pause, a cap or a session limit is not the surplus oscillation the lock bounds."""
+    from tuya_ev_charger.charge_gates import DecisionReason
+
+    timers = _timers()
+    _run(_charging(pause_active=True), timers)
+    assert timers.last_surplus_stop_ts is None
+
+    ready = _ctx(
+        now=1002.0, available_surplus_w=3000.0, max_supported_current=13, restart_lock_s=300.0
+    )
+    assert _run(ready, timers).reason is DecisionReason.START_DELAY_PENDING
+
+
+# --- stay at the minimum current (#75) -------------------------------------
+
+
+def test_staying_at_the_minimum_current_replaces_the_surplus_stop():
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    ctx = _charging(
+        available_surplus_w=500.0,
+        max_supported_current=2,
+        current_target=6,
+        target_current=6,
+        stay_at_min_current=True,
+    )
+    verdict = _run(ctx)
+
+    assert verdict.action is GateAction.HOLD
+    assert verdict.reason is DecisionReason.HOLDING_MINIMUM_CURRENT
+
+
+def test_staying_at_the_minimum_walks_a_higher_current_down_to_it():
+    from tuya_ev_charger.charge_gates import GateAction
+
+    ctx = _charging(
+        available_surplus_w=500.0,
+        max_supported_current=2,
+        current_target=12,
+        target_current=6,
+        stay_at_min_current=True,
+        now=2000.0,
+    )
+    verdict = _run(ctx)
+
+    assert verdict.action is GateAction.SET_CURRENT
+    assert verdict.target_current == 11
+
+
+def test_staying_at_the_minimum_still_stops_on_the_battery_floor_and_session_limits():
+    from tuya_ev_charger.charge_gates import DecisionReason
+
+    timers = _timers()
+    base = _charging(
+        available_surplus_w=500.0,
+        max_supported_current=2,
+        stay_at_min_current=True,
+        battery_ready=False,
+    )
+    _run(base, timers)
+    stopped = _run(_ctx(**{**_fields(base), "now": 1061.0}), timers)
+    assert stopped.action.value == "stop_charge"
+    assert stopped.reason is DecisionReason.BATTERY_SOC_BELOW_THRESHOLD
+
+    limited = _run(
+        _charging(
+            stay_at_min_current=True,
+            session_limit_reason=DecisionReason.SESSION_LIMIT_ENERGY,
+            available_surplus_w=500.0,
+            max_supported_current=2,
+        ),
+        _timers(),
+    )
+    assert limited.reason is DecisionReason.STOP_DELAY_PENDING
+
+
+def test_staying_at_the_minimum_starts_on_a_surplus_below_the_minimum_current():
+    """#72: a start threshold of 750 W with a 6 A minimum (about 1380 W)."""
+    from tuya_ev_charger.charge_gates import DecisionReason
+
+    timers = _timers()
+    ctx = _ctx(
+        start_threshold_w=750.0,
+        available_surplus_w=800.0,
+        max_supported_current=3,
+        stay_at_min_current=True,
+    )
+    _run(ctx, timers)
+    verdict = _run(_ctx(**{**_fields(ctx), "now": 1031.0}), timers)
+
+    assert verdict.action.value == "start_charge"
+    assert verdict.target_current == 6
+    assert verdict.reason is DecisionReason.SURPLUS_START
+
+
+def test_without_staying_at_the_minimum_a_small_surplus_still_cannot_start():
+    from tuya_ev_charger.charge_gates import DecisionReason
+
+    verdict = _run(
+        _ctx(start_threshold_w=750.0, available_surplus_w=800.0, max_supported_current=3)
+    )
+
+    assert verdict.reason is DecisionReason.INSUFFICIENT_SURPLUS_CURRENT
+
+
+# --- charging in off-peak hours with surplus mode on (#43) -----------------
+
+
+def test_off_peak_charging_starts_without_a_battery_or_any_surplus():
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    verdict = _run(
+        _ctx(
+            charge_in_off_peak=True,
+            tariff_allowed=True,
+            available_surplus_w=0.0,
+            grid_sensor_configured=False,
+        )
+    )
+
+    assert verdict.action is GateAction.START_CHARGE
+    assert verdict.reason is DecisionReason.OFF_PEAK_CHARGE_START
+    assert verdict.target_current == 6
+
+
+def test_off_peak_charging_ramps_to_the_highest_allowed_current():
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    verdict = _run(
+        _ctx(charge_in_off_peak=True, tariff_allowed=True, is_charging=True, current_target=10)
+    )
+
+    assert verdict.action is GateAction.SET_CURRENT
+    assert verdict.reason is DecisionReason.OFF_PEAK_CHARGING
+    assert verdict.target_current == 11
+
+
+def test_off_peak_charging_does_nothing_outside_the_window_or_when_switched_off():
+    from tuya_ev_charger.charge_gates import DecisionReason
+
+    outside = _run(_ctx(charge_in_off_peak=True, tariff_allowed=False, available_surplus_w=0.0))
+    assert outside.reason is DecisionReason.BELOW_START_THRESHOLD
+
+    option_off = _run(_ctx(charge_in_off_peak=False, tariff_allowed=True, available_surplus_w=0.0))
+    assert option_off.reason is DecisionReason.BELOW_START_THRESHOLD
+
+    no_window = _run(_ctx(charge_in_off_peak=True, tariff_allowed=None, available_surplus_w=0.0))
+    assert no_window.reason is DecisionReason.BELOW_START_THRESHOLD
+
+
+def test_the_battery_floor_still_reports_its_own_reason_when_both_apply():
+    from tuya_ev_charger.charge_gates import DecisionReason
+
+    verdict = _run(_ctx(charge_in_off_peak=True, tariff_allowed=True, battery_ready=False))
+
+    assert verdict.reason is DecisionReason.BATTERY_FLOOR_OFF_PEAK_START
+
+
 # --- helper ---------------------------------------------------------------
 
 

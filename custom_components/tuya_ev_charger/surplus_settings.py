@@ -38,14 +38,17 @@ from .const import (
     CONF_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
     CONF_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
     CONF_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+    CONF_SURPLUS_CHARGE_IN_OFF_PEAK,
     CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
     CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
     CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
     CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
     CONF_SURPLUS_MODE_ENABLED,
+    CONF_SURPLUS_RESTART_LOCK_MIN,
     CONF_SURPLUS_SENSOR_ENTITY_ID,
     CONF_SURPLUS_SENSOR_INVERTED,
     CONF_SURPLUS_START_THRESHOLD_W,
+    CONF_SURPLUS_STAY_AT_MIN_CURRENT,
     CONF_SURPLUS_STOP_THRESHOLD_W,
     CONF_TOTAL_LOAD_SENSOR_ENTITY_ID,
     DEFAULT_CAP_ONLY_REGULATION,
@@ -71,14 +74,17 @@ from .const import (
     DEFAULT_SURPLUS_BATTERY_SOC_LOW_THRESHOLD_PCT,
     DEFAULT_SURPLUS_BATTERY_SOC_SENSOR_ENTITY_ID,
     DEFAULT_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
+    DEFAULT_SURPLUS_CHARGE_IN_OFF_PEAK,
     DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
     DEFAULT_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
     DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
     DEFAULT_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
     DEFAULT_SURPLUS_MODE_ENABLED,
+    DEFAULT_SURPLUS_RESTART_LOCK_MIN,
     DEFAULT_SURPLUS_SENSOR_ENTITY_ID,
     DEFAULT_SURPLUS_SENSOR_INVERTED,
     DEFAULT_SURPLUS_START_THRESHOLD_W,
+    DEFAULT_SURPLUS_STAY_AT_MIN_CURRENT,
     DEFAULT_SURPLUS_STOP_THRESHOLD_W,
     DEFAULT_TOTAL_LOAD_SENSOR_ENTITY_ID,
     MAX_DEPARTURE_ENERGY_KWH,
@@ -86,12 +92,14 @@ from .const import (
     MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MAX_SURPLUS_DELAY_S,
     MAX_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
+    MAX_SURPLUS_RESTART_LOCK_MIN,
     MAX_SURPLUS_THRESHOLD_W,
     MIN_DEPARTURE_ENERGY_KWH,
     MIN_MAX_HOUSE_POWER_W,
     MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT,
     MIN_SURPLUS_DELAY_S,
     MIN_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
+    MIN_SURPLUS_RESTART_LOCK_MIN,
     MIN_SURPLUS_THRESHOLD_W,
 )
 from .option_values import clean_optional_text, option_bool, option_int
@@ -133,6 +141,9 @@ class SolarSurplusSettings:
     stop_threshold_w: int
     adjust_up_cooldown_s: int
     adjust_down_cooldown_s: int
+    restart_lock_min: int
+    stay_at_min_current: bool
+    charge_in_off_peak: bool
     forecast_sensor_entity_id: str
     external_charge_allowed_sensor_entity_id: str
     external_charge_allowed_sensor_inverted: bool
@@ -322,6 +333,23 @@ def settings_from_entry(entry: ConfigEntry) -> SolarSurplusSettings:
         stop_threshold_w=stop_threshold_w,
         adjust_up_cooldown_s=adjust_up_cooldown_s,
         adjust_down_cooldown_s=adjust_down_cooldown_s,
+        restart_lock_min=option_int(
+            options,
+            CONF_SURPLUS_RESTART_LOCK_MIN,
+            DEFAULT_SURPLUS_RESTART_LOCK_MIN,
+            MIN_SURPLUS_RESTART_LOCK_MIN,
+            MAX_SURPLUS_RESTART_LOCK_MIN,
+        ),
+        stay_at_min_current=option_bool(
+            options,
+            CONF_SURPLUS_STAY_AT_MIN_CURRENT,
+            DEFAULT_SURPLUS_STAY_AT_MIN_CURRENT,
+        ),
+        charge_in_off_peak=option_bool(
+            options,
+            CONF_SURPLUS_CHARGE_IN_OFF_PEAK,
+            DEFAULT_SURPLUS_CHARGE_IN_OFF_PEAK,
+        ),
         forecast_sensor_entity_id=_option_str(
             options,
             CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,

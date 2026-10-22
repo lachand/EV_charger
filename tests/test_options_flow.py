@@ -481,3 +481,35 @@ def test_a_text_field_missing_from_the_submission_takes_its_default():
     _normalize_text_value(data, "k", "d")
 
     assert data["k"] == "d"
+
+
+def test_the_surplus_stop_start_and_off_peak_options_default_and_clamp():
+    """#75, #43: the lock defaults to 5 minutes, the other two to off, and the lock is bounded."""
+    import types
+
+    from tuya_ev_charger.surplus_settings import settings_from_entry
+
+    defaults = settings_from_entry(types.SimpleNamespace(options={}))
+    assert defaults.restart_lock_min == 5
+    assert defaults.stay_at_min_current is False
+    assert defaults.charge_in_off_peak is False
+
+    chosen = settings_from_entry(
+        types.SimpleNamespace(
+            options={
+                "surplus_restart_lock_min": 999,
+                "surplus_stay_at_min_current": True,
+                "surplus_charge_in_off_peak": True,
+            }
+        )
+    )
+    assert chosen.restart_lock_min == 120
+    assert chosen.stay_at_min_current is True
+    assert chosen.charge_in_off_peak is True
+
+    assert (
+        settings_from_entry(
+            types.SimpleNamespace(options={"surplus_restart_lock_min": 0})
+        ).restart_lock_min
+        == 0
+    )

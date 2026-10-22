@@ -88,6 +88,11 @@ class DecisionReason(StrEnum):
     BATTERY_FLOOR_OFF_PEAK_START = "battery_floor_off_peak_start"
     BATTERY_FLOOR_OFF_PEAK_CHARGING = "battery_floor_off_peak_charging"
 
+    # Surplus mode on and "charge in off-peak hours" set (#43): the window drives a
+    # grid charge whatever the battery says, outside it the surplus rules again.
+    OFF_PEAK_CHARGE_START = "off_peak_charge_start"
+    OFF_PEAK_CHARGING = "off_peak_charging"
+
     # Surplus mode off, but the protection caps drive the current (#48).
     CAP_ONLY_START = "cap_only_start"
     CAP_ONLY_REGULATING = "cap_only_regulating"
@@ -107,6 +112,9 @@ class DecisionReason(StrEnum):
     PROTECTION_HOLD = "protection_hold"
     TARGET_ALREADY_REACHED = "target_already_reached"
     HOLDING_CURRENT = "holding_current"
+    # "Stay at the minimum current" (#75): the surplus no longer pays for it, the
+    # charge carries on at the minimum instead of stopping.
+    HOLDING_MINIMUM_CURRENT = "holding_minimum_current"
 
     # Reasons a running session ends.
     BELOW_STOP_THRESHOLD = "below_stop_threshold"
@@ -119,6 +127,9 @@ class DecisionReason(StrEnum):
     # While idle.
     BELOW_START_THRESHOLD = "below_start_threshold"
     START_DELAY_PENDING = "start_delay_pending"
+    # A surplus stop is followed by a pause before the next start (#75), so a
+    # surplus hovering around the threshold cannot cycle the contactor.
+    RESTART_LOCK_ACTIVE = "restart_lock_active"
     SURPLUS_START = "surplus_start"
 
     # Outcomes of a write, produced by the apply layer rather than by a gate:
@@ -143,6 +154,8 @@ class TimerState:
     last_decrease_action_ts: float = 0.0
     # When a protection cap last forced the current down; None if it never has.
     last_protection_reduce_ts: float | None = None
+    # When surplus regulation last stopped the charge; None if it never has.
+    last_surplus_stop_ts: float | None = None
 
     def copy(self) -> TimerState:
         """A detached copy, for asking what *would* happen.
@@ -204,6 +217,13 @@ class GateContext:
     # How long a ramp-up stays put after a protection cap forced a reduction.
     protection_hold_s: float = 0.0
     min_run_time_s: float = 0.0
+    # Seconds to wait after a surplus stop before a surplus start (#75); 0 = none.
+    restart_lock_s: float = 0.0
+    # Keep charging at the minimum current instead of stopping when the surplus
+    # cannot pay for it (#75). The difference is imported from the grid.
+    stay_at_min_current: bool = False
+    # Charge from the grid during an off-peak window even in surplus mode (#43).
+    charge_in_off_peak: bool = False
     # Already-computed session limit, if any (duration, energy, end time).
     session_limit_reason: DecisionReason | None = None
 
@@ -460,17 +480,36 @@ def _gate_battery_floor_tariff_fallback(ctx: GateContext, timers: TimerState) ->
     the backward-compatibility guarantee: nobody without an off-peak window
     configured sees any behavioural change.
 
+    With `charge_in_off_peak` (#43) the window also drives the charge while the
+    battery is fine, so a house without a battery sensor, or one that wants the
+    cheap hours used whatever the sun does, still charges from the grid then.
+    Outside the window the surplus rules take back over. The option is off by
+    default, so nobody relying on a solar-only surplus mode sees a change.
+
     Placed before `_gate_grid_sensor` on purpose: this fallback is explicitly
     the no-solar tier, so it must not require a grid sensor -- placing it
     after would block exactly the installs (a nightly off-peak window with no
     solar sensor wired up for surplus regulation) it exists for.
     """
-    if not ctx.surplus_mode_enabled or ctx.battery_ready or ctx.tariff_allowed is None:
+    if not ctx.surplus_mode_enabled or ctx.tariff_allowed is None:
+        return None
+    battery_floor = not ctx.battery_ready
+    if not (battery_floor or ctx.charge_in_off_peak):
         return None
     if not ctx.tariff_allowed:
         return None
     if not ctx.available_currents:
         return None  # _gate_no_currents already handled this
+    start_reason = (
+        DecisionReason.BATTERY_FLOOR_OFF_PEAK_START
+        if battery_floor
+        else DecisionReason.OFF_PEAK_CHARGE_START
+    )
+    charging_reason = (
+        DecisionReason.BATTERY_FLOOR_OFF_PEAK_CHARGING
+        if battery_floor
+        else DecisionReason.OFF_PEAK_CHARGING
+    )
 
     # Whichever gate is in control this cycle owns the delay timers; a stale
     # one left over from surplus regulation must not fire once this tier
@@ -481,7 +520,7 @@ def _gate_battery_floor_tariff_fallback(ctx: GateContext, timers: TimerState) ->
     if not ctx.is_charging:
         return Verdict(
             action=GateAction.START_CHARGE,
-            reason=DecisionReason.BATTERY_FLOOR_OFF_PEAK_START,
+            reason=start_reason,
             target_current=ctx.min_current,
             regulation_active=True,
         )
@@ -493,7 +532,7 @@ def _gate_battery_floor_tariff_fallback(ctx: GateContext, timers: TimerState) ->
     if current >= ceiling:
         return Verdict(
             action=GateAction.HOLD,
-            reason=DecisionReason.BATTERY_FLOOR_OFF_PEAK_CHARGING,
+            reason=charging_reason,
             regulation_active=True,
         )
     if _protection_hold_active(ctx, timers):
@@ -505,7 +544,7 @@ def _gate_battery_floor_tariff_fallback(ctx: GateContext, timers: TimerState) ->
     next_current = _ramp(current, ceiling, ctx.available_currents, ctx.ramp_step)
     return Verdict(
         action=GateAction.SET_CURRENT,
-        reason=DecisionReason.BATTERY_FLOOR_OFF_PEAK_CHARGING,
+        reason=charging_reason,
         target_current=next_current,
         regulation_active=True,
     )
@@ -537,6 +576,10 @@ def _stop_reason(ctx: GateContext) -> DecisionReason | None:
         return ctx.session_limit_reason
     if not ctx.battery_ready:
         return DecisionReason.BATTERY_SOC_BELOW_THRESHOLD
+    if ctx.stay_at_min_current:
+        # The surplus only decides the current above the minimum, never whether
+        # the charge ends: the battery floor and the session limits still do.
+        return None
     if ctx.available_surplus_w <= ctx.stop_threshold_w:
         return DecisionReason.BELOW_STOP_THRESHOLD
     if ctx.max_supported_current < ctx.min_current:
@@ -578,6 +621,8 @@ def _gate_charging(ctx: GateContext, timers: TimerState) -> Verdict | None:
             )
 
         timers.stop_candidate_since = None
+        if stop_reason in _SURPLUS_STOP_REASONS:
+            timers.last_surplus_stop_ts = ctx.now
         return Verdict(action=GateAction.STOP_CHARGE, reason=stop_reason)
 
     timers.stop_candidate_since = None
@@ -596,9 +641,14 @@ def _gate_charging(ctx: GateContext, timers: TimerState) -> Verdict | None:
         current = ctx.min_current
 
     if ctx.target_current == current:
+        on_the_minimum = ctx.stay_at_min_current and ctx.max_supported_current < ctx.min_current
         return Verdict(
             action=GateAction.HOLD,
-            reason=DecisionReason.HOLDING_CURRENT,
+            reason=(
+                DecisionReason.HOLDING_MINIMUM_CURRENT
+                if on_the_minimum
+                else DecisionReason.HOLDING_CURRENT
+            ),
             regulation_active=True,
         )
 
@@ -652,12 +702,17 @@ def _gate_start(ctx: GateContext, timers: TimerState) -> Verdict | None:
             reason=DecisionReason.BELOW_START_THRESHOLD,
         )
 
-    if ctx.max_supported_current < ctx.min_current:
+    if ctx.max_supported_current < ctx.min_current and not ctx.stay_at_min_current:
         timers.start_candidate_since = None
         return Verdict(
             action=GateAction.IDLE,
             reason=DecisionReason.INSUFFICIENT_SURPLUS_CURRENT,
         )
+
+    if _restart_lock_active(ctx, timers):
+        # Not counted as start-delay progress: the delay is served after the lock.
+        timers.start_candidate_since = None
+        return Verdict(action=GateAction.IDLE, reason=DecisionReason.RESTART_LOCK_ACTIVE)
 
     # The start delay must be served in full and from scratch: a dip resets it
     # above rather than banking partial progress.
@@ -677,6 +732,23 @@ def _gate_start(ctx: GateContext, timers: TimerState) -> Verdict | None:
 
 
 # --- helpers ---------------------------------------------------------------
+
+# The stops that surplus regulation causes by itself. Hard limits (caps, external
+# veto, session limits, a pause) are not in it, nor is the battery floor, which has
+# its own hysteresis: the restart lock exists to bound the surplus oscillation.
+_SURPLUS_STOP_REASONS = frozenset(
+    {
+        DecisionReason.BELOW_STOP_THRESHOLD,
+        DecisionReason.INSUFFICIENT_SURPLUS_CURRENT,
+    }
+)
+
+
+def _restart_lock_active(ctx: GateContext, timers: TimerState) -> bool:
+    """Whether a surplus start must wait because surplus regulation just stopped."""
+    if ctx.restart_lock_s <= 0 or timers.last_surplus_stop_ts is None:
+        return False
+    return ctx.now - timers.last_surplus_stop_ts < ctx.restart_lock_s
 
 
 def _protection_hold_active(ctx: GateContext, timers: TimerState) -> bool:

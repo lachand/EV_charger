@@ -170,6 +170,12 @@ CONF_SURPLUS_STOP_THRESHOLD_W = "surplus_stop_threshold_w"
 CONF_SURPLUS_ADJUST_UP_COOLDOWN_S = "surplus_adjust_up_cooldown_s"
 CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S = "surplus_adjust_down_cooldown_s"
 CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID = "surplus_forecast_sensor_entity_id"
+# Pause between a surplus stop and the next surplus start, in minutes (#75).
+CONF_SURPLUS_RESTART_LOCK_MIN = "surplus_restart_lock_min"
+# Carry on at the minimum current instead of stopping when the surplus is too small (#75).
+CONF_SURPLUS_STAY_AT_MIN_CURRENT = "surplus_stay_at_min_current"
+# In surplus mode, also charge from the grid during off-peak windows (#43).
+CONF_SURPLUS_CHARGE_IN_OFF_PEAK = "surplus_charge_in_off_peak"
 
 # Options the solar-surplus controller owns end to end: it re-reads them itself
 # on a config-entry update (`SolarSurplusController.async_apply_settings`), and
@@ -191,6 +197,9 @@ LIVE_APPLIABLE_OPTION_KEYS: frozenset[str] = frozenset(
         CONF_SURPLUS_STOP_THRESHOLD_W,
         CONF_SURPLUS_ADJUST_UP_COOLDOWN_S,
         CONF_SURPLUS_ADJUST_DOWN_COOLDOWN_S,
+        CONF_SURPLUS_RESTART_LOCK_MIN,
+        CONF_SURPLUS_STAY_AT_MIN_CURRENT,
+        CONF_SURPLUS_CHARGE_IN_OFF_PEAK,
     }
 )
 
@@ -351,6 +360,14 @@ MIN_SURPLUS_BATTERY_SOC_THRESHOLD_PCT = 0
 MAX_SURPLUS_BATTERY_SOC_THRESHOLD_PCT = 100
 DEFAULT_SURPLUS_START_THRESHOLD_W = 1600
 DEFAULT_SURPLUS_STOP_THRESHOLD_W = 1200
+# A surplus stop is followed by this pause before the next surplus start. Surplus mode
+# used to stop after 60 s and restart after 30 s with nothing in between, which can
+# switch the contactor every ~90 s on a day of passing clouds (#75).
+DEFAULT_SURPLUS_RESTART_LOCK_MIN = 5
+MIN_SURPLUS_RESTART_LOCK_MIN = 0
+MAX_SURPLUS_RESTART_LOCK_MIN = 120
+DEFAULT_SURPLUS_STAY_AT_MIN_CURRENT = False
+DEFAULT_SURPLUS_CHARGE_IN_OFF_PEAK = False
 MIN_SURPLUS_THRESHOLD_W = 0
 MAX_SURPLUS_THRESHOLD_W = 22000
 MIN_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W = 0

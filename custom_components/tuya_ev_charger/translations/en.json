@@ -149,6 +149,9 @@
               "surplus_curtailment_sensor_inverted": "Invert curtailed power sensor sign",
               "surplus_start_threshold_w": "Surplus start threshold (W)",
               "surplus_stop_threshold_w": "Surplus stop threshold (W)",
+              "surplus_restart_lock_min": "Pause after a surplus stop (minutes, 0 = none)",
+              "surplus_stay_at_min_current": "Keep charging at the minimum current when the surplus is too small (imports the difference)",
+              "surplus_charge_in_off_peak": "Also charge from the grid during off-peak hours",
               "surplus_forecast_sensor_entity_id": "1h solar forecast sensor entity (W) (optional)"
             }
           },
@@ -244,6 +247,10 @@
           "force_charge_start": "Forced charge starting",
           "grid_sensor_unavailable": "The grid power sensor is unavailable",
           "holding_current": "Holding the current",
+          "holding_minimum_current": "Holding the minimum current \u2014 the surplus is too small, the difference comes from the grid",
+          "off_peak_charge_start": "Starting a grid charge in off-peak hours",
+          "off_peak_charging": "Charging from the grid during off-peak hours",
+          "restart_lock_active": "Waiting after a surplus stop before starting again",
           "insufficient_surplus_current": "Surplus too small for the minimum current",
           "inverter_limit_no_headroom": "Stopped: the inverter is at its output limit",
           "inverter_limit_reduced": "Reduced to stay under the inverter output limit",

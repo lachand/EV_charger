@@ -448,7 +448,8 @@ class SolarSurplusController:
             min_current = min(available_currents) if available_currents else 0
             target_current = (
                 max(min_current, max_supported_current)
-                if available_currents and max_supported_current >= min_current
+                if available_currents
+                and (max_supported_current >= min_current or self._settings.stay_at_min_current)
                 else None
             )
             if update_state:
@@ -499,6 +500,9 @@ class SolarSurplusController:
             ramp_step=FIXED_RAMP_STEP_A,
             protection_hold_s=float(FIXED_PROTECTION_HOLD_S),
             min_run_time_s=float(FIXED_MIN_RUN_TIME_S),
+            restart_lock_s=float(self._settings.restart_lock_min * 60),
+            stay_at_min_current=self._settings.stay_at_min_current,
+            charge_in_off_peak=self._settings.charge_in_off_peak,
             session_limit_reason=self._session_limit_reason(now),
         )
 

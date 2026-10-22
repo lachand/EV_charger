@@ -9,6 +9,22 @@ published normally** and HACS offers them without enabling beta versions.
 
 ## Unreleased
 
+- **A pause after a surplus stop, before the next surplus start (#75).** Reported by
+  @gaetanars: surplus mode stopped after 60 s and restarted after 30 s with
+  nothing in between, which can switch the charger's contactor about every 90 s on
+  a day of passing clouds. The new `surplus_restart_lock_min` option (default 5
+  minutes, 0 = none) holds the next start. Only a stop caused by the surplus arms
+  it; a pause, a cap or a session limit does not, and the normal start delay is
+  served after it.
+- **Optionally stay at the minimum current instead of stopping (#75, #72).** The new
+  `surplus_stay_at_min_current` option (off by default) keeps a charge going at the
+  minimum current when the surplus can no longer pay for it, and lets one start on
+  a surplus below that current, importing the difference. The battery floor, the
+  session limits and a pause still stop it.
+- **Optionally charge in off-peak hours with surplus mode on (#43).** The new
+  `surplus_charge_in_off_peak` option (off by default) lets an off-peak window drive
+  a grid charge in surplus mode, with or without a battery sensor; outside the
+  window the surplus rules again.
 - **The connection is rebuilt once before the key is asked for again (#52).** After
   the 10-minute grace period of unreadable replies, the client is rebuilt and read
   once before the "re-enter the local key" request is raised. A reload cleared this

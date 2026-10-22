@@ -149,6 +149,9 @@
               "surplus_curtailment_sensor_inverted": "Inverser le signe capteur puissance bridee",
               "surplus_start_threshold_w": "Seuil de demarrage surplus (W)",
               "surplus_stop_threshold_w": "Seuil d'arret surplus (W)",
+              "surplus_restart_lock_min": "Pause apres un arret surplus (minutes, 0 = aucune)",
+              "surplus_stay_at_min_current": "Continuer a charger au courant minimum quand le surplus est trop faible (importe la difference)",
+              "surplus_charge_in_off_peak": "Charger aussi sur le reseau en heures creuses",
               "surplus_forecast_sensor_entity_id": "Entite capteur prevision solaire 1h (W) (optionnel)"
             }
           },
@@ -244,6 +247,10 @@
           "force_charge_start": "Demarrage de la charge forcee",
           "grid_sensor_unavailable": "Le capteur de puissance reseau est indisponible",
           "holding_current": "Maintien du courant",
+          "holding_minimum_current": "Maintien du courant minimum - surplus insuffisant, le complement vient du reseau",
+          "off_peak_charge_start": "Demarrage d'une charge sur le reseau en heures creuses",
+          "off_peak_charging": "Charge sur le reseau en heures creuses",
+          "restart_lock_active": "Attente apres un arret surplus avant de redemarrer",
           "insufficient_surplus_current": "Surplus trop faible pour le courant minimal",
           "inverter_limit_no_headroom": "Arret : l'onduleur est a sa limite de sortie",
           "inverter_limit_reduced": "Reduit pour rester sous la limite de l'onduleur",

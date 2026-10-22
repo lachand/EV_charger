@@ -149,6 +149,9 @@
               "surplus_curtailment_sensor_inverted": "Invertovat znam\u00e9nko senzoru o\u0159\u00edznut\u00e9ho v\u00fdkonu",
               "surplus_start_threshold_w": "Pr\u00e1h spu\u0161t\u011bn\u00ed p\u0159ebytku (W)",
               "surplus_stop_threshold_w": "Pr\u00e1h zastaven\u00ed p\u0159ebytku (W)",
+              "surplus_restart_lock_min": "Pauza po zastaven\u00ed p\u0159ebytkem (minuty, 0 = \u017e\u00e1dn\u00e1)",
+              "surplus_stay_at_min_current": "Pokra\u010dovat v nab\u00edjen\u00ed minim\u00e1ln\u00edm proudem, kdy\u017e je p\u0159ebytek p\u0159\u00edli\u0161 mal\u00fd (rozd\u00edl se odeb\u00edr\u00e1 ze s\u00edt\u011b)",
+              "surplus_charge_in_off_peak": "Nab\u00edjet tak\u00e9 ze s\u00edt\u011b v dob\u011b n\u00edzk\u00e9ho tarifu",
               "surplus_forecast_sensor_entity_id": "Entita 1h sol\u00e1rn\u00ed p\u0159edpov\u011bdi (W) (voliteln\u00e9)"
             }
           },
@@ -244,6 +247,10 @@
           "force_charge_start": "Vynucen\u00e9 nab\u00edjen\u00ed se spou\u0161t\u00ed",
           "grid_sensor_unavailable": "Senzor s\u00ed\u0165ov\u00e9ho v\u00fdkonu je nedostupn\u00fd",
           "holding_current": "Dr\u017een\u00ed proudu",
+          "holding_minimum_current": "Udr\u017euji minim\u00e1ln\u00ed proud \u2014 p\u0159ebytek je p\u0159\u00edli\u0161 mal\u00fd, rozd\u00edl se odeb\u00edr\u00e1 ze s\u00edt\u011b",
+          "off_peak_charge_start": "Spou\u0161t\u00edm nab\u00edjen\u00ed ze s\u00edt\u011b v dob\u011b n\u00edzk\u00e9ho tarifu",
+          "off_peak_charging": "Nab\u00edjen\u00ed ze s\u00edt\u011b v dob\u011b n\u00edzk\u00e9ho tarifu",
+          "restart_lock_active": "\u010cek\u00e1n\u00ed po zastaven\u00ed p\u0159ebytkem p\u0159ed dal\u0161\u00edm spu\u0161t\u011bn\u00edm",
           "insufficient_surplus_current": "P\u0159ebytek je p\u0159\u00edli\u0161 mal\u00fd pro minim\u00e1ln\u00ed proud",
           "inverter_limit_no_headroom": "Zastaveno: st\u0159\u00edda\u010d je na limitu v\u00fdstupu",
           "inverter_limit_reduced": "Sn\u00ed\u017eeno, aby se z\u016fstal pod limitem v\u00fdstupu st\u0159\u00edda\u010de",
