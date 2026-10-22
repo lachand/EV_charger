@@ -900,7 +900,7 @@ Everyone whose code, translation or documentation was merged:
 - [@tiiiit74](https://github.com/tiiiit74): the French setup guide for the dé
   charger (#55).
 - [@panther7](https://github.com/panther7): the Tuya Local Key documentation
-  (#53) and the Czech proofreading.
+  (#53).
 - [@vsajer](https://github.com/vsajer): the Czech translation (#51).
 - [@BadgerBadgerAndFox](https://github.com/BadgerBadgerAndFox): the continuous
   mode ceiling fix (#24).
