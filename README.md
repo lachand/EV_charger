@@ -886,6 +886,30 @@ Reporting an unsupported charger? The **Unsupported or misbehaving charger**
 issue template asks for the three things every previous report has needed a
 follow-up to obtain.
 
+### Contributors
+
+Everyone whose code, translation or documentation was merged:
+
+- [@BTexier](https://github.com/BTexier): the `qccdz_v1` profile for dé firmwares
+  without DP 102 (#58, merged as #62), the qccdz session log (#68) and stop
+  status (#67), the price sensor (#70) and the diagnostics fix (#66).
+- [@gaetanars](https://github.com/gaetanars): reconnection after
+  `release_connection` (#71), reporting a refused current write (#73), the
+  surplus controller cleanup (#74) and surplus state that survives a restart
+  (#76).
+- [@tiiiit74](https://github.com/tiiiit74): the French setup guide for the dé
+  charger (#55).
+- [@panther7](https://github.com/panther7): the Tuya Local Key documentation
+  (#53) and the Czech proofreading.
+- [@vsajer](https://github.com/vsajer): the Czech translation (#51).
+- [@BadgerBadgerAndFox](https://github.com/BadgerBadgerAndFox): the continuous
+  mode ceiling fix (#24).
+- [@1ud0v1c0](https://github.com/1ud0v1c0): continuous 1 A current regulation
+  (#11).
+
+Thanks as well to everyone who sent diagnostics, DP dumps and test results:
+those reports are what the supported-model list is built from.
+
 ## Licence
 
 [MIT](LICENSE).

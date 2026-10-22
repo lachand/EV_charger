@@ -42,6 +42,11 @@ Pre-release: HACS offers it only with beta versions enabled.
   again. They are now saved and restored. A restored session is dropped if the
   charger reports no vehicle on the first read; a car unplugged and replugged
   during the outage cannot be detected. Contributed by @gaetanars.
+- **A dead timestamp is removed from the surplus controller (#74).** No behaviour
+  change. Contributed by @gaetanars.
+- **French setup guide for the dé charger (#55).** Step by step, from the
+  Smart Life pairing and the `local_key` to the first test in Home Assistant,
+  with 22 screenshots and a Tuya Cloud alternative. Written by @tiiiit74.
 
 ## 2.27.0-beta5
 
