@@ -108,8 +108,8 @@
             "data": {
               "max_house_power_w": "Puissance max de la maison pour le delestage (W, 0 = desactive)",
               "cap_only_regulation": "Regulation par les limites de protection seules (mode surplus desactive) : remonter au courant max qu'elles autorisent",
-              "max_inverter_power_w": "Sortie max de l'onduleur (W, 0 = desactive) - protege un onduleur hybride ; requiert le capteur de charge totale ci-dessous",
-              "total_load_sensor_entity_id": "Capteur de charge totale de la maison (pour la limite onduleur) - consommation totale, pas le compteur reseau",
+              "max_inverter_power_w": "Plafond de puissance mesurée (W, 0 = désactivé) - sortie d'onduleur ou phase du chargeur ; nécessite le capteur ci-dessous",
+              "total_load_sensor_entity_id": "Capteur de puissance totale - sortie d'onduleur ou phase du chargeur, voiture comprise (pas le compteur réseau)",
               "external_charge_allowed_sensor_entity_id": "Capteur d'autorisation de charge externe (binary_sensor/input_boolean, optionnel) - ex. le statut on-grid d'un onduleur ; bloque la charge entierement si la reponse est non",
               "external_charge_allowed_sensor_inverted": "Inverser le capteur d'autorisation de charge externe (cocher si 'on' signifie bloque, ex. un indicateur hors-reseau)",
               "load_reservations": "Entites annoncant une grosse charge (ex. switch.hob: 3000, switch.oven: 2500)"
@@ -436,8 +436,8 @@
       "description": "Une puissance maximale de la maison est definie, mais aucun capteur de puissance reseau n'est configure : le delestage ne s'active donc jamais et votre disjoncteur principal n'est pas protege. Renseignez **Capteur de puissance reseau** dans les options, ou remettez le maximum a 0 pour desactiver le delestage."
     },
     "inverter_limit_without_sensor": {
-      "title": "La limite onduleur n'a pas de capteur de charge totale",
-      "description": "Une sortie maximale d'onduleur est definie, mais aucun capteur de charge totale n'est configure : la limite ne s'active jamais. Cette limite ne peut deliberement pas utiliser le capteur reseau : sur un onduleur hybride, la batterie masque la surcharge au compteur, ce qui est precisement la raison d'etre de cette limite. Renseignez **Capteur de charge totale de la maison**, ou remettez le maximum a 0."
+      "title": "Le plafond de puissance mesurée n'a pas de capteur",
+      "description": "Un plafond de puissance mesurée est défini, mais aucun capteur de puissance totale n'est configuré : le plafond ne s'applique pas. Mesurez la sortie de l'onduleur ou la phase du chargeur (voiture comprise), et non le compteur réseau : la batterie d'un onduleur hybride peut masquer la charge sur ce compteur. Renseignez **Capteur de puissance totale**, ou remettez le plafond à 0."
     },
     "surplus_without_sensor": {
       "title": "Le mode surplus n'a pas de capteur reseau",
