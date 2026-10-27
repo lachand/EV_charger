@@ -40,8 +40,8 @@ def _record(**kwargs):
         "ended_at": "2026-07-22T05:30:00",
         "duration_s": 7200,
         "energy_kwh": 14.8,
-        "off_peak_minutes": 120,
-        "peak_minutes": 0,
+        "off_peak_kwh": 14.8,
+        "peak_kwh": 0.0,
     }
     base.update(kwargs)
     return SessionRecord(**base)

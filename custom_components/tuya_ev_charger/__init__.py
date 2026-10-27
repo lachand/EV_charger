@@ -64,6 +64,7 @@ from .repairs import (
     async_offer_entity_cleanup,
     async_sync_config_problems,
 )
+from .session_costing import SessionMeter
 from .session_history import SessionHistory
 from .solar_surplus import SolarSurplusController
 from .surplus_profiles import (
@@ -291,6 +292,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await session_history.async_load()
     runtime_data.session_history = session_history
     coordinator.session_history = session_history
+
+    coordinator.session_meter_store = Store(
+        hass, 1, f"tuya_ev_charger_session_meter_{entry.entry_id}"
+    )
+    coordinator.session_meter = SessionMeter.from_stored(
+        await coordinator.session_meter_store.async_load()
+    )
 
     vehicle_curves = VehicleChargeCurves(hass, entry.entry_id)
     await vehicle_curves.async_load()

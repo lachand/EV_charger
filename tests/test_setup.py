@@ -288,7 +288,13 @@ def _patch_setup(monkeypatch, *, connect_error=None, rec=None):
     monkeypatch.setattr(pkg, "SessionHistory", _Store("history"))
     monkeypatch.setattr(pkg, "VehicleChargeCurves", _Store("curves"))
     monkeypatch.setattr(pkg, "SolarSurplusController", _Controller)
-    monkeypatch.setattr(pkg, "Store", lambda *args, **kwargs: None)
+
+    async def _nothing_stored():
+        return None
+
+    monkeypatch.setattr(
+        pkg, "Store", lambda *args, **kwargs: types.SimpleNamespace(async_load=_nothing_stored)
+    )
     monkeypatch.setattr(pkg, "_async_tidy_entities", _tidy)
     monkeypatch.setattr(
         pkg,
