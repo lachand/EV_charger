@@ -15,6 +15,8 @@ from .charge_planner import parse_windows
 from .charger_metrics import EVMetrics
 from .cloud import TuyaCloudError, async_fetch_local_key
 from .const import (
+    CHARGER_PROFILE_QCCDZ_V1,
+    CONF_CHARGER_PROFILE,
     CONF_CLOUD_API_KEY,
     CONF_CLOUD_API_SECRET,
     CONF_CLOUD_REGION,
@@ -23,6 +25,7 @@ from .const import (
     CONF_OFF_PEAK_WINDOWS,
     CONF_PEAK_PRICE,
     CONF_PRICE_SENSOR_ENTITY_ID,
+    DEFAULT_CHARGER_PROFILE,
     DEFAULT_CLOUD_REGION,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
@@ -47,6 +50,9 @@ from .session_anomaly import detect_anomalies, typical_energy_kwh
 from .session_costing import SessionSplit, session_cost, split_session
 from .session_history import SessionRecord
 from .tuya_ev_charger import TuyaEVChargerClient
+
+# A car is on the cable: the session being watched has not ended yet.
+_PLUGGED_STATUSES = frozenset({"plugged_in", "charging", "waiting", "paused", "charged"})
 
 LOGGER = logging.getLogger(__name__)
 
@@ -419,25 +425,45 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
             return
         duration_s = metrics.last_session_duration_s
         energy_kwh = metrics.last_session_energy_kwh
-        if duration_s is None or energy_kwh is None:
-            return
-        if not history.is_new_session(duration_s, energy_kwh):
-            return
         try:
-            if self._session_log_primed:
-                await history.async_record(
-                    self._build_session_record(metrics, duration_s, energy_kwh)
-                )
-                self._async_check_session_anomalies()
-            else:
-                # First successful poll of this run: the charger's stored session
-                # may predate it by weeks, and logging it would invent a session
-                # that just happened.
-                await history.async_note_seen(duration_s, energy_kwh)
+            if not self._session_log_primed:
+                if duration_s is not None and energy_kwh is not None:
+                    # First result of this run: the charger's stored session may
+                    # predate it by weeks, and logging it would invent a session
+                    # that just happened.
+                    if history.is_new_session(duration_s, energy_kwh):
+                        await history.async_note_seen(duration_s, energy_kwh)
+                    self._session_log_primed = True
+                elif self._results_only_at_unplug() and metrics.status in _PLUGGED_STATUSES:
+                    # A qccdz result only exists once the car is unplugged, so a
+                    # run that starts mid-charge would otherwise never prime and
+                    # the session it is watching would be noted, not logged.
+                    self._session_log_primed = True
+                return
+            if (
+                duration_s is None
+                or energy_kwh is None
+                or not history.is_new_session(duration_s, energy_kwh)
+            ):
+                return
+            record = self._build_session_record(metrics, duration_s, energy_kwh)
+            await history.async_record(record)
+            self._async_check_session_anomalies()
         except Exception as err:  # noqa: BLE001 - session logging must not fail the poll
             LOGGER.debug("Session logging failed: %s", err)
-        finally:
-            self._session_log_primed = True
+
+    def _results_only_at_unplug(self) -> bool:
+        """Whether the profile reports a session result only after unplugging.
+
+        Depow firmwares repeat their last DP 105 on every poll, so a reading
+        without one is incomplete and priming on it would let a late, old DP 105
+        pass as new. The qccdz clock fills the result only at unplug.
+        """
+        profile: str = self.entry.options.get(
+            CONF_CHARGER_PROFILE,
+            self.entry.data.get(CONF_CHARGER_PROFILE, DEFAULT_CHARGER_PROFILE),
+        )
+        return profile == CHARGER_PROFILE_QCCDZ_V1
 
     def _async_check_session_anomalies(self) -> None:
         """Surface a degrading charge as a repair notice, after a new session.
