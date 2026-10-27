@@ -32,14 +32,20 @@ class SessionRecord:
     ended_at: str
     duration_s: int
     energy_kwh: float
-    off_peak_minutes: int
-    peak_minutes: int
+    # Where the energy came from: grid (split by tariff), house battery, panels.
+    # Records written before this existed carry off/peak minutes instead.
+    off_peak_kwh: float
+    peak_kwh: float
+    solar_kwh: float = 0.0
+    battery_kwh: float = 0.0
     cost: float | None = None
     vehicle: str | None = None
     # Time actually spent charging. `duration_s` is DP 105's `d`, which on some
     # firmwares runs from plug-in to unplug (#59), so an overnight session reads as
     # ~1 kW. Absent on records written before this field existed.
     charging_s: int | None = None
+    # True when part of it was reconstructed rather than metered as it flowed.
+    estimated: bool = False
 
 
 class SessionHistory:

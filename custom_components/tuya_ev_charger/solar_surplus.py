@@ -51,7 +51,6 @@ from .const import (
 from .coordinator import TuyaEVChargerDataUpdateCoordinator
 from .helpers import allowed_currents
 from .profile_assistant import profile_assistant_report
-from .session_costing import SessionSplit
 from .surplus_caps import ProtectionCaps
 from .surplus_decision import (
     ForecastState,
@@ -138,15 +137,6 @@ class SolarSurplusController:
         self._session_started_ts: float | None = None
         self._session_energy_kwh: float = 0.0
         self._last_energy_sample_ts: float | None = None
-        # Live off-peak/peak tally for the current session, sampled at the same
-        # cadence as the energy above. Only accumulated when an off-peak sensor
-        # is configured -- see `_update_session_energy` and
-        # `session_off_peak_split`.
-        self._session_total_s: float = 0.0
-        self._session_off_peak_s: float = 0.0
-        # Same for the price sensor: energy that was priced, and what it cost.
-        self._session_priced_kwh: float = 0.0
-        self._session_live_cost: float = 0.0
 
         self._regulation_active = False
         self._last_decision_reason = "startup"
@@ -159,6 +149,11 @@ class SolarSurplusController:
         self._last_decision_trace: dict[str, Any] = {}
         self._grid_sign = GridSignDetector()
         self._phase_count = PhaseCountDetector()
+
+    @property
+    def inputs(self) -> SurplusReader:
+        """The sensor reader, shared with the coordinator's session meter."""
+        return self._inputs
 
     @property
     def snapshot(self) -> SolarSurplusSnapshot:
@@ -197,8 +192,6 @@ class SolarSurplusController:
         self._pause_until_ts = state.pause_until_ts
         self._session_active = state.session_active
         self._session_energy_kwh = state.session_energy_kwh
-        self._session_total_s = state.session_total_s
-        self._session_off_peak_s = state.session_off_peak_s
         # `_last_energy_sample_ts` stays None: the energy delivered while HA was
         # down is unknown. Leaving it out under-counts the session, so the
         # departure deadline asks for a bit more, which is the safe direction.
@@ -212,8 +205,6 @@ class SolarSurplusController:
                 pause_until_ts=self._pause_until_ts,
                 session_active=self._session_active,
                 session_energy_kwh=self._session_energy_kwh,
-                session_total_s=self._session_total_s,
-                session_off_peak_s=self._session_off_peak_s,
             ),
             monotonic(),
             dt_util.utcnow().timestamp(),
@@ -384,8 +375,6 @@ class SolarSurplusController:
             if evcc_status(data.status, data.total_power) == "A":
                 self._register_stop(now)
                 self._session_energy_kwh = 0.0
-                self._session_total_s = 0.0
-                self._session_off_peak_s = 0.0
 
         charging = is_charging(data)
         grid_power_for_energy = (
@@ -937,14 +926,6 @@ class SolarSurplusController:
         self._session_started_ts = now
         self._session_energy_kwh = 0.0
         self._last_energy_sample_ts = now
-        # Reset here, not in `_register_stop`: the coordinator reads the
-        # previous session's tally (`session_off_peak_split`) after the charge
-        # has already stopped, the same way it already reads
-        # `_session_energy_kwh` for the departure estimate across that gap.
-        self._session_total_s = 0.0
-        self._session_off_peak_s = 0.0
-        self._session_priced_kwh = 0.0
-        self._session_live_cost = 0.0
         self._schedule_save()
 
     def _register_stop(self, now: float) -> None:
@@ -980,59 +961,6 @@ class SolarSurplusController:
         self._session_energy_kwh += max(0.0, session_increment_kwh)
         self._schedule_save()
         self._record_curve_sample(power_kw)
-
-        # Only worth tallying live when there is an off-peak sensor to sample --
-        # without one, `session_off_peak_split` returns None and the coordinator
-        # reconstructs the split from the configured windows exactly as before
-        # this feature existed.
-        if self._settings.off_peak_sensor_entity_id:
-            self._session_total_s += elapsed_s
-            if self._inputs.resolve_off_peak_now():
-                self._session_off_peak_s += elapsed_s
-
-        price = self._inputs.read_price_now()
-        if price is not None and session_increment_kwh > 0:
-            self._session_priced_kwh += session_increment_kwh
-            self._session_live_cost += session_increment_kwh * price
-
-    def session_off_peak_split(self) -> SessionSplit | None:
-        """The live-sampled off-peak/peak split for the session just ended.
-
-        None when there is nothing to report: no off-peak sensor configured, or
-        a session with no live-tracked seconds -- one that predates a Home
-        Assistant restart, or was started outside this controller (e.g. from
-        the Tuya app, which `_update_session_energy` never sees since
-        `_session_active` was never set for it). The caller
-        (`coordinator._build_session_record`) falls back to reconstructing the
-        split from the configured windows in that case, exactly as it did
-        before this feature existed.
-
-        Not reset here: like `_session_energy_kwh`, the tally is read after the
-        charge has already stopped (`_register_stop` runs first), so clearing
-        it happens at the start of the *next* session instead -- see
-        `_start_session`.
-        """
-        if not self._settings.off_peak_sensor_entity_id or self._session_total_s <= 0:
-            return None
-
-        total_minutes = max(0, int(self._session_total_s) // 60)
-        off_peak_minutes = min(total_minutes, round(self._session_off_peak_s / 60))
-        return SessionSplit(off_peak_minutes, total_minutes - off_peak_minutes)
-
-    def session_price(self) -> float | None:
-        """Average price per kWh of the session just ended, from the price sensor.
-
-        Weighted by the energy sampled live, so a night charge that crosses a
-        tariff change (a Tempo day starting at 06:00) is priced at the rates in
-        force while it ran. A session this controller did not sample (started
-        from the app, or before a restart) falls back to the price right now.
-        None without a price sensor, or with one that cannot be read.
-        """
-        if not self._settings.price_sensor_entity_id:
-            return None
-        if self._session_priced_kwh > 0:
-            return self._session_live_cost / self._session_priced_kwh
-        return self._inputs.read_price_now()
 
     def _record_curve_sample(self, power_kw: float) -> None:
         """Feed one (delivered, power) reading into this car's charge curve.

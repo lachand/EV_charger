@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import types
 
+import pytest
+
 
 def _sensor(cls, **fields):
     entity = cls.__new__(cls)
@@ -75,26 +77,86 @@ def test_a_session_with_no_price_configured_reports_no_cost_not_zero():
     assert entity.native_value is None
 
 
-def test_a_priced_session_reports_its_cost_and_attributes():
+def test_a_priced_session_reports_its_cost_and_where_the_energy_came_from():
     history = types.SimpleNamespace(
         latest={
             "ended_at": "2024-01-01T10:00:00",
             "energy_kwh": 10.0,
-            "cost": 2.5,
-            "off_peak_minutes": 30,
-            "peak_minutes": 10,
+            "cost": 1.2,
+            "off_peak_kwh": 6.0,
+            "peak_kwh": 1.0,
+            "solar_kwh": 2.5,
+            "battery_kwh": 0.5,
+            "estimated": False,
             "vehicle": "Zoe",
         }
     )
     entity = _cost_sensor(history)
-    assert entity.native_value == 2.5
+    assert entity.native_value == 1.2
     assert entity.extra_state_attributes == {
         "ended_at": "2024-01-01T10:00:00",
         "energy_kwh": 10.0,
-        "off_peak_minutes": 30,
-        "peak_minutes": 10,
+        "grid_kwh": 7.0,
+        "off_peak_kwh": 6.0,
+        "peak_kwh": 1.0,
+        "solar_kwh": 2.5,
+        "battery_kwh": 0.5,
+        "self_consumption": 30.0,
+        "estimated": False,
         "vehicle": "Zoe",
     }
+
+
+def test_a_session_logged_before_the_meter_has_no_energy_origin():
+    """Older records carry off/peak minutes: shown as unknown, and as estimated."""
+    history = types.SimpleNamespace(
+        latest={"ended_at": "x", "energy_kwh": 5.0, "cost": 1.0, "off_peak_minutes": 30}
+    )
+    attributes = _cost_sensor(history).extra_state_attributes
+    assert attributes["grid_kwh"] is None
+    assert attributes["self_consumption"] is None
+    assert attributes["estimated"] is True
+
+
+@pytest.mark.parametrize(
+    "name", ["TuyaEVChargerLastSessionCostSensor", "TuyaEVChargerCurrentSessionCostSensor"]
+)
+def test_costs_are_monetary_in_the_currency_set_in_home_assistant(name):
+    from tuya_ev_charger import sensor
+
+    entity = _sensor(
+        getattr(sensor, name),
+        hass=types.SimpleNamespace(config=types.SimpleNamespace(currency="EUR")),
+    )
+
+    assert entity._attr_device_class == "monetary"
+    assert entity.native_unit_of_measurement == "EUR"
+
+
+# --- current session cost ------------------------------------------------------
+
+
+def _current_cost_sensor(meter, *, priced=True):
+    from tuya_ev_charger.sensor import TuyaEVChargerCurrentSessionCostSensor as S
+
+    return _sensor(
+        S,
+        coordinator=types.SimpleNamespace(session_meter=meter, cost_tracking_enabled=priced),
+    )
+
+
+def test_the_current_session_cost_grows_with_the_meter():
+    from tuya_ev_charger.session_costing import SessionMeter
+
+    meter = SessionMeter(counter_kwh=3.0, off_peak_kwh=2.0, solar_kwh=1.0, cost=0.27)
+    entity = _current_cost_sensor(meter)
+
+    assert entity.native_value == 0.27
+    attributes = entity.extra_state_attributes
+    assert attributes["energy_kwh"] == 3.0
+    assert (attributes["grid_kwh"], attributes["solar_kwh"]) == (2.0, 1.0)
+    assert attributes["self_consumption"] == 33.3
+    assert attributes["estimated"] is False
 
 
 # --- surplus controller sensor: decision trace ---------------------------------

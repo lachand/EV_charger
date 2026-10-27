@@ -324,6 +324,7 @@ def _install_stubs() -> None:
         TEMPERATURE = "temperature"
         DURATION = "duration"
         ENUM = "enum"
+        MONETARY = "monetary"
 
     class SensorStateClass(StrEnum):
         MEASUREMENT = "measurement"

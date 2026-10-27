@@ -18,8 +18,6 @@ def test_round_trip_keeps_remaining_time():
         pause_until_ts=1300.0,
         session_active=True,
         session_energy_kwh=4.2,
-        session_total_s=900.0,
-        session_off_peak_s=300.0,
     )
     stored = to_stored(state, now_mono=1000.0, now_wall=5_000_000.0)
     # New process: a different monotonic origin, 60 s later on the wall clock.
@@ -29,8 +27,6 @@ def test_round_trip_keeps_remaining_time():
     assert restored.force_charge_current_a == 16
     assert restored.session_active is True
     assert restored.session_energy_kwh == 4.2
-    assert restored.session_total_s == 900.0
-    assert restored.session_off_peak_s == 300.0
 
 
 def test_a_deadline_passed_during_the_outage_is_dropped():
@@ -66,13 +62,13 @@ def test_empty_or_malformed_data_gives_defaults():
         "pause_until": True,
         "session_active": "yes",
         "session_energy_kwh": "x",
-        "session_total_s": -5,
-        "session_off_peak_s": -1.5,
+        # Written by versions that kept an off-peak tally here: ignored now.
+        "session_total_s": 900.0,
+        "session_off_peak_s": 300.0,
     }
     assert from_stored(bad, 0.0, 0.0) == ControllerState()
 
 
-def test_negative_energy_and_tallies_are_clamped():
-    restored = from_stored({"session_energy_kwh": -3.0, "session_total_s": -1}, 0.0, 0.0)
+def test_negative_energy_is_clamped():
+    restored = from_stored({"session_energy_kwh": -3.0}, 0.0, 0.0)
     assert restored.session_energy_kwh == 0.0
-    assert restored.session_total_s == 0.0

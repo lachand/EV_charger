@@ -31,8 +31,6 @@ class ControllerState:
     pause_until_ts: float | None = None
     session_active: bool = False
     session_energy_kwh: float = 0.0
-    session_total_s: float = 0.0
-    session_off_peak_s: float = 0.0
 
 
 def _to_wall(until: float | None, now_mono: float, now_wall: float) -> float | None:
@@ -60,8 +58,6 @@ def to_stored(state: ControllerState, now_mono: float, now_wall: float) -> dict[
         "pause_until": _to_wall(state.pause_until_ts, now_mono, now_wall),
         "session_active": state.session_active,
         "session_energy_kwh": state.session_energy_kwh,
-        "session_total_s": state.session_total_s,
-        "session_off_peak_s": state.session_off_peak_s,
     }
 
 
@@ -83,6 +79,4 @@ def from_stored(raw: Any, now_mono: float, now_wall: float) -> ControllerState:
         pause_until_ts=_from_wall(raw.get("pause_until"), now_mono, now_wall),
         session_active=raw.get("session_active") is True,
         session_energy_kwh=_non_negative(raw.get("session_energy_kwh")),
-        session_total_s=_non_negative(raw.get("session_total_s")),
-        session_off_peak_s=_non_negative(raw.get("session_off_peak_s")),
     )
