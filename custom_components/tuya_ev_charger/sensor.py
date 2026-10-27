@@ -386,6 +386,7 @@ async def async_setup_entry(
         entities.append(TuyaEVChargerChargeCurveSensor(entry, runtime_data, None))
     entities.append(TuyaEVChargerConnectionHealthSensor(entry, runtime_data))
     entities.append(TuyaEVChargerLastSessionCostSensor(entry, runtime_data))
+    entities.append(TuyaEVChargerCurrentSessionCostSensor(entry, runtime_data))
     entities.append(TuyaEVChargerSessionHistorySensor(entry, runtime_data))
     async_add_entities(entities)
 
@@ -428,7 +429,18 @@ class TuyaEVChargerConnectionHealthSensor(TuyaEVChargerEntity, SensorEntity):
         return health
 
 
-class TuyaEVChargerLastSessionCostSensor(TuyaEVChargerEntity, SensorEntity):
+class _SessionCostSensor(TuyaEVChargerEntity, SensorEntity):
+    """A cost, in the currency set in Home Assistant's general settings."""
+
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_suggested_display_precision = 2
+
+    @property
+    def native_unit_of_measurement(self) -> str:
+        return self.hass.config.currency
+
+
+class TuyaEVChargerLastSessionCostSensor(_SessionCostSensor):
     """Estimated cost of the last completed session.
 
     Unavailable until a price is configured: showing 0 for every session would
@@ -437,7 +449,6 @@ class TuyaEVChargerLastSessionCostSensor(TuyaEVChargerEntity, SensorEntity):
 
     _attr_translation_key = "last_session_cost"
     _attr_state_class = SensorStateClass.TOTAL
-    _attr_suggested_display_precision = 2
 
     def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
         super().__init__(entry=entry, runtime_data=runtime_data)
@@ -466,9 +477,52 @@ class TuyaEVChargerLastSessionCostSensor(TuyaEVChargerEntity, SensorEntity):
         return {
             "ended_at": latest.get("ended_at"),
             "energy_kwh": latest.get("energy_kwh"),
-            "off_peak_minutes": latest.get("off_peak_minutes"),
-            "peak_minutes": latest.get("peak_minutes"),
+            **_by_tariff(latest.get("off_peak_kwh"), latest.get("peak_kwh")),
+            "estimated": latest.get("estimated", True),
             "vehicle": latest.get("vehicle"),
+        }
+
+
+def _by_tariff(off_peak_kwh: float | None, peak_kwh: float | None) -> dict[str, Any]:
+    """A session's energy by tariff, as sensor attributes.
+
+    None on records written before the session meter existed.
+    """
+    if off_peak_kwh is None or peak_kwh is None:
+        return dict.fromkeys(("off_peak_kwh", "peak_kwh"))
+    return {"off_peak_kwh": round(off_peak_kwh, 3), "peak_kwh": round(peak_kwh, 3)}
+
+
+class TuyaEVChargerCurrentSessionCostSensor(_SessionCostSensor):
+    """Cost of the session in progress, growing as the car charges.
+
+    Each kWh is priced at the rate in force when it was drawn (see
+    `SessionMeter`). Back to 0 once the session has been logged, where "Last
+    session cost" takes over. No state class: a total that drops back to 0 on
+    every session would read as negative spending in the statistics.
+    """
+
+    _attr_translation_key = "current_session_cost"
+
+    def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
+        super().__init__(entry=entry, runtime_data=runtime_data)
+        self._attr_unique_id = f"{runtime_data.client.device_id}_current_session_cost"
+
+    @property
+    def available(self) -> bool:
+        return super().available and self.coordinator.cost_tracking_enabled
+
+    @property
+    def native_value(self) -> float:
+        return round(self.coordinator.session_meter.cost, 4)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        meter = self.coordinator.session_meter
+        return {
+            "energy_kwh": round(meter.energy_kwh, 3),
+            **_by_tariff(meter.off_peak_kwh, meter.peak_kwh),
+            "estimated": meter.estimated,
         }
 
 

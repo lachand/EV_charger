@@ -346,6 +346,9 @@
       "last_session_cost": {
         "name": "Cout de la derniere session"
       },
+      "current_session_cost": {
+        "name": "Coût de la session en cours"
+      },
       "session_count": {
         "name": "Sessions enregistrees"
       },

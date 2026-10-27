@@ -88,6 +88,8 @@ def _coordinator(monkeypatch, *, entry_data=None, options=None, client=None, dat
     coord.session_history = None
     coord.vehicle_curves = None
     coord.solar_surplus_controller = None
+    coord.session_meter = module.SessionMeter()
+    coord.session_meter_store = None
     coord._session_log_primed = False
     coord._last_rediscovery_at = 0.0
     coord._last_key_refresh_at = 0.0
@@ -128,6 +130,7 @@ GWID = "bf1234567890abcdefxyz1"
 def _metrics(**overrides):
     base = {
         "status": "idle",
+        "total_power": 0.0,
         "session_energy_kwh": 0.0,
         "session_duration_s": None,
         "last_session_duration_s": None,
@@ -713,20 +716,6 @@ def test_a_failing_history_never_fails_the_poll(monkeypatch):
     assert coord._session_log_primed is True
 
 
-def test_a_session_record_prefers_the_controllers_live_off_peak_split(monkeypatch):
-    from tuya_ev_charger.session_costing import SessionSplit
-
-    split = SessionSplit(off_peak_minutes=40, peak_minutes=20)
-    coord = _coordinator(monkeypatch, options={"off_peak_price": 0.1, "peak_price": 0.3})
-    coord.solar_surplus_controller = types.SimpleNamespace(session_off_peak_split=lambda: split)
-
-    record = coord._build_session_record(_finished(), 3600, 6.0)
-
-    assert (record.off_peak_minutes, record.peak_minutes) == (40, 20)
-    # Two thirds of 6 kWh at 0.10, one third at 0.30.
-    assert record.cost == pytest.approx(4.0 * 0.10 + 2.0 * 0.30)
-
-
 def test_a_session_record_keeps_the_charging_time_apart_from_the_plug_in_time(monkeypatch):
     """#59: DP 105's duration spans plug-in to unplug; DP 102's counts charging only."""
     coord = _coordinator(monkeypatch)
@@ -759,30 +748,114 @@ def test_an_unknown_charging_time_is_left_unset(monkeypatch, live):
     )
 
 
-@pytest.mark.parametrize(("price", "cost"), [(0.25, 1.5), (None, None)])
-def test_a_price_sensor_replaces_the_fixed_prices(monkeypatch, price, cost):
+# --- the session meter: each kWh priced when it is drawn ---------------------------
+
+
+def _reader(**readings):
+    """The controller's sensor reader, as far as the session meter uses it."""
+    values = {
+        "resolve_off_peak_now": None,
+        "read_price_now": None,
+    }
+    values.update(readings)
+    reader = types.SimpleNamespace(**{name: (lambda v=v: v) for name, v in values.items()})
+    return types.SimpleNamespace(inputs=reader)
+
+
+def _poll(coord, counter_kwh, *, power_kw=2.2, **readings):
+    coord.solar_surplus_controller = _reader(**readings)
+    coord._async_meter_session(
+        _metrics(status="charging", total_power=power_kw, session_energy_kwh=counter_kwh)
+    )
+
+
+TEMPO = {"price_sensor_entity_id": "sensor.tempo", "off_peak_sensor_entity_id": "binary_sensor.hc"}
+
+
+def test_a_night_with_a_top_up_after_six_is_priced_tariff_by_tariff(monkeypatch):
+    """2026-10-20 to 21: 15.20 kWh off-peak, the car full at 04:56, 0.43 kWh after
+    06:00. The old tally was cleared by the top-up and priced it all at peak."""
+    coord = _coordinator(monkeypatch, options=TEMPO)
+    _poll(coord, 0.0, resolve_off_peak_now=True, read_price_now=0.1356)
+    _poll(coord, 15.20, resolve_off_peak_now=True, read_price_now=0.1356)
+    _poll(coord, 15.20, power_kw=0.0, resolve_off_peak_now=False, read_price_now=0.1654)
+    _poll(coord, 15.63, resolve_off_peak_now=False, read_price_now=0.1654)
+
+    record = coord._build_session_record(_finished(), 36000, 15.63)
+
+    assert record.cost == pytest.approx(2.13, abs=0.005)
+    assert (record.off_peak_kwh, record.peak_kwh) == pytest.approx((15.20, 0.43))
+    assert record.estimated is False
+
+
+def test_logging_a_session_clears_the_meter_for_the_next(monkeypatch):
+    coord = _coordinator(monkeypatch, options={"peak_price": 0.2})
+    _poll(coord, 0.0)
+    _poll(coord, 6.0)
+
+    coord._build_session_record(_finished(), 3600, 6.0)
+
+    assert coord.session_meter.energy_kwh == 0.0
+    assert coord.session_meter.cost == 0.0
+
+
+def test_energy_the_meter_missed_is_priced_now_and_flagged(monkeypatch):
+    coord = _coordinator(monkeypatch, options={"off_peak_price": 0.1, "peak_price": 0.3})
+    _poll(coord, 0.0, resolve_off_peak_now=True)
+    _poll(coord, 5.0, resolve_off_peak_now=True)
+    coord.solar_surplus_controller = _reader(resolve_off_peak_now=False)
+
+    record = coord._build_session_record(_finished(), 7200, 6.0)
+
+    assert (record.off_peak_kwh, record.peak_kwh) == pytest.approx((5.0, 1.0))
+    assert record.cost == pytest.approx(5.0 * 0.1 + 1.0 * 0.3)
+    assert record.estimated is True
+
+
+def test_an_unmetered_session_is_reconstructed_from_the_windows(monkeypatch):
     coord = _coordinator(
         monkeypatch,
-        options={
-            "off_peak_price": 0.1,
-            "peak_price": 0.3,
-            "price_sensor_entity_id": "sensor.price",
-        },
+        options={"off_peak_windows": "22:00-06:00", "off_peak_price": 0.1, "peak_price": 0.3},
     )
-    coord.solar_surplus_controller = types.SimpleNamespace(
-        session_off_peak_split=lambda: None, session_price=lambda: price
-    )
+
+    record = coord._build_session_record(_finished(), 3600, 6.0)
+
+    assert record.off_peak_kwh + record.peak_kwh == pytest.approx(6.0)
+    assert record.estimated is True
+
+
+@pytest.mark.parametrize(("price", "cost"), [(0.25, 1.5), (None, 0.0)])
+def test_an_unmetered_session_with_a_price_sensor_is_priced_now(monkeypatch, price, cost):
+    coord = _coordinator(monkeypatch, options={"price_sensor_entity_id": "sensor.price"})
+    coord.solar_surplus_controller = _reader(read_price_now=price)
 
     assert coord._build_session_record(_finished(), 3600, 6.0).cost == cost
 
 
-def test_without_a_live_split_the_windows_are_reconstructed(monkeypatch):
-    coord = _coordinator(monkeypatch, options={"off_peak_windows": ""})
-    coord.solar_surplus_controller = types.SimpleNamespace(session_off_peak_split=lambda: None)
+def test_without_any_price_the_cost_is_unknown_not_zero(monkeypatch):
+    coord = _coordinator(monkeypatch)
+    _poll(coord, 0.0)
+    _poll(coord, 6.0)
 
-    record = coord._build_session_record(_finished(), 3600, 6.0)
+    assert coord._build_session_record(_finished(), 3600, 6.0).cost is None
 
-    assert record.off_peak_minutes + record.peak_minutes == 60
+
+def test_a_broken_reader_never_fails_the_poll(monkeypatch):
+    coord = _coordinator(monkeypatch, options={"peak_price": 0.2})
+
+    def _boom():
+        raise RuntimeError("sensor gone")
+
+    coord.solar_surplus_controller = types.SimpleNamespace(
+        inputs=types.SimpleNamespace(
+            resolve_off_peak_now=_boom,
+            read_price_now=_boom,
+        )
+    )
+    coord._async_meter_session(_metrics(status="charging", total_power=2.0, session_energy_kwh=1.0))
+    coord._async_meter_session(_metrics(status="charging", total_power=2.0, session_energy_kwh=2.0))
+
+    assert coord.session_meter.peak_kwh == pytest.approx(1.0)
 
 
 def test_anomaly_detection_syncs_the_repairs(monkeypatch):
@@ -898,14 +971,9 @@ def test_option_helpers_tolerate_missing_and_bad_values():
 
 def test_a_session_under_a_negative_tariff_is_recorded_with_a_negative_cost(monkeypatch):
     """The coordinator reads the price with its sign, so the record can show a gain."""
-    coord = _coordinator(
-        monkeypatch, options={"off_peak_price": -0.05, "peak_price": 0, "off_peak_windows": ""}
-    )
-    from tuya_ev_charger.session_costing import SessionSplit
-
-    coord.solar_surplus_controller = types.SimpleNamespace(
-        session_off_peak_split=lambda: SessionSplit(off_peak_minutes=60, peak_minutes=0)
-    )
+    coord = _coordinator(monkeypatch, options={"off_peak_price": -0.05, "peak_price": 0})
+    _poll(coord, 0.0, resolve_off_peak_now=True)
+    _poll(coord, 10.0, resolve_off_peak_now=True)
 
     record = coord._build_session_record(_finished(), 3600, 10.0)
 

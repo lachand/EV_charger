@@ -346,6 +346,9 @@
       "last_session_cost": {
         "name": "N\u00e1klady posledn\u00ed relace"
       },
+      "current_session_cost": {
+        "name": "Náklady aktuální relace"
+      },
       "session_count": {
         "name": "Zaznamenan\u00e9 relace"
       },

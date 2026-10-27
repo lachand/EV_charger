@@ -44,7 +44,7 @@ from .repairs import (
     async_sync_session_anomalies,
 )
 from .session_anomaly import detect_anomalies, typical_energy_kwh
-from .session_costing import SessionSplit, session_cost, split_session
+from .session_costing import SessionMeter, session_cost, split_session
 from .session_history import SessionRecord
 from .tuya_ev_charger import TuyaEVChargerClient
 
@@ -58,6 +58,11 @@ def _looks_like_gwid(device_id: str) -> bool:
     short. A genuine gwId is a long dotless token (e.g. bf23dbbd3d2eb2c804aswb).
     """
     return len(device_id) >= 12 and "." not in device_id
+
+
+# Below this, a gap between the charger's session energy and the meter's is
+# rounding, not energy the meter missed.
+_UNSAMPLED_TOLERANCE_KWH = 0.05
 
 
 def _charging_seconds(live_s: int | None, recorded_s: int) -> int | None:
@@ -95,10 +100,13 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         self.vehicle_tracker: Any = None
         self.session_history: Any = None
         self.vehicle_curves: Any = None
-        # Set by async_setup_entry once constructed; used to read the live
-        # off-peak tally for a just-completed session, see
-        # `_build_session_record`.
+        # Set by async_setup_entry once constructed; its sensor reader gives the
+        # tariff and price readings the session meter samples.
         self.solar_surplus_controller: Any = None
+        # The running session, priced as it flows (see `_async_meter_session`).
+        # Restored and saved by async_setup_entry through `session_meter_store`.
+        self.session_meter = SessionMeter()
+        self.session_meter_store: Any = None
         # The charger's stored last session is only logged from the *second*
         # sighting onward: see _async_log_completed_session.
         self._session_log_primed = False
@@ -402,6 +410,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         a reason to report the charger as unreachable.
         """
         await self._async_track_vehicle_energy(metrics)
+        self._async_meter_session(metrics)
         await self._async_log_completed_session(metrics)
         if self.vehicle_curves is not None:
             # Rate-limited inside; a charge samples every few seconds but the store
@@ -465,45 +474,111 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
     def _build_session_record(
         self, metrics: EVMetrics, duration_s: int, energy_kwh: float
     ) -> SessionRecord:
-        options = self.entry.options
         ended_at = dt_util.now()
-        # An off-peak sensor has no history to replay after the fact the way
-        # windows do, so its split is live-tallied by the controller while the
-        # session runs. Fall back to reconstructing from windows -- exactly as
-        # before this feature existed -- whenever there is nothing to read: no
-        # sensor configured, or a session the controller never sampled live.
-        split = None
-        if self.solar_surplus_controller is not None:
-            split = self.solar_surplus_controller.session_off_peak_split()
-        if split is None:
-            windows = parse_windows(option_text(options, CONF_OFF_PEAK_WINDOWS, ""))
-            split = split_session(
-                ended_at=ended_at, duration_s=duration_s, off_peak_windows=windows
+        meter = self.session_meter
+        if meter.energy_kwh <= 0:
+            # A session the meter never saw (Home Assistant down throughout, or
+            # the first one after installing): reconstruct it as before.
+            self._reconstruct_into_meter(ended_at, duration_s, energy_kwh)
+        elif energy_kwh - meter.energy_kwh >= _UNSAMPLED_TOLERANCE_KWH:
+            off_peak, grid_price = self._tariff_now()
+            meter.add_unsampled(
+                energy_kwh - meter.energy_kwh, off_peak=off_peak, grid_price=grid_price
             )
         tracker = self.vehicle_tracker
-        return SessionRecord(
+        record = SessionRecord(
             ended_at=ended_at.isoformat(timespec="seconds"),
             duration_s=int(duration_s),
             charging_s=_charging_seconds(metrics.session_duration_s, duration_s),
             energy_kwh=float(energy_kwh),
-            off_peak_minutes=split.off_peak_minutes,
-            peak_minutes=split.peak_minutes,
-            cost=self._session_cost(float(energy_kwh), split),
+            off_peak_kwh=round(meter.off_peak_kwh, 3),
+            peak_kwh=round(meter.peak_kwh, 3),
+            cost=round(meter.cost, 4) if self.cost_tracking_enabled else None,
             vehicle=tracker.active_vehicle if tracker is not None else None,
+            estimated=meter.estimated,
+        )
+        meter.clear()
+        self._async_save_session_meter()
+        return record
+
+    def _reconstruct_into_meter(
+        self, ended_at: datetime, duration_s: int, energy_kwh: float
+    ) -> None:
+        """Fill the meter from the configured windows, the pre-meter estimate."""
+        options = self.entry.options
+        meter = self.session_meter
+        split = split_session(
+            ended_at=ended_at,
+            duration_s=duration_s,
+            off_peak_windows=parse_windows(option_text(options, CONF_OFF_PEAK_WINDOWS, "")),
+        )
+        meter.off_peak_kwh = energy_kwh * split.off_peak_fraction
+        meter.peak_kwh = energy_kwh - meter.off_peak_kwh
+        meter.estimated = True
+        if option_text(options, CONF_PRICE_SENSOR_ENTITY_ID, ""):
+            price = self._reader_call("read_price_now")
+            meter.cost = 0.0 if price is None else energy_kwh * price
+        else:
+            meter.cost = (
+                session_cost(
+                    energy_kwh=energy_kwh,
+                    split=split,
+                    off_peak_price=option_float(options, CONF_OFF_PEAK_PRICE),
+                    peak_price=option_float(options, CONF_PEAK_PRICE),
+                )
+                or 0.0
+            )
+
+    @property
+    def cost_tracking_enabled(self) -> bool:
+        """A price sensor, or at least one non-zero fixed price, is configured.
+
+        Without one the cost stays unknown rather than 0: a sensor showing 0 for
+        every session reads as a working meter reporting free electricity.
+        """
+        options = self.entry.options
+        return bool(option_text(options, CONF_PRICE_SENSOR_ENTITY_ID, "")) or any(
+            option_float(options, key) != 0 for key in (CONF_OFF_PEAK_PRICE, CONF_PEAK_PRICE)
         )
 
-    def _session_cost(self, energy_kwh: float, split: SessionSplit) -> float | None:
+    def _reader_call(self, name: str) -> Any:
+        """One reading from the controller's sensor reader, None without one."""
+        controller = self.solar_surplus_controller
+        reader = getattr(controller, "inputs", None) if controller is not None else None
+        if reader is None:
+            return None
+        try:
+            return getattr(reader, name)()
+        except Exception as err:  # noqa: BLE001 - a bad reading must not fail the poll
+            LOGGER.debug("Reading %s for the session meter failed: %s", name, err)
+            return None
+
+    def _tariff_now(self) -> tuple[bool | None, float | None]:
+        """Whether it is off-peak, and the grid price per kWh, right now."""
         options = self.entry.options
+        off_peak = self._reader_call("resolve_off_peak_now")
         if option_text(options, CONF_PRICE_SENSOR_ENTITY_ID, ""):
-            controller = self.solar_surplus_controller
-            price = controller.session_price() if controller is not None else None
-            return None if price is None else round(energy_kwh * price, 4)
-        return session_cost(
-            energy_kwh=energy_kwh,
-            split=split,
-            off_peak_price=option_float(options, CONF_OFF_PEAK_PRICE),
-            peak_price=option_float(options, CONF_PEAK_PRICE),
-        )
+            return off_peak, self._reader_call("read_price_now")
+        key = CONF_OFF_PEAK_PRICE if off_peak else CONF_PEAK_PRICE
+        return off_peak, option_float(options, key)
+
+    def _async_meter_session(self, metrics: EVMetrics) -> None:
+        """Price the energy drawn since the last poll, at the rate in force now."""
+        off_peak, grid_price = self._tariff_now()
+        try:
+            changed = self.session_meter.add(
+                metrics.session_energy_kwh, off_peak=off_peak, grid_price=grid_price
+            )
+        except Exception as err:  # noqa: BLE001 - metering must not fail the poll
+            LOGGER.debug("Session metering failed: %s", err)
+            return
+        if changed:
+            self._async_save_session_meter()
+
+    def _async_save_session_meter(self) -> None:
+        # A charge changes the meter on every poll; batch the writes.
+        if self.session_meter_store is not None:
+            self.session_meter_store.async_delay_save(self.session_meter.to_stored, 30)
 
     async def _async_track_vehicle_energy(self, metrics: EVMetrics) -> None:
         """Route charged energy into the active vehicle's total.

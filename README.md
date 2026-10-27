@@ -378,13 +378,9 @@ pointed this at a sensor, that sensor is the one thing this feature consults,
 so "why is it (not) charging" always has one answer instead of depending on
 which of two sources happened to be reachable.
 
-Off-peak/peak session costing (see **Session history and cost**, below) has no
-history to replay for a live sensor the way it does for windows, so it is
-tallied live instead, sampled while a session the integration itself started
-is charging. A session with nothing tracked — none started before this was
-configured, one that predates a Home Assistant restart, or one started outside
-the integration (e.g. from the Tuya app) — falls back to reconstructing the
-split from **Off-peak windows**, exactly as before this option existed.
+Session costing (see **Session history and cost**, below) reads this sensor on
+every poll, so each kWh lands in the off-peak or peak share that was in force
+when it was drawn.
 
 The time needed is estimated from your car's own **charge curve**, learned from
 past sessions, not from the charger's rating. A vehicle limited to 3.7 kW on a 7.4 kW charger would
@@ -610,7 +606,7 @@ charging, instead of holding the last value.
 | `departure_time` / `departure_energy_kwh` | Deadline that overrides the off-peak wait |
 | `critical_peak_sensor_entity_id`, `critical_peak_sensor_inverted` | Optional binary_sensor/input_boolean; when on during peak hours, suppresses the departure-deadline override above |
 | `off_peak_price` / `peak_price` | Price per kWh, between -100 and 100 (a negative price is allowed); enables session cost estimation |
-| `price_sensor_entity_id` | Optional sensor holding the price per kWh right now (Tempo, dynamic tariff). Sampled while charging and weighted by energy; once set, replaces `off_peak_price` / `peak_price` |
+| `price_sensor_entity_id` | Optional sensor holding the price per kWh right now (Tempo, dynamic tariff). Each kWh is priced at its value when drawn; once set, replaces `off_peak_price` / `peak_price` |
 | `surplus_mode_enabled` | Master switch for surplus mode |
 | `surplus_sensor_entity_id`, `surplus_sensor_inverted` | Grid power sensor and its sign |
 | `surplus_start_threshold_w`, `surplus_stop_threshold_w` | Start/stop thresholds |
@@ -735,13 +731,17 @@ next. "How much did I charge last month" is therefore unanswerable from the
 device itself.
 
 Each completed session is now logged as it is announced, with its duration,
-energy, off-peak/peak split, the vehicle it was attributed to, and its estimated
-cost. The last 60 are kept.
+energy, off-peak/peak energy, the vehicle it was attributed to, and its cost.
+The last 60 are kept.
 
-Two entities:
+Three entities:
 
+- `sensor.current_session_cost` — cost of the session in progress, growing as
+  the car charges, with its off-peak/peak energy as attributes. Back to 0 once
+  the session is logged. Unavailable until a price is set.
 - `sensor.last_session_cost` — cost of the most recent session, with the
-  breakdown as attributes. Unavailable until a price is set.
+  breakdown as attributes (`off_peak_kwh`, `peak_kwh`, `estimated`). Unavailable
+  until a price is set.
 - `sensor.session_count` — how many sessions are on record, with the whole log,
   total energy and total cost as attributes. **Disabled by default**, since its
   attributes are large.
@@ -753,10 +753,20 @@ working meter reporting free electricity. A **negative** price (some tariffs pay
 you to consume at certain hours) is accepted and costed, so a session can show a
 negative cost, meaning a gain.
 
-**The cost is an estimate.** The charger gives a duration and a total, with no
-timestamps and no breakdown, so the off-peak share is reconstructed from the
-session's wall-clock window and the energy apportioned by time. That is accurate
-for a wallbox holding a setpoint, and less so while a nearly-full car tapers.
+**The cost is metered as the energy flows.** On every poll, the increase of the
+charger's own session energy is priced at the rate in force at that moment: the
+price sensor if one is set, otherwise the off-peak or peak price from the
+off-peak sensor or windows. A pause and restart inside a session (a car that
+tops up after 06:00, a surplus stop) changes nothing; a counter back to zero
+starts a new session. The tally survives a Home Assistant restart, and the
+energy drawn while Home Assistant was down is priced at the rate in force when
+it comes back.
+
+Two cases are reconstructed instead, and flagged `estimated: true`: a session
+the integration never saw charging (Home Assistant down throughout), which is
+priced from the session's wall-clock window and **Off-peak windows** as before;
+and a session whose energy the meter only partly saw, where the missing part is
+priced at the current rate.
 
 ---
 
