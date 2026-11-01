@@ -5,4 +5,4 @@ tinytuya>=1.20.0
 ruff>=0.16.10
 pytest-cov>=7.1.0
 # For the brand-icon conformance test; the integration itself has no image deps.
-Pillow>=12.3.0
+Pillow>=13.0.0
