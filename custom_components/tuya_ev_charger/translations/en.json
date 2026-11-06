@@ -260,6 +260,7 @@
           "missing_grid_sensor": "No grid power sensor configured",
           "cap_only_regulating": "Regulating on the protection limits",
           "cap_only_start": "Starting: the protection limits leave headroom",
+          "cap_only_waiting_for_vehicle": "Waiting for a vehicle to be connected",
           "mode_disabled": "Surplus mode is off",
           "no_allowed_currents": "The charger offers no usable current",
           "no_coordinator_data": "No data from the charger yet",
