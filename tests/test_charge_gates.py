@@ -722,8 +722,13 @@ def test_cap_only_without_a_cap_reading_declines():
     assert verdict.reason.value == "mode_disabled"
 
 
+def test_cap_only_waits_when_no_vehicle_is_connected():
+    verdict = _run(_cap_only(is_charging=False, vehicle_connected=False), _timers())
+    assert verdict.action.value == "idle"
+
+
 def test_cap_only_starts_the_charge_when_headroom_returns():
-    verdict = _run(_cap_only(is_charging=False), _timers())
+    verdict = _run(_cap_only(is_charging=False, vehicle_connected=True), _timers())
     assert verdict.action.value == "start_charge"
     assert verdict.reason.value == "cap_only_start"
     assert verdict.target_current == 6

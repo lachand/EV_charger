@@ -74,6 +74,7 @@ def _metrics(
     l1 = phases.get("L1")
     return types.SimpleNamespace(
         do_charge=charging,
+        status="charging" if charging else "idle",
         work_state_debug="WORKING" if charging else "IDLE",
         current_target=current_target,
         total_power=total_power_kw,
@@ -855,6 +856,27 @@ def test_no_price_sensor_means_no_session_price(monkeypatch):
 
 
 # --- protection caps ------------------------------------------------------
+
+
+def test_cap_only_sends_no_start_until_vehicle_is_connected(monkeypatch):
+    h = Harness(
+        monkeypatch,
+        options={
+            "surplus_mode_enabled": False,
+            "cap_only_regulation": True,
+            "max_house_power_w": 5500,
+        },
+        sensors={"sensor.grid": 500},
+    )
+
+    assert h.tick() == "cap_only_waiting_for_vehicle"
+    assert h.tick(seconds=8) == "cap_only_waiting_for_vehicle"
+    assert h.writes == []
+
+    h.coordinator.data.status = "plugged_in"
+    h.coordinator.data.work_state_debug = "IDLEINS"
+    assert h.tick() == "cap_only_start"
+    assert h.writes == [("current", 6), ("enabled", True)]
 
 
 def test_protection_cap_writes_straight_down_without_ramping(monkeypatch):

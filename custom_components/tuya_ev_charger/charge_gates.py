@@ -95,6 +95,7 @@ class DecisionReason(StrEnum):
 
     # Surplus mode off, but the protection caps drive the current (#48).
     CAP_ONLY_START = "cap_only_start"
+    CAP_ONLY_WAITING_FOR_VEHICLE = "cap_only_waiting_for_vehicle"
     CAP_ONLY_REGULATING = "cap_only_regulating"
 
     MODE_DISABLED = "mode_disabled"
@@ -186,6 +187,7 @@ class GateContext:
     surplus_mode_enabled: bool = False
     # Surplus mode off: aim for the highest current the protection caps allow.
     cap_only_regulation: bool = False
+    vehicle_connected: bool = False
     grid_sensor_configured: bool = False
     grid_power_w: float | None = None
 
@@ -432,6 +434,11 @@ def _gate_cap_only(ctx: GateContext, timers: TimerState) -> Verdict | None:
     timers.stop_candidate_since = None
 
     if not ctx.is_charging:
+        if not ctx.vehicle_connected:
+            return Verdict(
+                action=GateAction.IDLE,
+                reason=DecisionReason.CAP_ONLY_WAITING_FOR_VEHICLE,
+            )
         return Verdict(
             action=GateAction.START_CHARGE,
             reason=DecisionReason.CAP_ONLY_START,
