@@ -151,7 +151,7 @@ class SurplusReader:
 
         Once an off-peak sensor entity is set it is the sole source of truth:
         windows stop gating (they remain usable as the cost-split fallback, see
-        `consume_session_off_peak_split`). Unlike `read_external_charge_allowed`,
+        `coordinator._reconstruct_into_meter`). Unlike `read_external_charge_allowed`,
         this fails *open* on an unavailable or unparsable reading rather than
         falling back to windows -- a silent second source would make "why is it
         (not) charging" depend on sensor availability, and windows are only

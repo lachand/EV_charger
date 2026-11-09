@@ -169,3 +169,119 @@ def test_only_two_exactly_zero_prices_mean_unpriced():
         _cost(energy_kwh=10.0, split=SessionSplit(60, 60), off_peak_price=-0.01, peak_price=0)
         is not None
     )
+
+
+# --- metering as the energy flows -------------------------------------------------
+
+
+def _meter(**kwargs):
+    from tuya_ev_charger.session_costing import SessionMeter
+
+    return SessionMeter(**kwargs)
+
+
+def _feed(meter, counter, **kwargs):
+    kwargs.setdefault("off_peak", None)
+    kwargs.setdefault("grid_price", None)
+    return meter.add(counter, **kwargs)
+
+
+def test_the_first_reading_is_a_baseline():
+    meter = _meter()
+
+    _feed(meter, 12.3, grid_price=0.2)
+
+    assert meter.energy_kwh == 0.0
+    assert meter.cost == 0.0
+
+
+def test_each_increment_is_priced_at_the_rate_in_force():
+    """The night of 2026-10-20: off-peak until 06:00, a short top-up after."""
+    meter = _meter()
+    _feed(meter, 0.0)
+    _feed(meter, 15.20, off_peak=True, grid_price=0.1356)
+    _feed(meter, 15.63, off_peak=False, grid_price=0.1654)
+
+    assert meter.off_peak_kwh == pytest.approx(15.20)
+    assert meter.peak_kwh == pytest.approx(0.43)
+    assert meter.cost == pytest.approx(2.13, abs=0.005)
+
+
+def test_a_pause_and_restart_does_not_clear_the_session():
+    """The bug this replaces: the tally was cleared on every charge start."""
+    meter = _meter()
+    _feed(meter, 0.0)
+    _feed(meter, 10.18, off_peak=True, grid_price=0.1356)
+    _feed(meter, 10.18, off_peak=True, grid_price=0.1356)  # car full, waiting
+    _feed(meter, 12.07, off_peak=False, grid_price=0.1654)  # topped up after 06:00
+
+    assert meter.energy_kwh == pytest.approx(12.07)
+    assert meter.cost == pytest.approx(10.18 * 0.1356 + 1.89 * 0.1654)
+
+
+def test_a_counter_that_drops_starts_a_new_session():
+    meter = _meter()
+    _feed(meter, 0.0)
+    _feed(meter, 8.0, grid_price=0.2)
+
+    _feed(meter, 0.5, grid_price=0.3)
+
+    assert meter.energy_kwh == pytest.approx(0.5)
+    assert meter.cost == pytest.approx(0.15)
+
+
+def test_an_unreadable_price_keeps_the_last_one():
+    meter = _meter()
+    _feed(meter, 0.0)
+    _feed(meter, 1.0, grid_price=0.2)
+    _feed(meter, 2.0, grid_price=None)
+
+    assert meter.cost == pytest.approx(0.4)
+    assert meter.estimated is False
+
+
+def test_grid_energy_with_no_price_ever_read_is_flagged():
+    meter = _meter()
+    _feed(meter, 0.0)
+    _feed(meter, 1.0, grid_price=None)
+
+    assert meter.cost == 0.0
+    assert meter.estimated is True
+
+
+def test_energy_the_meter_missed_is_added_at_the_current_rate_and_flagged():
+    meter = _meter()
+    _feed(meter, 0.0)
+    _feed(meter, 3.0, off_peak=True, grid_price=0.1)
+
+    meter.add_unsampled(1.0, off_peak=False, grid_price=0.3)
+
+    assert (meter.off_peak_kwh, meter.peak_kwh) == pytest.approx((3.0, 1.0))
+    assert meter.cost == pytest.approx(0.6)
+    assert meter.estimated is True
+
+
+def test_clearing_keeps_the_counter_baseline():
+    meter = _meter()
+    _feed(meter, 0.0)
+    _feed(meter, 5.0, grid_price=0.2)
+
+    meter.clear()
+    _feed(meter, 5.0, grid_price=0.2)  # same counter after unplug: nothing new
+
+    assert meter.energy_kwh == 0.0
+    assert meter.counter_kwh == 5.0
+
+
+def test_the_meter_survives_a_round_trip_through_storage():
+    from tuya_ev_charger.session_costing import SessionMeter
+
+    meter = _meter()
+    _feed(meter, 0.0)
+    _feed(meter, 2.0, off_peak=True, grid_price=0.1)
+
+    restored = SessionMeter.from_stored(meter.to_stored())
+
+    assert restored == meter
+    assert SessionMeter.from_stored(None) == SessionMeter()
+    assert SessionMeter.from_stored({"cost": "x", "peak_kwh": -1}) == SessionMeter()
