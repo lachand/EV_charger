@@ -7,6 +7,52 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.28.0
+
+Session costing, reworked. Four contributions from @BTexier, reviewed and
+integrated together; they build on each other.
+
+**Read before upgrading:**
+
+- The attributes `off_peak_minutes` and `peak_minutes` of `sensor.last_session_cost`
+  are replaced by `off_peak_kwh` and `peak_kwh`. Update any template that read them.
+  Sessions logged before 2.28 keep their minutes in the log and show no tariff energy.
+- Both cost sensors are now monetary, in the currency set in Home Assistant's
+  general settings. Home Assistant may offer to fix the unit of their statistics.
+- Session costs are lower or different for some users: the cost is now metered as
+  the energy flows, not apportioned by the session's wall-clock window (see below).
+
+- **A session is priced as the energy flows, at the rate in force (#77, #88).**
+  The old tally was cleared on every charge start, not on every plug-in: a Tempo
+  night that charges off-peak, waits with the car full, then tops up a few minutes
+  after 06:00 was priced entirely at the peak rate (1.9964 and 2.5852 EUR instead
+  of about 1.69 and 2.13 EUR). A new `SessionMeter` takes, on every poll and for
+  every profile, the increase of the charger's own session counter and prices it
+  at the current rate: the price sensor, or the fixed off-peak or peak price from
+  the off-peak sensor or windows. A pause or restart changes nothing, the tally
+  survives a Home Assistant restart, and the record keeps `off_peak_kwh` and
+  `peak_kwh`. A session the meter never saw, or only partly saw, is reconstructed
+  as before and flagged `estimated: true`. New **Current session cost** sensor. The
+  surplus controller's own off-peak and price tallies are gone.
+- **A session caught mid-charge by a restart is logged (#87).** On qccdz the result
+  (DP 105) only exists once the car is unplugged, so after a restart or reload
+  mid-charge the log was never primed and the session was noted as an old one:
+  never logged, never announced. The log now primes on the first result, known or
+  not, and on `qccdz_v1` also on a plugged status. Depow repeats DP 105 on every
+  poll, so it keeps priming on a result only.
+- **Optional split between grid, solar and house battery (#89).** The new
+  `self_consumption_split` option (off by default) splits each poll's energy using
+  the grid sensor and the battery discharge sensor, with the car as the last load in
+  the house. Only the grid share is priced at the tariff; solar and battery shares
+  use `self_consumption_price` (0, or your feed-in tariff). The cost sensors then add
+  `grid_kwh`, `solar_kwh`, `battery_kwh` and `self_consumption` (%). It is an
+  estimate, which is why it is opt-in.
+- **`tuya_ev_charger_session_ended` event (#90).** Each session written to the log
+  is fired on the event bus with its record (energy, durations, cost, tariff and
+  origin split, `estimated`, vehicle) plus the entry id and title, so an automation
+  can send a summary once the car is unplugged. A session only noted on the first
+  poll after a restart is not announced.
+
 ## 2.27.0
 
 First stable release of the 2.27 line: it rolls up 2.27.0-beta1 to beta8 (their

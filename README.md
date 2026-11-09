@@ -736,6 +736,14 @@ Each completed session is now logged as it is announced, with its duration,
 energy, off-peak/peak energy, the vehicle it was attributed to, and its cost.
 The last 60 are kept.
 
+**Upgrading from 2.27 or earlier.** The cost sensors now have Home Assistant's
+monetary class and use the currency set in Home Assistant's general settings, so
+Home Assistant may offer to fix the unit of their long-term statistics. The
+attributes `off_peak_minutes` and `peak_minutes` of `sensor.last_session_cost`
+are replaced by `off_peak_kwh` and `peak_kwh`: update any template that read
+them. Sessions logged before 2.28 keep their minutes in the log and show no
+tariff energy.
+
 Three entities:
 
 - `sensor.current_session_cost` — cost of the session in progress, growing as
@@ -941,7 +949,12 @@ Everyone whose code, translation or documentation was merged:
 
 - [@BTexier](https://github.com/BTexier): the `qccdz_v1` profile for dé firmwares
   without DP 102 (#58, merged as #62), the qccdz session log (#68) and stop
-  status (#67), the price sensor (#70) and the diagnostics fix (#66).
+  status (#67), the price sensor (#70), the diagnostics fix (#66), logging a
+  session a restart caught mid-charge (#87), metering the session cost as the
+  energy flows (#88), the optional grid/solar/battery split (#89) and the
+  `tuya_ev_charger_session_ended` event (#90).
+- [@rschobben](https://github.com/rschobben): no more beeping on an empty
+  charger with "Regulate on the protection limits alone" (#97).
 - [@gaetanars](https://github.com/gaetanars): reconnection after
   `release_connection` (#71), reporting a refused current write (#73), the
   surplus controller cleanup (#74) and surplus state that survives a restart
