@@ -960,7 +960,7 @@ Everyone whose code, translation or documentation was merged:
   surplus controller cleanup (#74) and surplus state that survives a restart
   (#76).
 - [@tiiiit74](https://github.com/tiiiit74): the French setup guide for the dé
-  charger (#55).
+  charger (#55) and the clearer protection-limit labels (#86).
 - [@panther7](https://github.com/panther7): the Tuya Local Key documentation
   (#53).
 - [@vsajer](https://github.com/vsajer): the Czech translation (#51).

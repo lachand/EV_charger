@@ -9,8 +9,9 @@ published normally** and HACS offers them without enabling beta versions.
 
 ## 2.28.0
 
-Session costing, reworked. Four contributions from @BTexier, reviewed and
-integrated together; they build on each other.
+Session costing, reworked: four contributions from @BTexier, reviewed and
+integrated together, which build on each other. Also clearer labels for the two
+protection limits, from @tiiiit74.
 
 **Read before upgrading:**
 
@@ -52,6 +53,14 @@ integrated together; they build on each other.
   origin split, `estimated`, vehicle) plus the entry id and title, so an automation
   can send a summary once the car is unplugged. A session only noted on the first
   poll after a restart is not announced.
+
+- **Clearer labels for the two protection limits (#49, #86).** Contributed by
+  @tiiiit74. The settings that were called *Maximum inverter output* and *Total
+  household load sensor* are now *Maximum measured-load power* and *Total-load power
+  sensor*, since they also work as a per-phase cap on a three-phase installation
+  without an inverter. French, English and Czech translations, the missing-sensor
+  repair message and the README follow. Wording only: the configuration keys, the
+  charging logic and the safety limits are unchanged, and no migration is needed.
 
 ## 2.27.0
 
