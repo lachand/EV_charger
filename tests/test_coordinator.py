@@ -703,6 +703,64 @@ def test_an_incomplete_session_reading_is_ignored(monkeypatch):
     assert coord.session_history.seen == []
 
 
+_QCCDZ = {"charger_profile": "qccdz_v1"}
+
+
+def test_a_qccdz_run_started_mid_charge_logs_the_session_at_unplug(monkeypatch):
+    """qccdz only has a result once unplugged: a restart mid-charge must not lose it."""
+    coord = _coordinator(monkeypatch, entry_data=_QCCDZ)
+    coord.session_history = _History()
+
+    for status in ("charging", "paused", "charging"):
+        asyncio.run(coord._async_log_completed_session(_metrics(status=status)))
+    asyncio.run(coord._async_log_completed_session(_finished(status="idle")))
+
+    assert len(coord.session_history.recorded) == 1
+    assert coord.session_history.seen == []
+
+
+def test_an_idle_qccdz_run_with_no_result_does_not_prime(monkeypatch):
+    coord = _coordinator(monkeypatch, entry_data=_QCCDZ)
+    coord.session_history = _History()
+
+    asyncio.run(coord._async_log_completed_session(_metrics(status="idle")))
+
+    assert coord._session_log_primed is False
+
+
+def test_a_depow_reading_without_a_result_does_not_prime(monkeypatch):
+    """Depow repeats DP 105 every poll: a late, old one must not pass as new."""
+    coord = _coordinator(monkeypatch)
+    coord.session_history = _History()
+
+    asyncio.run(coord._async_log_completed_session(_metrics(status="charging")))
+    asyncio.run(coord._async_log_completed_session(_finished(status="charging")))
+
+    assert coord.session_history.recorded == []
+    assert coord.session_history.seen == [(3600, 7.2)]
+
+
+def test_a_known_first_result_still_primes_for_the_next_session(monkeypatch):
+    coord = _coordinator(monkeypatch)
+    coord.session_history = _History(new=False)
+
+    asyncio.run(coord._async_log_completed_session(_finished()))
+    coord.session_history._new = True
+    asyncio.run(coord._async_log_completed_session(_finished()))
+
+    assert coord.session_history.seen == []
+    assert len(coord.session_history.recorded) == 1
+
+
+def test_the_options_profile_wins_over_the_setup_one(monkeypatch):
+    coord = _coordinator(monkeypatch, entry_data={"charger_profile": "depow_v2"}, options=_QCCDZ)
+    coord.session_history = _History()
+
+    asyncio.run(coord._async_log_completed_session(_metrics(status="charging")))
+
+    assert coord._session_log_primed is True
+
+
 def test_a_failing_history_never_fails_the_poll(monkeypatch):
     coord = _coordinator(monkeypatch)
     coord.session_history = _History(fail=True)
