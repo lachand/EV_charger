@@ -7,6 +7,42 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.27.0
+
+First stable release of the 2.27 line: it rolls up 2.27.0-beta1 to beta8 (their
+entries are kept below) and adds one fix. HACS offers it without enabling beta
+versions.
+
+**Two defaults change when you upgrade from 2.26.x:**
+
+- Surplus mode now waits **5 minutes** after a surplus stop before the next surplus
+  start (`surplus_restart_lock_min`; set it to 0 for the old behaviour).
+- The "re-enter the local key" request only appears after the charger's replies have
+  been unreadable for 10 minutes, and the connection is rebuilt once before it does.
+
+New in this line:
+
+- **Regulate on the protection limits alone (#48)**, with automatic recovery.
+- **`qccdz_v1` profile** for the dé portable firmwares without DP 102 (#46, #54), and
+  qccdz sessions in the session log (#68).
+- **Surplus mode options (#75, #72, #43):** `surplus_restart_lock_min`,
+  `surplus_stay_at_min_current` (stops at the stop threshold), and
+  `surplus_charge_in_off_peak`, all as described in the beta entries below.
+- **Session cost can follow a price sensor (#69, #70)**; negative prices work.
+- **Fewer false alarms and a sturdier connection:** bounded charger I/O, the
+  protection-limit current no longer saws up and down, surplus state survives a
+  restart, a refused current write is reported.
+- **Czech translation (#51)** and **French and English setup guides** for the dé
+  charger (#55).
+
+Fixed since beta8:
+
+- **No more beeping on an empty charger (#96).** Reported and fixed by @rschobben
+  (#97): with "Regulate on the protection limits alone", the integration sent a start
+  command on every evaluation to a charger with no car connected, and the charger
+  beeped every few seconds. The start is now only sent once a vehicle is connected.
+  Verified on a dé/Depow 11 kW (`depow_v2`).
+
 ## 2.27.0-beta8
 
 Pre-release: HACS offers it only with beta versions enabled.
