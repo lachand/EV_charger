@@ -25,6 +25,8 @@ from .const import (
     CONF_OFF_PEAK_WINDOWS,
     CONF_PEAK_PRICE,
     CONF_PRICE_SENSOR_ENTITY_ID,
+    CONF_SELF_CONSUMPTION_PRICE,
+    CONF_SELF_CONSUMPTION_SPLIT,
     DEFAULT_CHARGER_PROFILE,
     DEFAULT_CLOUD_REGION,
     DEFAULT_SCAN_INTERVAL,
@@ -38,7 +40,7 @@ from .const import (
     ConnectionFault,
 )
 from .discovery import async_scan_devices_by_id
-from .option_values import option_float, option_text
+from .option_values import option_bool, option_float, option_text
 from .polling import poll_interval_s
 from .repairs import (
     ISSUE_CONNECTION_REFUSED,
@@ -49,6 +51,7 @@ from .repairs import (
 from .session_anomaly import detect_anomalies, typical_energy_kwh
 from .session_costing import SessionMeter, session_cost, split_session
 from .session_history import SessionRecord
+from .surplus_metrics import ev_power_w
 from .tuya_ev_charger import TuyaEVChargerClient
 
 # A car is on the cable: the session being watched has not ended yet.
@@ -107,7 +110,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
         self.session_history: Any = None
         self.vehicle_curves: Any = None
         # Set by async_setup_entry once constructed; its sensor reader gives the
-        # tariff and price readings the session meter samples.
+        # grid, battery, tariff and price readings the session meter samples.
         self.solar_surplus_controller: Any = None
         # The running session, priced as it flows (see `_async_meter_session`).
         # Restored and saved by async_setup_entry through `session_meter_store`.
@@ -519,6 +522,8 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
             energy_kwh=float(energy_kwh),
             off_peak_kwh=round(meter.off_peak_kwh, 3),
             peak_kwh=round(meter.peak_kwh, 3),
+            solar_kwh=round(meter.solar_kwh, 3),
+            battery_kwh=round(meter.battery_kwh, 3),
             cost=round(meter.cost, 4) if self.cost_tracking_enabled else None,
             vehicle=tracker.active_vehicle if tracker is not None else None,
             estimated=meter.estimated,
@@ -591,9 +596,19 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
     def _async_meter_session(self, metrics: EVMetrics) -> None:
         """Price the energy drawn since the last poll, at the rate in force now."""
         off_peak, grid_price = self._tariff_now()
+        # Without the opt-in split, everything counts as grid.
+        split = option_bool(self.entry.options, CONF_SELF_CONSUMPTION_SPLIT, False)
         try:
             changed = self.session_meter.add(
-                metrics.session_energy_kwh, off_peak=off_peak, grid_price=grid_price
+                metrics.session_energy_kwh,
+                ev_power_w=ev_power_w(metrics),
+                grid_power_w=self._reader_call("read_grid_power_w") if split else None,
+                battery_discharge_w=(
+                    self._reader_call("read_battery_net_discharge_w") if split else None
+                ),
+                off_peak=off_peak,
+                grid_price=grid_price,
+                local_price=option_float(self.entry.options, CONF_SELF_CONSUMPTION_PRICE),
             )
         except Exception as err:  # noqa: BLE001 - metering must not fail the poll
             LOGGER.debug("Session metering failed: %s", err)

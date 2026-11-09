@@ -135,7 +135,9 @@
               "departure_energy_kwh": "Energie pot\u0159ebn\u00e1 do odjezdu (kWh, 0 = vypnuto)",
               "off_peak_price": "Cena n\u00edzk\u00e9ho tarifu za kWh (0 = bez sledov\u00e1n\u00ed n\u00e1klad\u016f)",
               "peak_price": "Cena \u0161pi\u010dky za kWh (0 = bez sledov\u00e1n\u00ed n\u00e1klad\u016f)",
-              "price_sensor_entity_id": "Senzor aktuální ceny (za kWh, volitelné) - např. senzor dynamického tarifu; po nastavení nahrazuje obě pevné ceny"
+              "price_sensor_entity_id": "Senzor aktuální ceny (za kWh, volitelné) - např. senzor dynamického tarifu; po nastavení nahrazuje obě pevné ceny",
+              "self_consumption_split": "Rozdělit energii relace mezi síť, solár a domácí baterii (používá senzor sítě; vypnuto = vše se počítá jako síť)",
+              "self_consumption_price": "Cena vlastní spotřeby za kWh (solár nebo domácí baterie; výchozí 0, nebo výkupní cena)"
             }
           },
           "surplus": {

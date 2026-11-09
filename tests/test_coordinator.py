@@ -812,6 +812,8 @@ def test_an_unknown_charging_time_is_left_unset(monkeypatch, live):
 def _reader(**readings):
     """The controller's sensor reader, as far as the session meter uses it."""
     values = {
+        "read_grid_power_w": None,
+        "read_battery_net_discharge_w": None,
         "resolve_off_peak_now": None,
         "read_price_now": None,
     }
@@ -855,6 +857,37 @@ def test_logging_a_session_clears_the_meter_for_the_next(monkeypatch):
 
     assert coord.session_meter.energy_kwh == 0.0
     assert coord.session_meter.cost == 0.0
+
+
+def test_solar_and_battery_are_priced_at_the_self_consumption_price(monkeypatch):
+    coord = _coordinator(
+        monkeypatch,
+        options={
+            "peak_price": 0.25,
+            "self_consumption_split": True,
+            "self_consumption_price": 0.1,
+        },
+    )
+    _poll(coord, 0.0)
+    # 2 kW car: the house imports 1 kW and the battery gives 0.5 kW.
+    _poll(coord, 4.0, power_kw=2.0, read_grid_power_w=1000.0, read_battery_net_discharge_w=500.0)
+
+    record = coord._build_session_record(_finished(), 7200, 4.0)
+
+    assert (record.peak_kwh, record.battery_kwh, record.solar_kwh) == pytest.approx((2.0, 1.0, 1.0))
+    assert record.cost == pytest.approx(2.0 * 0.25 + 2.0 * 0.1)
+
+
+def test_without_the_opt_in_a_surplus_charge_still_counts_as_grid(monkeypatch):
+    """The split lowers the cost shown; nobody gets it without asking."""
+    coord = _coordinator(monkeypatch, options={"peak_price": 0.25})
+    _poll(coord, 0.0)
+    _poll(coord, 4.0, power_kw=2.0, read_grid_power_w=-800.0)
+
+    record = coord._build_session_record(_finished(), 7200, 4.0)
+
+    assert (record.peak_kwh, record.solar_kwh) == pytest.approx((4.0, 0.0))
+    assert record.cost == pytest.approx(1.0)
 
 
 def test_energy_the_meter_missed_is_priced_now_and_flagged(monkeypatch):
@@ -906,6 +939,8 @@ def test_a_broken_reader_never_fails_the_poll(monkeypatch):
 
     coord.solar_surplus_controller = types.SimpleNamespace(
         inputs=types.SimpleNamespace(
+            read_grid_power_w=_boom,
+            read_battery_net_discharge_w=_boom,
             resolve_off_peak_now=_boom,
             read_price_now=_boom,
         )

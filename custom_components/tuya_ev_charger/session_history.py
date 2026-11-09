@@ -32,10 +32,12 @@ class SessionRecord:
     ended_at: str
     duration_s: int
     energy_kwh: float
-    # The energy by tariff, metered as it flowed. Records written before this
-    # existed carry off/peak minutes instead.
+    # Where the energy came from: grid (split by tariff), house battery, panels.
+    # Records written before this existed carry off/peak minutes instead.
     off_peak_kwh: float
     peak_kwh: float
+    solar_kwh: float = 0.0
+    battery_kwh: float = 0.0
     cost: float | None = None
     vehicle: str | None = None
     # Time actually spent charging. `duration_s` is DP 105's `d`, which on some

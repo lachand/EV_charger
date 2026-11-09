@@ -120,6 +120,15 @@ CONF_PEAK_PRICE = "peak_price"
 # now (a Tempo or dynamic-tariff sensor). Sampled while charging; once set, the
 # fixed prices are ignored.
 CONF_PRICE_SENSOR_ENTITY_ID = "price_sensor_entity_id"
+# Opt-in: split each session's energy between grid, house battery and solar from
+# the grid sensor (and the battery sensor, if any), instead of counting it all as
+# grid. Off by default: it lowers the cost shown to surplus-mode users, and its
+# inputs make it an estimate.
+CONF_SELF_CONSUMPTION_SPLIT = "self_consumption_split"
+# What a kWh drawn from the panels or the house battery is worth when the split is
+# on: 0 by default, the feed-in tariff for whoever sells their surplus (charging
+# the car forgoes it).
+CONF_SELF_CONSUMPTION_PRICE = "self_consumption_price"
 # The circuit's rating, which is not the charger's rating: a 32 A unit is often
 # wired to a smaller breaker. 0 means "no override", i.e. trust the charger.
 CONF_MAX_CHARGE_CURRENT_A = "max_charge_current_a"
@@ -284,6 +293,8 @@ MAX_DEPARTURE_ENERGY_KWH = 200
 DEFAULT_OFF_PEAK_PRICE = 0.0
 DEFAULT_PEAK_PRICE = 0.0
 DEFAULT_PRICE_SENSOR_ENTITY_ID = ""
+DEFAULT_SELF_CONSUMPTION_SPLIT = False
+DEFAULT_SELF_CONSUMPTION_PRICE = 0.0
 DEFAULT_MAX_CHARGE_CURRENT_A = 0
 DEFAULT_MIN_CHARGE_CURRENT_A = 0
 # Single-phase: what every install implicitly assumed before this option

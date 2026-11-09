@@ -607,6 +607,8 @@ charging, instead of holding the last value.
 | `critical_peak_sensor_entity_id`, `critical_peak_sensor_inverted` | Optional binary_sensor/input_boolean; when on during peak hours, suppresses the departure-deadline override above |
 | `off_peak_price` / `peak_price` | Price per kWh, between -100 and 100 (a negative price is allowed); enables session cost estimation |
 | `price_sensor_entity_id` | Optional sensor holding the price per kWh right now (Tempo, dynamic tariff). Each kWh is priced at its value when drawn; once set, replaces `off_peak_price` / `peak_price` |
+| `self_consumption_split` | Off by default. Splits session energy between grid, solar and house battery from the grid (and battery) sensor; only the grid share is priced at the tariff |
+| `self_consumption_price` | Price per kWh of the solar and battery shares when the split is on: 0 by default, or your feed-in tariff |
 | `surplus_mode_enabled` | Master switch for surplus mode |
 | `surplus_sensor_entity_id`, `surplus_sensor_inverted` | Grid power sensor and its sign |
 | `surplus_start_threshold_w`, `surplus_stop_threshold_w` | Start/stop thresholds |
@@ -767,6 +769,21 @@ the integration never saw charging (Home Assistant down throughout), which is
 priced from the session's wall-clock window and **Off-peak windows** as before;
 and a session whose energy the meter only partly saw, where the missing part is
 priced at the current rate.
+
+**Solar and house battery (opt-in).** With **Split session energy between grid,
+solar and house battery** on, each poll's energy is split using the grid sensor
+(and the battery discharge sensor, if set), treating the car as the last load in
+the house: it takes the grid power the house is importing at that moment, then
+what the house battery is discharging, and the rest is solar that would
+otherwise have been exported. Only the grid share is priced at the tariff; the
+solar and battery shares are priced at **Self-consumed price per kWh**, 0 by
+default, or your feed-in tariff if you sell your surplus (charging the car
+forgoes it). The attributes then add `grid_kwh`, `solar_kwh`, `battery_kwh` and
+`self_consumption` (%). Off by default: it lowers the cost shown, and it is an
+estimate, since the grid sensor is sampled once per poll and the battery's own
+origin (solar or off-peak grid) is unknown. With a solar router that holds the
+injection at 0 W (#56), energy the car takes from the router counts as solar,
+which is what the meter sees.
 
 ---
 

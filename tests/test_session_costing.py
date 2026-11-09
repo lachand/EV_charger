@@ -181,9 +181,40 @@ def _meter(**kwargs):
 
 
 def _feed(meter, counter, **kwargs):
+    kwargs.setdefault("ev_power_w", 2200.0)
+    kwargs.setdefault("grid_power_w", None)
+    kwargs.setdefault("battery_discharge_w", None)
     kwargs.setdefault("off_peak", None)
     kwargs.setdefault("grid_price", None)
+    kwargs.setdefault("local_price", 0.0)
     return meter.add(counter, **kwargs)
+
+
+@pytest.mark.parametrize(
+    ("ev_w", "grid_w", "battery_w", "expected"),
+    [
+        # No grid sensor: everything came from the grid.
+        (2000.0, None, None, (1.0, 0.0, 0.0)),
+        # The house imports more than the car draws: all grid.
+        (2000.0, 3500.0, None, (1.0, 0.0, 0.0)),
+        # The house exports while the car charges: all solar.
+        (2000.0, -500.0, None, (0.0, 0.0, 1.0)),
+        # Half imported, the rest solar.
+        (2000.0, 1000.0, None, (0.5, 0.0, 0.5)),
+        # Half imported, the battery covers a quarter, the panels the rest.
+        (2000.0, 1000.0, 500.0, (0.5, 0.25, 0.25)),
+        # The battery cannot cover more than what the grid did not.
+        (2000.0, 1000.0, 5000.0, (0.5, 0.5, 0.0)),
+        # A zero power reading with energy delivered: nothing to apportion by, grid.
+        (0.0, -800.0, None, (1.0, 0.0, 0.0)),
+    ],
+)
+def test_an_increment_is_split_with_the_car_as_the_last_load(ev_w, grid_w, battery_w, expected):
+    from tuya_ev_charger.session_costing import split_increment
+
+    assert split_increment(
+        1.0, ev_power_w=ev_w, grid_power_w=grid_w, battery_discharge_w=battery_w
+    ) == pytest.approx(expected)
 
 
 def test_the_first_reading_is_a_baseline():
@@ -228,6 +259,33 @@ def test_a_counter_that_drops_starts_a_new_session():
 
     assert meter.energy_kwh == pytest.approx(0.5)
     assert meter.cost == pytest.approx(0.15)
+
+
+def test_a_full_solar_charge_costs_the_self_consumption_price():
+    meter = _meter()
+    _feed(meter, 0.0)
+    _feed(meter, 4.0, grid_power_w=-300.0, grid_price=0.25, local_price=0.0)
+
+    assert meter.solar_kwh == pytest.approx(4.0)
+    assert meter.grid_kwh == 0.0
+    assert meter.cost == 0.0
+
+
+def test_a_feed_in_tariff_prices_the_solar_share():
+    meter = _meter()
+    _feed(meter, 0.0)
+    _feed(meter, 2.0, grid_power_w=1100.0, off_peak=False, grid_price=0.25, local_price=0.10)
+
+    assert (meter.peak_kwh, meter.solar_kwh) == pytest.approx((1.0, 1.0))
+    assert meter.cost == pytest.approx(1.0 * 0.25 + 1.0 * 0.10)
+
+
+def test_a_discharging_house_battery_is_counted_apart():
+    meter = _meter()
+    _feed(meter, 0.0)
+    _feed(meter, 4.0, ev_power_w=2000.0, grid_power_w=0.0, battery_discharge_w=1500.0)
+
+    assert (meter.grid_kwh, meter.battery_kwh, meter.solar_kwh) == pytest.approx((0.0, 3.0, 1.0))
 
 
 def test_an_unreadable_price_keeps_the_last_one():
@@ -278,10 +336,10 @@ def test_the_meter_survives_a_round_trip_through_storage():
 
     meter = _meter()
     _feed(meter, 0.0)
-    _feed(meter, 2.0, off_peak=True, grid_price=0.1)
+    _feed(meter, 2.0, grid_power_w=1100.0, off_peak=True, grid_price=0.1)
 
     restored = SessionMeter.from_stored(meter.to_stored())
 
     assert restored == meter
     assert SessionMeter.from_stored(None) == SessionMeter()
-    assert SessionMeter.from_stored({"cost": "x", "peak_kwh": -1}) == SessionMeter()
+    assert SessionMeter.from_stored({"cost": "x", "solar_kwh": -1}) == SessionMeter()

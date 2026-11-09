@@ -135,7 +135,9 @@
               "departure_energy_kwh": "Energie necessaire au depart (kWh, 0 = desactive)",
               "off_peak_price": "Prix du kWh en heures creuses (0 = pas de suivi des couts)",
               "peak_price": "Prix du kWh en heures pleines (0 = pas de suivi des couts)",
-              "price_sensor_entity_id": "Capteur de prix actuel (par kWh, facultatif) - ex. un capteur Tempo ou de tarif dynamique ; une fois renseigné, il remplace les deux prix fixes"
+              "price_sensor_entity_id": "Capteur de prix actuel (par kWh, facultatif) - ex. un capteur Tempo ou de tarif dynamique ; une fois renseigné, il remplace les deux prix fixes",
+              "self_consumption_split": "Répartir l'énergie des sessions entre réseau, solaire et batterie maison (utilise le capteur réseau ; désactivé = tout compte comme réseau)",
+              "self_consumption_price": "Prix du kWh autoproduit (solaire ou batterie maison ; 0 par défaut, ou votre tarif de rachat)"
             }
           },
           "surplus": {

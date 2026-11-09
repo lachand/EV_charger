@@ -477,20 +477,42 @@ class TuyaEVChargerLastSessionCostSensor(_SessionCostSensor):
         return {
             "ended_at": latest.get("ended_at"),
             "energy_kwh": latest.get("energy_kwh"),
-            **_by_tariff(latest.get("off_peak_kwh"), latest.get("peak_kwh")),
+            **_energy_origin(
+                off_peak_kwh=latest.get("off_peak_kwh"),
+                peak_kwh=latest.get("peak_kwh"),
+                solar_kwh=latest.get("solar_kwh"),
+                battery_kwh=latest.get("battery_kwh"),
+            ),
             "estimated": latest.get("estimated", True),
             "vehicle": latest.get("vehicle"),
         }
 
 
-def _by_tariff(off_peak_kwh: float | None, peak_kwh: float | None) -> dict[str, Any]:
-    """A session's energy by tariff, as sensor attributes.
+def _energy_origin(
+    *,
+    off_peak_kwh: float | None,
+    peak_kwh: float | None,
+    solar_kwh: float | None,
+    battery_kwh: float | None,
+) -> dict[str, Any]:
+    """Where a session's energy came from, as sensor attributes.
 
-    None on records written before the session meter existed.
+    None throughout on records written before the session meter existed.
     """
     if off_peak_kwh is None or peak_kwh is None:
-        return dict.fromkeys(("off_peak_kwh", "peak_kwh"))
-    return {"off_peak_kwh": round(off_peak_kwh, 3), "peak_kwh": round(peak_kwh, 3)}
+        return dict.fromkeys(
+            ("grid_kwh", "off_peak_kwh", "peak_kwh", "solar_kwh", "battery_kwh", "self_consumption")
+        )
+    local = (solar_kwh or 0.0) + (battery_kwh or 0.0)
+    total = off_peak_kwh + peak_kwh + local
+    return {
+        "grid_kwh": round(off_peak_kwh + peak_kwh, 3),
+        "off_peak_kwh": round(off_peak_kwh, 3),
+        "peak_kwh": round(peak_kwh, 3),
+        "solar_kwh": round(solar_kwh or 0.0, 3),
+        "battery_kwh": round(battery_kwh or 0.0, 3),
+        "self_consumption": round(100 * local / total, 1) if total > 0 else None,
+    }
 
 
 class TuyaEVChargerCurrentSessionCostSensor(_SessionCostSensor):
@@ -521,7 +543,12 @@ class TuyaEVChargerCurrentSessionCostSensor(_SessionCostSensor):
         meter = self.coordinator.session_meter
         return {
             "energy_kwh": round(meter.energy_kwh, 3),
-            **_by_tariff(meter.off_peak_kwh, meter.peak_kwh),
+            **_energy_origin(
+                off_peak_kwh=meter.off_peak_kwh,
+                peak_kwh=meter.peak_kwh,
+                solar_kwh=meter.solar_kwh,
+                battery_kwh=meter.battery_kwh,
+            ),
             "estimated": meter.estimated,
         }
 

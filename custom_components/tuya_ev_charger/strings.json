@@ -135,7 +135,9 @@
               "departure_energy_kwh": "Energy needed by departure (kWh, 0 = off)",
               "off_peak_price": "Off-peak price per kWh (0 = no cost tracking)",
               "peak_price": "Peak price per kWh (0 = no cost tracking)",
-              "price_sensor_entity_id": "Current price sensor (per kWh, optional) - e.g. a Tempo or dynamic-tariff sensor; once set, it replaces the two fixed prices"
+              "price_sensor_entity_id": "Current price sensor (per kWh, optional) - e.g. a Tempo or dynamic-tariff sensor; once set, it replaces the two fixed prices",
+              "self_consumption_split": "Split session energy between grid, solar and house battery (uses the grid sensor; off = everything counts as grid)",
+              "self_consumption_price": "Self-consumed price per kWh (solar or house battery; 0 by default, or your feed-in tariff)"
             }
           },
           "surplus": {
