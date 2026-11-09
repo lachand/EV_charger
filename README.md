@@ -223,8 +223,8 @@ Typical case: a 6 kVA subscription with the oven, the hob and the car all on.
 For hybrid inverters with the house wired to the inverter's backup (Load)
 output, so that everything the house consumes passes through the inverter.
 
-Set **Maximum inverter output** to a little under the inverter's rating (e.g.
-`5500` for a 6 kW inverter) and point **Total household load sensor** at a sensor
+Set **Maximum measured-load power** to a little under the inverter's rating (e.g.
+`5500` for a 6 kW inverter) and point **Total-load power sensor** at a sensor
 reporting the *whole* house consumption. The car is capped so that total load
 stays under the inverter rating, stopping the session if even the minimum
 current will not fit.
@@ -259,8 +259,8 @@ part: on a single-phase charger fed from a three-phase installation, read them a
 
 | Setting | What to put in it |
 |---|---|
-| **Total household load sensor** | Power of the **charger's phase**, charger included (one sensor per phase is the usual setup; pick the right one) |
-| **Maximum inverter output** | The power you accept on that phase, in watts (e.g. `3680` for 16 A at 230 V) |
+| **Total-load power sensor** | Power of the **charger's phase**, charger included (one sensor per phase is the usual setup; pick the right one) |
+| **Maximum measured-load power** | The power you accept on that phase, in watts (e.g. `3680` for 16 A at 230 V) |
 | **Installation phases** | How the **charger** is wired (`1` for a single-phase charger), not the installation |
 
 The cap is independent of surplus mode and of the **Grid power sensor**: you can
