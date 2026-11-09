@@ -687,6 +687,37 @@ def test_a_later_new_session_is_recorded_with_its_cost_and_vehicle(monkeypatch):
     assert record.vehicle == "Zoe"
 
 
+def test_a_logged_session_is_announced_with_its_result(monkeypatch):
+    coord = _coordinator(monkeypatch, options={"peak_price": 0.2})
+    fired = []
+    coord.hass.bus = types.SimpleNamespace(
+        async_fire=lambda event, data: fired.append((event, data))
+    )
+    coord.session_history = _History()
+    coord._session_log_primed = True
+    coord.vehicle_tracker = types.SimpleNamespace(active_vehicle="Twingo")
+
+    asyncio.run(coord._async_log_completed_session(_finished()))
+
+    ((event, data),) = fired
+    assert event == "tuya_ev_charger_session_ended"
+    assert data["entry_id"] == "e1"
+    assert data["energy_kwh"] == 7.2
+    assert data["vehicle"] == "Twingo"
+    assert data["cost"] == pytest.approx(1.44)
+
+
+def test_a_session_noted_after_a_restart_is_not_announced(monkeypatch):
+    coord = _coordinator(monkeypatch)
+    fired = []
+    coord.hass.bus = types.SimpleNamespace(async_fire=lambda event, data: fired.append(event))
+    coord.session_history = _History()
+
+    asyncio.run(coord._async_log_completed_session(_finished()))
+
+    assert fired == []
+
+
 def test_a_known_session_is_not_logged_twice(monkeypatch):
     coord = _coordinator(monkeypatch)
     coord.session_history = _History(new=False)

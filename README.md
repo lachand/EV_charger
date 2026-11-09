@@ -755,6 +755,25 @@ working meter reporting free electricity. A **negative** price (some tariffs pay
 you to consume at certain hours) is accepted and costed, so a session can show a
 negative cost, meaning a gain.
 
+Each logged session is also fired on the event bus as
+`tuya_ev_charger_session_ended`, with its result: `ended_at`, `duration_s`,
+`charging_s`, `energy_kwh`, `off_peak_kwh`, `peak_kwh` (and `solar_kwh`,
+`battery_kwh` with the split on), `cost`, `estimated`, `vehicle`, plus
+`entry_id` and `entry_title`. For a summary once the car is unplugged:
+
+```yaml
+triggers:
+  - trigger: event
+    event_type: tuya_ev_charger_session_ended
+actions:
+  - action: notify.mobile_app_my_phone
+    data:
+      message: >-
+        {{ trigger.event.data.vehicle or 'Car' }}:
+        {{ trigger.event.data.energy_kwh }} kWh,
+        {{ trigger.event.data.cost | round(2) }} EUR
+```
+
 **The cost is metered as the energy flows.** On every poll, the increase of the
 charger's own session energy is priced at the rate in force at that moment: the
 price sensor if one is set, otherwise the off-peak or peak price from the

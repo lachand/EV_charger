@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import asdict
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -460,6 +461,7 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
                 return
             record = self._build_session_record(metrics, duration_s, energy_kwh)
             await history.async_record(record)
+            self._async_fire_session_ended(record)
             self._async_check_session_anomalies()
         except Exception as err:  # noqa: BLE001 - session logging must not fail the poll
             LOGGER.debug("Session logging failed: %s", err)
@@ -476,6 +478,18 @@ class TuyaEVChargerDataUpdateCoordinator(DataUpdateCoordinator[EVMetrics]):
             self.entry.data.get(CONF_CHARGER_PROFILE, DEFAULT_CHARGER_PROFILE),
         )
         return profile == CHARGER_PROFILE_QCCDZ_V1
+
+    def _async_fire_session_ended(self, record: SessionRecord) -> None:
+        """Announce a logged session, with its result, for automations.
+
+        The device triggers say *that* a charge ended; this says what it was
+        (energy, cost, tariff and origin split, vehicle), which is what a
+        morning "the car took 15 kWh for 2.13 EUR" notification needs.
+        """
+        self.hass.bus.async_fire(
+            f"{DOMAIN}_session_ended",
+            {"entry_id": self.entry.entry_id, "entry_title": self.entry.title, **asdict(record)},
+        )
 
     def _async_check_session_anomalies(self) -> None:
         """Surface a degrading charge as a repair notice, after a new session.
