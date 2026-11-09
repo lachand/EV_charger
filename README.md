@@ -960,7 +960,8 @@ Everyone whose code, translation or documentation was merged:
   surplus controller cleanup (#74) and surplus state that survives a restart
   (#76).
 - [@tiiiit74](https://github.com/tiiiit74): the French setup guide for the dé
-  charger (#55) and the clearer protection-limit labels (#86).
+  charger (#55) and the clearer protection-limit labels (#86). Also the
+  three-phase load-balancing discussion (#44) and the solar-router report (#56).
 - [@panther7](https://github.com/panther7): the Tuya Local Key documentation
   (#53).
 - [@vsajer](https://github.com/vsajer): the Czech translation (#51).
@@ -969,8 +970,57 @@ Everyone whose code, translation or documentation was merged:
 - [@1ud0v1c0](https://github.com/1ud0v1c0): continuous 1 A current regulation
   (#11).
 
-Thanks as well to everyone who sent diagnostics, DP dumps and test results:
-those reports are what the supported-model list is built from.
+#### Reporters and testers
+
+Many changes started as someone else's report, DP dump or test on real hardware.
+Thank you to:
+
+- [@SergioMonC](https://github.com/SergioMonC): the maximum charging current (#21),
+  the inverter-output cap (#22), the options form that dropped sensor picks (#26),
+  the battery-floor and off-peak question (#31), the charge switch that reverted
+  (#36), and long testing of the protection limits.
+- [@nilsburg](https://github.com/nilsburg): the empty off-peak window (#30), the
+  off-peak sensor (#32) and off-peak settings being ignored (#43).
+- [@acca84](https://github.com/acca84): the first setup and surplus-mode questions
+  (#1, #2, #3) and the Tuya Local Key add-on tip (#25).
+- [@merlino1975](https://github.com/merlino1975): session energy, history and
+  multi-vehicle tracking (#4) and the connection-loss report (#52).
+- [@alexkoel1958](https://github.com/alexkoel1958): the minimum-current question
+  (#72) and testing the beta that answered it.
+- [@sailorontherocks](https://github.com/sailorontherocks): the 7.4 kW wallbox
+  dumps and tests (#35, #33).
+- [@fcal1986](https://github.com/fcal1986): the three-phase surplus calculation
+  (#41).
+- [@fcofernandez](https://github.com/fcofernandez): the unsupported DP layout of
+  the dé portable charger, firmware 1.1.25 (#46).
+- [@panther7](https://github.com/panther7): the dé 3.5 kW models and testing the
+  `qccdz_v1` profile on them (#54).
+- [@Tmnhphone](https://github.com/Tmnhphone): the Depow 7.4 kW wallbox (#57).
+- [@MarianBe](https://github.com/MarianBe): the false "charging slower than usual"
+  alert, where DP 105 `d` is plug-in time (#59).
+- [@bjoern477](https://github.com/bjoern477) (#39) and
+  [@fdelaby](https://github.com/fdelaby) (#38): the start-of-session failures.
+- [@grinder1337](https://github.com/grinder1337): the disconnection at midnight
+  (#34).
+- [@mchacher](https://github.com/mchacher) (#37) and
+  [@udontgetme](https://github.com/udontgetme) (#37, #45): which dé model matches
+  which profile, and the 11 kW dump.
+- [@grchb-82](https://github.com/grchb-82) (#5) and
+  [@dorr14](https://github.com/dorr14) (#7): the 11 kW 3-phase mobile wallbox
+  request and the L1 power sensor that stayed stuck.
+- [@Banana5kin](https://github.com/Banana5kin): reading the battery SOC from the
+  vehicle (#29).
+- [@Cerz0](https://github.com/Cerz0) (#42),
+  [@rumbur2020-netizen](https://github.com/rumbur2020-netizen) (#95) and
+  [@tankca-max](https://github.com/tankca-max) (#91): new models and setups, not
+  all of them covered yet.
+- [@robimarko](https://github.com/robimarko) and
+  [@acidkewpie](https://github.com/acidkewpie): help and feedback to other users
+  in the issues.
+- [@woutervanranst](https://github.com/woutervanranst): the first encouraging word
+  (#8).
+
+Those reports are what the supported-model list is built from.
 
 ## Licence
 
