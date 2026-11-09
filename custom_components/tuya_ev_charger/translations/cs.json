@@ -260,6 +260,7 @@
           "missing_grid_sensor": "Nen\u00ed nakonfigurov\u00e1n senzor s\u00ed\u0165ov\u00e9ho v\u00fdkonu",
           "cap_only_regulating": "Regulace pouze podle ochrann\u00fdch limit\u016f",
           "cap_only_start": "Spu\u0161t\u011bn\u00ed: ochrann\u00e9 limity nech\u00e1vaj\u00ed rezervu",
+          "cap_only_waiting_for_vehicle": "Čeká se na připojení vozidla",
           "mode_disabled": "Re\u017eim p\u0159ebytku je vypnut\u00fd",
           "no_allowed_currents": "Nab\u00edje\u010dka nenab\u00edz\u00ed \u017e\u00e1dn\u00fd pou\u017eiteln\u00fd proud",
           "no_coordinator_data": "Zat\u00edm \u017e\u00e1dn\u00e1 data z nab\u00edje\u010dky",

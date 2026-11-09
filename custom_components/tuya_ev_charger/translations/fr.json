@@ -260,6 +260,7 @@
           "missing_grid_sensor": "Aucun capteur de puissance reseau configure",
           "cap_only_regulating": "Regulation par les limites de protection",
           "cap_only_start": "Demarrage : les limites de protection laissent de la marge",
+          "cap_only_waiting_for_vehicle": "En attente du branchement d’un véhicule",
           "mode_disabled": "Mode surplus desactive",
           "no_allowed_currents": "La borne n'offre aucun courant utilisable",
           "no_coordinator_data": "Pas encore de donnees de la borne",
