@@ -18,7 +18,13 @@ from homeassistant.core import HomeAssistant
 from .charger_metrics import EVMetrics
 from .preemption import ReservationTracker, headroom_with_reservations, parse_reservations
 from .surplus_decision import cap_to_available_power, headroom_for_car_w
-from .surplus_metrics import ev_power_w, line_voltage
+from .surplus_metrics import (
+    STARTUP_POWER_GRACE_S,
+    commanded_power_w,
+    ev_power_w,
+    is_charging,
+    line_voltage,
+)
 from .surplus_reader import SurplusReader
 from .surplus_settings import SolarSurplusSettings
 
@@ -38,6 +44,11 @@ class ProtectionCaps:
         # Built once per controller and kept across in-place settings changes: this
         # tracker holds the announcement clocks, which must not restart on a reload.
         self._reservations = ReservationTracker()
+        # None until the first observation: a charge already running when this
+        # controller first looks (restart, reload) has a power reading that is
+        # up to date, so it must not be mistaken for a start.
+        self._was_charging: bool | None = None
+        self._charge_started_ts: float | None = None
 
     @property
     def _settings(self) -> SolarSurplusSettings:
@@ -56,6 +67,7 @@ class ProtectionCaps:
         from a missing measurement would either stop a healthy charge or fail to
         protect, both worse than not capping.
         """
+        self._observe_charge_start(data)
         candidates = (
             ("load_limit", self.load_limit_current(data, available_currents)),
             ("inverter_limit", self.inverter_limit_current(data, available_currents)),
@@ -87,12 +99,15 @@ class ProtectionCaps:
         if grid_power_w is None:
             return None
 
-        headroom_w = headroom_for_car_w(
-            grid_power_w=grid_power_w,
-            ev_power_w=ev_power_w(data),
-            house_limit_w=float(limit_w),
+        return self._cap_for_car(
+            data,
+            available_currents,
+            lambda car_power_w: headroom_for_car_w(
+                grid_power_w=grid_power_w,
+                ev_power_w=car_power_w,
+                house_limit_w=float(limit_w),
+            ),
         )
-        return self.cap_current(available_currents, headroom_w, data)
 
     def inverter_limit_current(
         self,
@@ -124,13 +139,66 @@ class ProtectionCaps:
         if total_load_w is None:
             return None
 
-        headroom_w = headroom_with_reservations(
-            limit_w=float(limit_w),
-            measured_load_w=total_load_w,
-            ev_power_w=ev_power_w(data),
-            reserved_w=self.reserved_power_w(),
+        reserved_w = self.reserved_power_w()
+        return self._cap_for_car(
+            data,
+            available_currents,
+            lambda car_power_w: headroom_with_reservations(
+                limit_w=float(limit_w),
+                measured_load_w=total_load_w,
+                ev_power_w=car_power_w,
+                reserved_w=reserved_w,
+            ),
         )
-        return self.cap_current(available_currents, headroom_w, data)
+
+    def _observe_charge_start(self, data: EVMetrics) -> None:
+        charging = is_charging(data)
+        if not charging:
+            self._charge_started_ts = None
+        elif self._was_charging is False:
+            self._charge_started_ts = self._clock()
+        self._was_charging = charging
+
+    def _charge_just_started(self) -> bool:
+        if self._charge_started_ts is None:
+            return False
+        return self._clock() - self._charge_started_ts < STARTUP_POWER_GRACE_S
+
+    def _cap_for_car(
+        self,
+        data: EVMetrics,
+        available_currents: tuple[int, ...],
+        headroom_for: Callable[[float], float],
+    ) -> int | None:
+        """The cap for a given headroom formula, with the car's power estimated
+        while its reading lags a charge start.
+
+        Both caps remove the car's draw from a meter that already includes it.
+        Just after a start that meter has seen the car and the charger's own
+        reading has not, so the car is counted as household load and a charge
+        that fits is stopped -- then restarted, once a minute. For that window
+        the commanded power stands in for the measured one when it is higher.
+
+        The estimate only ever keeps the setpoint, never grants more. The meter
+        lags as well: until it shows the car, removing the commanded power from
+        it under-states the house and would widen the cap. Bounding the result
+        by the current already flowing costs nothing in the case this exists
+        for, and a house over its limit on its own still empties the ladder.
+        What is left is a car drawing less than its setpoint: the house is then
+        under-stated by the difference for the length of the window, during
+        which the current is at worst held where it is.
+        """
+        measured_w = ev_power_w(data)
+        measured_cap = self.cap_current(available_currents, headroom_for(measured_w), data)
+        if measured_cap is None or data.current_target is None:
+            return measured_cap
+        commanded_w = commanded_power_w(data, self._settings.installation_phases)
+        if not self._charge_just_started() or commanded_w <= measured_w:
+            return measured_cap
+        estimated_cap = self.cap_current(available_currents, headroom_for(commanded_w), data)
+        if estimated_cap is None:
+            return measured_cap
+        return min(estimated_cap, max(measured_cap, data.current_target))
 
     def cap_current(
         self,

@@ -11,6 +11,12 @@ from .charger_metrics import EVMetrics
 # Fallback line voltage when the charger's own reading is missing or implausible.
 FIXED_LINE_VOLTAGE_V = 230
 
+# How long after a charge start the commanded power may stand in for the measured
+# one. The charger refreshes its power reading (DP 102) about once a minute --
+# observed on `depow_v2` -- so the first reading of a session can be 60 s late;
+# 90 s leaves one refresh of margin without trusting an estimate for long.
+STARTUP_POWER_GRACE_S = 90
+
 
 def is_charging(data: EVMetrics) -> bool:
     if data.do_charge is not None:
@@ -27,6 +33,18 @@ def ev_power_w(data: EVMetrics) -> float:
     very overload it exists to prevent.
     """
     return max(0.0, (data.total_power or 0.0) * 1000.0)
+
+
+def commanded_power_w(data: EVMetrics, phases: int) -> float:
+    """What the car draws if it takes the whole setpoint, in watts.
+
+    An upper bound, not a measurement: a car may take less than it is offered.
+    0.0 without a setpoint, so a caller comparing it with the measured power
+    falls back to the measurement.
+    """
+    if data.current_target is None:
+        return 0.0
+    return float(data.current_target * line_voltage(data) * phases)
 
 
 def line_voltage(data: EVMetrics | None) -> int:
