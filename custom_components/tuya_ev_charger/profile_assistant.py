@@ -13,12 +13,16 @@ from typing import Any
 
 from .const import (
     CHARGER_PROFILE_DEPOW_V2,
+    CHARGER_PROFILE_FEYREE_V1,
     CHARGER_PROFILE_QCCDZ_V1,
     DP_CHARGER_INFO,
     DP_CURRENT_TARGET,
     DP_DO_CHARGE,
     DP_METRICS,
     DP_WORK_STATE_DEBUG,
+    FEYREE_DP_CURRENT_TARGET,
+    FEYREE_DP_DO_CHARGE,
+    FEYREE_DP_STATUS,
     QCCDZ_DP_CONNECTION_STATE,
     QCCDZ_DP_CURRENT_TARGET,
     QCCDZ_DP_SWITCH,
@@ -80,6 +84,16 @@ def suggest_profile(dps: dict[str, Any]) -> str:
         and str(dps[QCCDZ_DP_CONNECTION_STATE]).startswith("controlpi_")
     ):
         return CHARGER_PROFILE_QCCDZ_V1
+    # Feyree portable chargers: a DP 101 status string in Feyree's vocabulary
+    # plus the DP 114 setpoint and the DP 124 command enum (#98). The status is
+    # checked by value: DP 101 is a plain int on the depow layout.
+    from .charger_metrics import FEYREE_STATUS_MAP
+
+    known_feyree = {FEYREE_DP_STATUS, FEYREE_DP_CURRENT_TARGET, FEYREE_DP_DO_CHARGE}
+    if known_feyree.issubset(present) and str(dps[FEYREE_DP_STATUS]).strip().lower() in (
+        FEYREE_STATUS_MAP
+    ):
+        return CHARGER_PROFILE_FEYREE_V1
     return "generic_v1"
 
 
@@ -123,4 +137,9 @@ def looks_like_state_debug(value: Any) -> bool:
     if not isinstance(value, str):
         return False
     normalized = value.strip().upper()
-    return normalized in {"STANDBY", "WORKING", "DONE", "FAULT"}
+    if normalized in {"STANDBY", "WORKING", "DONE", "FAULT"}:
+        return True
+    # Feyree's DP 101 vocabulary, misspellings included (#98).
+    from .charger_metrics import FEYREE_STATUS_MAP
+
+    return normalized.lower() in FEYREE_STATUS_MAP

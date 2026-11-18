@@ -228,12 +228,16 @@ CHARGER_PROFILE_GENERIC_V1 = "generic_v1"
 # Firmwares built on Tuya's standard EV charger category (`qccdz`), with scalar
 # DPs instead of the DP 102 JSON blob -- dé portable 3.5/3.7 kW on 1.1.25+ (#46).
 CHARGER_PROFILE_QCCDZ_V1 = "qccdz_v1"
+# Feyree portable chargers (Tuya category `qccdz`, product id ebdm8ax35pgodi2s):
+# scalar per-phase DPs in the 101-125 range instead of the DP 102 blob (#98).
+CHARGER_PROFILE_FEYREE_V1 = "feyree_v1"
 CHARGER_PROFILE_CUSTOM_JSON = "custom_json"
 CHARGER_PROFILES: tuple[str, ...] = (
     CHARGER_PROFILE_CUSTOM_JSON,
     CHARGER_PROFILE_DEPOW_V2,
     CHARGER_PROFILE_GENERIC_V1,
     CHARGER_PROFILE_QCCDZ_V1,
+    CHARGER_PROFILE_FEYREE_V1,
 )
 
 SURPLUS_MODE_CLASSIC = "classic"
@@ -505,3 +509,22 @@ QCCDZ_FAULT_LABELS: tuple[str, ...] = (
     "leakagecurr_alarm",
     "high_temp",
 )
+
+# Feyree portable EV chargers (11/22 kW, Tuya product id ebdm8ax35pgodi2s), from a
+# real dump in #98 cross-checked against make-all/tuya-local's feyree config.
+# Voltages and currents are in tenths, power in tenths of a kW, energy in tenths
+# of a kWh, temperature in tenths of a degree.
+FEYREE_DP_FAULT = "10"  # fault bitmap, same layout as the qccdz DP 10
+FEYREE_DP_STATUS = "101"  # enum string: "charing", "no_connet", "connect", ...
+FEYREE_DP_VOLTAGE_L1 = "102"  # 0.1 V
+FEYREE_DP_VOLTAGE_L2 = "103"
+FEYREE_DP_VOLTAGE_L3 = "104"
+FEYREE_DP_CURRENT_L1 = "105"  # 0.1 A
+FEYREE_DP_CURRENT_L2 = "106"
+FEYREE_DP_CURRENT_L3 = "107"
+FEYREE_DP_POWER_TOTAL = "109"  # 0.1 kW, quantised -- phases are derived instead
+FEYREE_DP_TEMPERATURE = "110"  # 0.1 °C
+FEYREE_DP_SESSION_ENERGY = "112"  # 0.1 kWh
+FEYREE_DP_MAX_CURRENT_CFG = "113"  # string like "Max16A"
+FEYREE_DP_CURRENT_TARGET = "114"  # A
+FEYREE_DP_DO_CHARGE = "124"  # enum: OpenCharging / CloseCharging / WaitOperation

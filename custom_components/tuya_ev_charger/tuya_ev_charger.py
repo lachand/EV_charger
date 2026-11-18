@@ -13,12 +13,14 @@ import tinytuya
 from .charger_metrics import (
     PLUG_IN_ACTION_MAP,
     EVMetrics,
+    decode_feyree_metrics,
     decode_metrics,
     decode_qccdz_metrics,
     values_match,
 )
 from .const import (
     ALLOWED_CURRENTS,
+    CHARGER_PROFILE_FEYREE_V1,
     CHARGER_PROFILE_QCCDZ_V1,
     DEFAULT_CHARGER_PROFILE,
     DEFAULT_CHARGER_PROFILE_JSON,
@@ -285,6 +287,14 @@ class TuyaEVChargerClient:
             return await self._async_send_command(
                 self._dp.do_charge, "charge" if enabled else "disabled"
             )
+        if self._dp_profile == CHARGER_PROFILE_FEYREE_V1:
+            # DP 124 is a transient command enum that falls back to
+            # WaitOperation, so a read-back would always mismatch (#98).
+            return await self._async_send_command(
+                self._dp.do_charge,
+                "OpenCharging" if enabled else "CloseCharging",
+                verify=False,
+            )
         return await self._async_send_command(self._dp.do_charge, enabled)
 
     async def async_set_nfc_enabled(self, enabled: bool) -> bool:
@@ -328,6 +338,8 @@ class TuyaEVChargerClient:
                 dps, self._dp, self._max_current_a or QCCDZ_MAX_CURRENT_A
             )
             return self._qccdz_session.apply(metrics, dps, time.time())
+        if self._dp_profile == CHARGER_PROFILE_FEYREE_V1:
+            return decode_feyree_metrics(dps, self._dp)
         return decode_metrics(dps, self._dp)
 
     async def async_set_schedule(self, enabled: bool, start: str, end: str) -> bool:
