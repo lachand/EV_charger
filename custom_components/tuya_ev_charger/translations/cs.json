@@ -89,7 +89,8 @@
             "data": {
               "scan_interval": "Interval obnoven\u00ed (sekundy)",
               "charger_profile": "Profil nab\u00edje\u010dky / mapov\u00e1n\u00ed DP",
-              "charger_profile_json": "Vlastn\u00ed mapov\u00e1n\u00ed DP (JSON, voliteln\u00e9)"
+              "charger_profile_json": "Vlastn\u00ed mapov\u00e1n\u00ed DP (JSON, voliteln\u00e9)",
+              "persistent_connection": "Drzet trval\u00e9 lok\u00e1ln\u00ed spojen\u00ed jako aplikace Tuya (DP reporty v re\u00e1ln\u00e9m case; blokuje aplikaci, kdy\u017e je aktivn\u00ed — k vypnuti pou\u017eijte release_connection)"
             }
           },
           "current": {

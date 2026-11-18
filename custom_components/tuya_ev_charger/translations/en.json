@@ -89,7 +89,8 @@
             "data": {
               "scan_interval": "Refresh interval (seconds)",
               "charger_profile": "Charger profile / DP mapping",
-              "charger_profile_json": "Custom DP mapping (JSON, optional)"
+              "charger_profile_json": "Custom DP mapping (JSON, optional)",
+              "persistent_connection": "Hold a persistent local connection like the Tuya app (live DP reports; locks the app out while active — use release_connection to lend the slot back)"
             }
           },
           "current": {

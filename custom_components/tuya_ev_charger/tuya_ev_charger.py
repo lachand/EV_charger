@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import socket
+import threading
 import time
 from collections.abc import Callable
 from typing import Any
@@ -24,6 +25,9 @@ from .const import (
     CHARGER_PROFILE_QCCDZ_V1,
     DEFAULT_CHARGER_PROFILE,
     DEFAULT_CHARGER_PROFILE_JSON,
+    LISTEN_HEARTBEAT_INTERVAL_S,
+    LISTEN_RECEIVE_TIMEOUT_S,
+    PERSISTENT_RESYNC_S,
     QCCDZ_MAX_CURRENT_A,
     TUYA_CONTROL_PORT,
     ConnectionFault,
@@ -67,10 +71,21 @@ class TuyaEVChargerClient:
         charger_profile: str = DEFAULT_CHARGER_PROFILE,
         charger_profile_json: str = DEFAULT_CHARGER_PROFILE_JSON,
         max_current_a: int = 0,
+        persistent_connection: bool = False,
     ) -> None:
         # Only the qccdz profile reads it: that layout has no DP 152 to report the
         # charger's own limit, so the user's setting stands in for it. 0 = default.
         self._max_current_a = max_current_a
+        # Persistent-connection mode (#35): hold the charger's single local slot
+        # like the Tuya app does, heartbeat it, and collect the DP reports it
+        # pushes while a subscriber is connected. Off by default: it locks the
+        # app out of the charger while active (`release_connection` lends the
+        # slot back).
+        self._persistent_connection = persistent_connection
+        self._socket_lock = threading.Lock()
+        self._listen_active = False
+        self._listen_thread: threading.Thread | None = None
+        self._last_full_status_ts = -PERSISTENT_RESYNC_S
         self._qccdz_session = QccdzSessionClock()
         self._device_id = device_id
         self._host = host
@@ -117,6 +132,7 @@ class TuyaEVChargerClient:
 
     def _build_device(self) -> tinytuya.Device:
         """Replace the current Device with a fresh one. Call with the I/O lock held."""
+        self._stop_listener()
         if self._device is not None:
             # Close the previous socket so it never lingers on the charger's
             # single local-connection slot.
@@ -128,9 +144,67 @@ class TuyaEVChargerClient:
             version=self._protocol_version,
         )
         _configure_device(device)
+        if self._persistent_connection:
+            # Keep the socket open between calls so the module sees a persistent
+            # subscriber, like the Tuya app, and pushes DP reports to us.
+            device.set_socketPersistent(True)
+            device.set_socketTimeout(LISTEN_RECEIVE_TIMEOUT_S)
         self._device = device
         self._needs_reconnect = False
+        self._last_full_status_ts = -PERSISTENT_RESYNC_S
+        if self._persistent_connection:
+            self._start_listener(device)
         return device
+
+    def _start_listener(self, device: tinytuya.Device) -> None:
+        """Start the background receive/heartbeat loop for one device."""
+        self._listen_active = True
+        self._listen_thread = threading.Thread(
+            target=self._listen_loop,
+            args=(device,),
+            name=f"tuya-listen-{self._device_id[-6:]}",
+            daemon=True,
+        )
+        self._listen_thread.start()
+
+    def _stop_listener(self) -> None:
+        self._listen_active = False
+        thread, self._listen_thread = self._listen_thread, None
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=LISTEN_RECEIVE_TIMEOUT_S + 1.0)
+
+    def _listen_loop(self, device: tinytuya.Device) -> None:
+        """Mimic the Tuya app's persistent connection (#35).
+
+        tinytuya merges every received packet's DPs into the device's status
+        cache (`_last_status`) as long as the socket is persistent, so each
+        `receive()` call here is one pushed DP report. A heartbeat keeps the
+        module's single local slot ours. The socket lock serialises this loop
+        with command writes, which tinytuya cannot interleave on one socket.
+        """
+        last_heartbeat = 0.0
+        while self._listen_active and self._device is device:
+            result: Any = None
+            try:
+                with self._socket_lock:
+                    if not self._listen_active or self._device is not device:
+                        break
+                    result = device.receive()
+                    now = time.monotonic()
+                    if now - last_heartbeat >= LISTEN_HEARTBEAT_INTERVAL_S:
+                        device.heartbeat()
+                        last_heartbeat = now
+            except Exception as err:  # noqa: BLE001 - any socket error means the link is down
+                LOGGER.debug("Persistent listener on %s stopped: %s", self._host, err)
+                with self._socket_lock:
+                    if self._device is device:
+                        # Drop the device so the next poll rebuilds the connection.
+                        self._device = None
+                        self._needs_reconnect = True
+                break
+            if isinstance(result, dict) and isinstance(result.get("dps"), dict) and result["dps"]:
+                pass  # tinytuya already merged it into the device status cache
+            time.sleep(0.05)
 
     async def _async_in_thread(self, func: Callable[..., Any], *args: Any) -> Any:
         """Run a blocking tinytuya call off the loop, bounded by ``IO_TIMEOUT_S``.
@@ -148,6 +222,7 @@ class TuyaEVChargerClient:
             LOGGER.warning(
                 "Charger I/O did not finish within %ss; dropping the connection.", IO_TIMEOUT_S
             )
+            self._stop_listener()
             device, self._device = self._device, None
             self._needs_reconnect = True
             if device is not None:
@@ -220,6 +295,7 @@ class TuyaEVChargerClient:
         every later connection (including our own next instance).
         """
         async with self._io_lock:
+            self._stop_listener()
             if self._device is not None:
                 device, self._device = self._device, None
                 try:
@@ -379,7 +455,9 @@ class TuyaEVChargerClient:
         async with self._io_lock:
             device = self._get_device()
             try:
-                response: Any = await self._async_in_thread(device.set_value, dp_id, value)
+                response: Any = await self._async_in_thread(
+                    self._set_value_locked, device, dp_id, value
+                )
             except TimeoutError:
                 # Sent or not, we cannot tell: only a read-back can say.
                 if not verify:
@@ -447,13 +525,47 @@ class TuyaEVChargerClient:
         return False
 
     async def _async_get_dps_payload(self) -> dict[str, Any] | None:
-        """Read the charger's DPS. Must be called with ``self._io_lock`` held."""
+        """Read the charger's DPS. Must be called with ``self._io_lock`` held.
+
+        In persistent-connection mode the listener thread already collects the
+        pushed DP reports into the device's status cache, so the poll reads that
+        cache and only falls back to a full ``status()`` request every
+        ``PERSISTENT_RESYNC_S`` seconds (or when the cache is empty).
+        """
         device = self._get_device()
+        if self._persistent_connection:
+            cached: Any = await self._async_in_thread(device.cached_status, True)
+            cache_dps = cached.get("dps") if isinstance(cached, dict) else None
+            cache_fresh = (
+                isinstance(cache_dps, dict)
+                and bool(cache_dps)
+                and time.monotonic() - self._last_full_status_ts < PERSISTENT_RESYNC_S
+            )
+            if cache_fresh:
+                return cache_dps
         try:
-            payload: Any = await self._async_in_thread(device.status)
+            payload: Any = await self._async_in_thread(self._status_locked, device)
         except TimeoutError:
             return None
+        self._last_full_status_ts = time.monotonic()
+        return self._extract_dps(payload)
 
+    def _status_locked(self, device: tinytuya.Device) -> Any:
+        """A full status() request, serialised with the listener on the shared socket."""
+        if not self._persistent_connection:
+            return device.status()
+        with self._socket_lock:
+            return device.status()
+
+    def _set_value_locked(self, device: tinytuya.Device, dp_id: str, value: Any) -> Any:
+        """A command write, serialised with the listener on the shared socket."""
+        if not self._persistent_connection:
+            return device.set_value(dp_id, value)
+        with self._socket_lock:
+            return device.set_value(dp_id, value)
+
+    @staticmethod
+    def _extract_dps(payload: Any) -> dict[str, Any] | None:
         if not isinstance(payload, dict):
             LOGGER.error("Invalid status payload type: %s", type(payload).__name__)
             return None

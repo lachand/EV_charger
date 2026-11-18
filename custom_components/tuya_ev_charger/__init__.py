@@ -30,12 +30,14 @@ from .const import (
     CONF_LOCAL_KEY,
     CONF_MAC,
     CONF_MAX_CHARGE_CURRENT_A,
+    CONF_PERSISTENT_CONNECTION,
     CONF_PROTOCOL_VERSION,
     CONF_SCAN_INTERVAL,
     CONF_VEHICLES,
     CONFIG_ENTRY_VERSION,
     DEFAULT_CHARGER_PROFILE,
     DEFAULT_CHARGER_PROFILE_JSON,
+    DEFAULT_PERSISTENT_CONNECTION,
     DEFAULT_SCAN_INTERVAL_SECONDS,
     DOMAIN,
     LIVE_APPLIABLE_OPTION_KEYS,
@@ -198,6 +200,10 @@ def _max_charge_current_a(entry: ConfigEntry) -> int:
         return 0
 
 
+def _persistent_connection(entry: ConfigEntry) -> bool:
+    return bool(entry.options.get(CONF_PERSISTENT_CONNECTION, DEFAULT_PERSISTENT_CONNECTION))
+
+
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Bring an older config entry up to the current schema.
 
@@ -250,6 +256,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         charger_profile=_charger_profile(entry),
         charger_profile_json=_charger_profile_json(entry),
         max_current_a=_max_charge_current_a(entry),
+        persistent_connection=_persistent_connection(entry),
     )
 
     try:

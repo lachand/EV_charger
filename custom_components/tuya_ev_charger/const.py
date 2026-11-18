@@ -158,6 +158,10 @@ CONF_LOCAL_KEY = "local_key"
 CONF_MAC = "mac"
 CONF_PROTOCOL_VERSION = "protocol_version"
 CONF_SCAN_INTERVAL = "scan_interval"
+# Hold the charger's single local connection open and listen to its pushed DP
+# reports, mimicking the Tuya app, so modules that only refresh their metrics
+# for a persistent subscriber report live (#35).
+CONF_PERSISTENT_CONNECTION = "persistent_connection"
 CONF_SURPLUS_PROFILE = "surplus_profile"
 CONF_SURPLUS_MODE_ENABLED = "surplus_mode_enabled"
 CONF_SURPLUS_SENSOR_ENTITY_ID = "surplus_sensor_entity_id"
@@ -264,6 +268,12 @@ DEFAULT_CHARGER_PROFILE = CHARGER_PROFILE_DEPOW_V2
 DEFAULT_CHARGER_PROFILE_JSON = ""
 SUPPORTED_PROTOCOL_VERSIONS: tuple[str, ...] = ("3.3", "3.4", "3.5")
 DEFAULT_SCAN_INTERVAL_SECONDS = 30
+DEFAULT_PERSISTENT_CONNECTION = False
+# Persistent-connection mode: heartbeat cadence, socket read timeout for the
+# listener, and how often a full status() resyncs the push cache.
+LISTEN_HEARTBEAT_INTERVAL_S = 10.0
+LISTEN_RECEIVE_TIMEOUT_S = 2.0
+PERSISTENT_RESYNC_S = 60.0
 # DP 107 only advertises the shortcuts the Tuya app displays, not a hardware
 # constraint: chargers accept any value between their min and max in 1A steps.
 # Users who own a charger that really is restricted can turn this off.

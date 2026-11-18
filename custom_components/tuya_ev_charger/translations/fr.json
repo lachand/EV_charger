@@ -89,7 +89,8 @@
             "data": {
               "scan_interval": "Intervalle de rafraichissement (secondes)",
               "charger_profile": "Profil chargeur / mapping DP",
-              "charger_profile_json": "Mapping DP custom (JSON, optionnel)"
+              "charger_profile_json": "Mapping DP custom (JSON, optionnel)",
+              "persistent_connection": "Garder une connexion locale persistante comme l'app Tuya (remontees DP en direct ; bloque l'app tant qu'elle est active — utiliser release_connection pour lui preter la connexion)"
             }
           },
           "current": {
