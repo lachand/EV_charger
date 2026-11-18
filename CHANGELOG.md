@@ -7,6 +7,36 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## 2.29.0-beta1
+
+Pre-release: HACS offers it only with beta versions enabled.
+
+- **A just-started charge is no longer cut by the house-power limit (#99, #100).**
+  With `max_house_power_w` set, a session was stopped ~50 s after starting with
+  `load_limit_no_headroom`, restarted a minute later, in a loop: the car's power
+  was not yet in DP 102 (refreshed about once a minute on `depow_v2`) while the
+  grid meter already counted it. For a 90 s window after a watched charge start,
+  the commanded power (`current_target × line_voltage × phases`) stands in for
+  the lagging reading in both protection caps, bounded so the estimate keeps the
+  current setpoint but never grants more.
+- **`feyree_v1` charger profile (#98, #101).** Native support for Feyree portable
+  chargers (Tuya product id `ebdm8ax35pgodi2s`): per-phase voltage/current
+  (DP 102-107) with power derived from V × A, session energy (DP 112),
+  temperature (DP 110), max current string (DP 113), setpoint (DP 114), DP 101
+  status strings, DP 124 start/stop command enum, DP 10 fault bitmap. The profile
+  assistant recognises the layout.
+- **New option `surplus_hold_from_battery` (#50, #102).** Off by default. While
+  the house battery is above its low threshold, a *running* charge is held at the
+  highest current the protection caps allow — bounded by the net-discharge budget
+  when a sensor is configured — instead of following the grid meter, for inverters
+  that do not zero the meter while discharging. It never starts a charge by
+  itself; a repair issue fires when the option is on without a battery SOC sensor.
+- **Docs:** the dé Wallbox 7.4 kW V2 (`deWB07B07BAU`) is listed in the
+  Compatibility section with its telemetry limitation (metrics DP refreshed about
+  every 10 minutes unless the Tuya app is open, #35) and the external-meter
+  workaround for live readings and surplus regulation.
+- **Dependencies:** pytest 9.2, ruff 0.17.3, pillow 13.0 (#92, #93, #94).
+
 ## 2.28.0
 
 Session costing, reworked: four contributions from @BTexier, reviewed and
