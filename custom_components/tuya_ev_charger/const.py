@@ -185,6 +185,7 @@ CONF_SURPLUS_RESTART_LOCK_MIN = "surplus_restart_lock_min"
 CONF_SURPLUS_STAY_AT_MIN_CURRENT = "surplus_stay_at_min_current"
 # In surplus mode, also charge from the grid during off-peak windows (#43).
 CONF_SURPLUS_CHARGE_IN_OFF_PEAK = "surplus_charge_in_off_peak"
+CONF_SURPLUS_HOLD_FROM_BATTERY = "surplus_hold_from_battery"
 
 # Options the solar-surplus controller owns end to end: it re-reads them itself
 # on a config-entry update (`SolarSurplusController.async_apply_settings`), and
@@ -209,6 +210,7 @@ LIVE_APPLIABLE_OPTION_KEYS: frozenset[str] = frozenset(
         CONF_SURPLUS_RESTART_LOCK_MIN,
         CONF_SURPLUS_STAY_AT_MIN_CURRENT,
         CONF_SURPLUS_CHARGE_IN_OFF_PEAK,
+        CONF_SURPLUS_HOLD_FROM_BATTERY,
     }
 )
 
@@ -383,6 +385,7 @@ MIN_SURPLUS_RESTART_LOCK_MIN = 0
 MAX_SURPLUS_RESTART_LOCK_MIN = 120
 DEFAULT_SURPLUS_STAY_AT_MIN_CURRENT = False
 DEFAULT_SURPLUS_CHARGE_IN_OFF_PEAK = False
+DEFAULT_SURPLUS_HOLD_FROM_BATTERY = False
 MIN_SURPLUS_THRESHOLD_W = 0
 MAX_SURPLUS_THRESHOLD_W = 22000
 MIN_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W = 0

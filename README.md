@@ -620,6 +620,7 @@ charging, instead of holding the last value.
 | `surplus_battery_soc_high_threshold_pct`, `surplus_battery_soc_low_threshold_pct` | Battery hysteresis |
 | `surplus_battery_net_discharge_sensor_entity_id`, `surplus_battery_net_discharge_sensor_inverted` | Optional discharge guard |
 | `surplus_allow_battery_discharge_for_ev` / `surplus_max_battery_discharge_for_ev_w` | Battery budget for the EV |
+| `surplus_hold_from_battery` | Off by default; needs the battery SOC sensor. While the battery is above the low threshold, a running charge is walked up to the highest current the protection caps allow and held there, instead of following the grid meter — for inverters that do not zero the meter by themselves while they discharge. With a net-discharge sensor it is also bounded by the battery budget above (`ev − grid − discharge + budget`); without one it only stops at the low threshold, so set both. A charge is still *started* by surplus. At the low threshold the off-peak fallback or the battery stop takes over as before (#50) |
 | `surplus_forecast_sensor_entity_id` | Optional 1 h solar forecast, anti-drop guard |
 
 ## Services

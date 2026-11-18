@@ -77,6 +77,14 @@ def test_a_departure_time_without_an_energy_target_is_reported():
     assert ConfigProblem.DEPARTURE_WITHOUT_ENERGY in _problems(departure_time="07:00")
 
 
+def test_battery_hold_without_a_soc_sensor_is_reported():
+    """#50: without the SOC sensor "above the low threshold" is unknowable."""
+    from tuya_ev_charger.config_diagnosis import ConfigProblem
+
+    assert ConfigProblem.HOLD_FROM_BATTERY_WITHOUT_SOC_SENSOR in _problems(hold_from_battery=True)
+    assert _problems(hold_from_battery=True, battery_soc_sensor_entity_id="sensor.soc") == []
+
+
 # --- silence is the default ------------------------------------------------
 
 
@@ -97,6 +105,8 @@ def test_a_complete_configuration_reports_nothing():
             off_peak_windows_parsed=1,
             departure_time="07:00",
             departure_energy_kwh=20,
+            hold_from_battery=True,
+            battery_soc_sensor_entity_id="sensor.soc",
         )
         == []
     )

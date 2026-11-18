@@ -88,6 +88,10 @@ class DecisionReason(StrEnum):
     BATTERY_FLOOR_OFF_PEAK_START = "battery_floor_off_peak_start"
     BATTERY_FLOOR_OFF_PEAK_CHARGING = "battery_floor_off_peak_charging"
 
+    # The house battery is above its low threshold and the user asked for the
+    # scheduled current to be held from it, whatever the grid meter says (#50).
+    BATTERY_HOLD_CHARGING = "battery_hold_charging"
+
     # Surplus mode on and "charge in off-peak hours" set (#43): the window drives a
     # grid charge whatever the battery says, outside it the surplus rules again.
     OFF_PEAK_CHARGE_START = "off_peak_charge_start"
@@ -205,6 +209,13 @@ class GateContext:
     tariff_is_deadline: bool = False
 
     battery_ready: bool = True
+    # Hold the scheduled current from the battery while it is above its low
+    # threshold (#50). The controller only sets this when a battery SOC sensor
+    # exists and any reading the budget needs is available.
+    hold_from_battery: bool = False
+    # Highest current the battery discharge budget pays for; None when no
+    # net-discharge sensor is configured, so there is no budget to hold to.
+    battery_hold_ceiling_a: int | None = None
     available_surplus_w: float = 0.0
     start_threshold_w: float = 0.0
     stop_threshold_w: float = 0.0
@@ -558,6 +569,81 @@ def _gate_battery_floor_tariff_fallback(ctx: GateContext, timers: TimerState) ->
     )
 
 
+def _gate_battery_hold(ctx: GateContext, timers: TimerState) -> Verdict | None:
+    """Fourth tier, opt-in: keep the scheduled current while the battery has charge (#50).
+
+    Surplus regulation sizes the current from ``ev - grid``. That only equals "what
+    the car can draw" when the inverter zeroes the grid meter by itself while it
+    discharges; when it does not, the export looks like missing headroom and the
+    car is throttled even with the battery full. This gate stops asking the grid
+    meter: while the battery is above its low threshold (`battery_ready`), a
+    running charge is walked up to the highest current the ladder allows and held
+    there, drawing on the battery for whatever the sun does not cover.
+
+    Bounded by every limit that already narrowed the ladder (both protection
+    caps), and by the net-discharge budget when a net-discharge sensor is
+    configured (`battery_hold_ceiling_a`). A budget that cannot pay for even the
+    minimum current declines, so the ordinary surplus rules decide.
+
+    It only *holds*: a charge is still started by surplus (or the off-peak tiers),
+    so a car plugged in at night does not begin draining the battery. Once the
+    battery reaches its low threshold `battery_ready` goes False, this gate
+    declines, and the battery-floor/off-peak fallback or the battery stop takes
+    over exactly as before. Session limits also decline, so they still end it.
+    """
+    if not (ctx.surplus_mode_enabled and ctx.hold_from_battery and ctx.battery_ready):
+        return None
+    if not ctx.is_charging or not ctx.available_currents:
+        return None
+    if ctx.session_active and ctx.session_limit_reason is not None:
+        return None
+
+    ceiling = ctx.max_current
+    if ctx.battery_hold_ceiling_a is not None:
+        ceiling = min(ceiling, ctx.battery_hold_ceiling_a)
+        # Snap to what the ladder offers; below its first rung there is nothing
+        # the battery budget can pay for.
+        affordable = [value for value in ctx.available_currents if value <= ceiling]
+        if not affordable:
+            return None
+        ceiling = max(affordable)
+
+    timers.start_candidate_since = None
+    timers.stop_candidate_since = None
+
+    current = (
+        ctx.current_target if ctx.current_target in ctx.available_currents else ctx.min_current
+    )
+    if current == ceiling:
+        return Verdict(
+            action=GateAction.HOLD,
+            reason=DecisionReason.BATTERY_HOLD_CHARGING,
+            regulation_active=True,
+        )
+
+    increasing = current < ceiling
+    last_action = timers.last_increase_action_ts if increasing else timers.last_decrease_action_ts
+    cooldown = ctx.adjust_up_cooldown_s if increasing else ctx.adjust_down_cooldown_s
+    if ctx.now - last_action < cooldown:
+        return Verdict(
+            action=GateAction.HOLD,
+            reason=DecisionReason.ADJUST_COOLDOWN_ACTIVE,
+            regulation_active=True,
+        )
+    if increasing and _protection_hold_active(ctx, timers):
+        return Verdict(
+            action=GateAction.HOLD,
+            reason=DecisionReason.PROTECTION_HOLD,
+            regulation_active=True,
+        )
+    return Verdict(
+        action=GateAction.SET_CURRENT,
+        reason=DecisionReason.BATTERY_HOLD_CHARGING,
+        target_current=_ramp(current, ceiling, ctx.available_currents, ctx.ramp_step),
+        regulation_active=True,
+    )
+
+
 def _gate_grid_sensor(ctx: GateContext, timers: TimerState) -> Verdict | None:
     if not ctx.grid_sensor_configured:
         return Verdict(
@@ -823,7 +909,10 @@ def battery_hysteresis(soc: float, *, high: float, low: float, enabled: bool | N
 #     veto that must win over every other reason to charge;
 #   * the battery-floor/off-peak fallback sits before the grid sensor check,
 #     since it is the no-solar tier and must not require one, but after the
-#     tariff/mode/pause gates it depends on or must still lose to.
+#     tariff/mode/pause gates it depends on or must still lose to;
+#   * the battery hold (#50) sits right after it: it only applies while the
+#     battery is *above* its floor, so the two never compete, and it must come
+#     before the surplus branch whose grid-meter arithmetic it replaces.
 GATES: tuple[Gate, ...] = (
     _gate_no_currents,
     _gate_external_charge_blocked,
@@ -834,6 +923,7 @@ GATES: tuple[Gate, ...] = (
     _gate_cap_only,
     _gate_mode_disabled,
     _gate_battery_floor_tariff_fallback,
+    _gate_battery_hold,
     _gate_grid_sensor,
     _gate_charging,
     _gate_start,

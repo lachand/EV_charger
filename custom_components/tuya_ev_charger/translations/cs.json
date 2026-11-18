@@ -167,6 +167,7 @@
               "surplus_battery_net_discharge_sensor_entity_id": "Entita \u010dist\u00e9ho vyb\u00edjec\u00edho v\u00fdkonu baterie (W) (voliteln\u00e9)",
               "surplus_battery_net_discharge_sensor_inverted": "Invertovat znam\u00e9nko senzoru \u010dist\u00e9ho vyb\u00edjen\u00ed baterie",
               "surplus_allow_battery_discharge_for_ev": "Povolit vyb\u00edjen\u00ed baterie pro nab\u00edjen\u00ed EV",
+              "surplus_hold_from_battery": "Udr\u017eovat nab\u00edjec\u00ed proud z baterie, dokud je nad doln\u00edm prahem",
               "surplus_max_battery_discharge_for_ev_w": "Maxim\u00e1ln\u00ed povolen\u00fd v\u00fdkon vyb\u00edjen\u00ed baterie pro EV (W)"
             }
           }
@@ -231,6 +232,7 @@
           "adjust_cooldown_active": "\u010cek\u00e1n\u00ed p\u0159ed dal\u0161\u00ed zm\u011bnou proudu",
           "protection_hold": "Dr\u017een\u00ed proudu: ochrann\u00fd limit jej pr\u00e1v\u011b sn\u00ed\u017eil",
           "adjust_current": "\u00daprava proudu podle p\u0159ebytku",
+          "battery_hold_charging": "Udr\u017eov\u00e1n\u00ed napl\u00e1novan\u00e9ho proudu z domac\u00ed baterie",
           "battery_floor_off_peak_charging": "Nab\u00edjen\u00ed ze s\u00edt\u011b v dob\u011b n\u00edzk\u00e9ho tarifu \u2014 dom\u00e1c\u00ed baterie je na doln\u00ed hranici",
           "battery_floor_off_peak_start": "Dom\u00e1c\u00ed baterie na doln\u00ed hranici \u2014 spu\u0161t\u011bn\u00ed nab\u00edjen\u00ed ze s\u00edt\u011b v okn\u011b n\u00edzk\u00e9ho tarifu",
           "battery_soc_below_threshold": "\u010cek\u00e1n\u00ed: dom\u00e1c\u00ed baterie je p\u0159\u00edli\u0161 n\u00edzk\u00e1",
@@ -460,6 +462,10 @@
     "grid_sensor_sign_inverted": {
       "title": "Znam\u00e9nko senzoru s\u00edt\u011b vypad\u00e1 invertovan\u00e9",
       "description": "Hodnota s\u00edt\u011b konzistentn\u011b kles\u00e1, kdy\u017e auto odeb\u00edr\u00e1 v\u00edce, co\u017e je opak toho, co d\u011bl\u00e1 elektrom\u011br s kladn\u00fdm importem. Pokud to tak nech\u00e1te, regulace p\u0159ebytku hon\u00ed vlastn\u00ed ocas a vyva\u017eov\u00e1n\u00ed z\u00e1t\u011b\u017ee po\u010d\u00edt\u00e1 v\u011bt\u0161\u00ed rezervu, ne\u017e m\u00e1 va\u0161e p\u0159\u00edpojka. Za\u0161krtn\u011bte **Invertovat znam\u00e9nko senzoru s\u00edt\u011b** v mo\u017enostech integrace. Pokud je va\u0161e zapojen\u00ed opravdu neobvykl\u00e9 a \u00fadaj je spr\u00e1vn\u00fd, toto upozorn\u011bn\u00ed m\u016f\u017eete ignorovat."
+    },
+    "hold_from_battery_without_soc_sensor": {
+      "title": "Udrzovani proudu z baterie je zapnuto bez senzoru SOC",
+      "description": "Volba udrzovat nabijeci proud z baterie je zapnuta, ale neni nastaven senzor SOC baterie, takze \"nad nizkym prahem\" nelze nikdy poznat a volba nefunguje. Nastavte **Entitu SOC baterie** v moznostech integrace, nebo volbu vypnete."
     },
     "installation_phases_likely_three": {
       "title": "F\u00e1ze instalace mo\u017en\u00e1 pot\u0159ebuj\u00ed nastavit na 3",

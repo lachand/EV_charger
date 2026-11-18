@@ -42,6 +42,7 @@ from .const import (
     CONF_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
     CONF_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
     CONF_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
+    CONF_SURPLUS_HOLD_FROM_BATTERY,
     CONF_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
     CONF_SURPLUS_MODE_ENABLED,
     CONF_SURPLUS_RESTART_LOCK_MIN,
@@ -78,6 +79,7 @@ from .const import (
     DEFAULT_SURPLUS_CURTAILMENT_SENSOR_ENTITY_ID,
     DEFAULT_SURPLUS_CURTAILMENT_SENSOR_INVERTED,
     DEFAULT_SURPLUS_FORECAST_SENSOR_ENTITY_ID,
+    DEFAULT_SURPLUS_HOLD_FROM_BATTERY,
     DEFAULT_SURPLUS_MAX_BATTERY_DISCHARGE_FOR_EV_W,
     DEFAULT_SURPLUS_MODE_ENABLED,
     DEFAULT_SURPLUS_RESTART_LOCK_MIN,
@@ -144,6 +146,7 @@ class SolarSurplusSettings:
     restart_lock_min: int
     stay_at_min_current: bool
     charge_in_off_peak: bool
+    hold_from_battery: bool
     forecast_sensor_entity_id: str
     external_charge_allowed_sensor_entity_id: str
     external_charge_allowed_sensor_inverted: bool
@@ -349,6 +352,11 @@ def settings_from_entry(entry: ConfigEntry) -> SolarSurplusSettings:
             options,
             CONF_SURPLUS_CHARGE_IN_OFF_PEAK,
             DEFAULT_SURPLUS_CHARGE_IN_OFF_PEAK,
+        ),
+        hold_from_battery=option_bool(
+            options,
+            CONF_SURPLUS_HOLD_FROM_BATTERY,
+            DEFAULT_SURPLUS_HOLD_FROM_BATTERY,
         ),
         forecast_sensor_entity_id=_option_str(
             options,

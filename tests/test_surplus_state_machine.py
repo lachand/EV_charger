@@ -1410,3 +1410,102 @@ def test_no_evaluation_is_scheduled_after_shutdown(monkeypatch):
     h.controller._async_schedule_evaluation("late_sensor_update")
 
     assert created == []
+
+
+# --- battery hold (#50) -------------------------------------------------------
+
+_HOLD_OPTIONS = {
+    "surplus_hold_from_battery": True,
+    "surplus_battery_soc_sensor_entity_id": "sensor.soc",
+    "surplus_battery_soc_high_threshold_pct": 80,
+    "surplus_battery_soc_low_threshold_pct": 60,
+}
+
+
+def test_battery_hold_keeps_charging_when_the_grid_meter_reports_no_surplus(monkeypatch):
+    """The reporter's case: battery full, grid not zeroed, surplus says throttle."""
+    h = _charging_harness(
+        monkeypatch,
+        sensors={"sensor.grid": 800, "sensor.soc": 100},
+        options=_HOLD_OPTIONS,
+    )
+    assert h.tick() == "battery_hold_charging"
+    assert h.writes == [("current", 11)]
+
+
+def test_without_the_option_the_same_readings_still_throttle(monkeypatch):
+    h = _charging_harness(
+        monkeypatch,
+        sensors={"sensor.grid": 800, "sensor.soc": 100},
+        options={**_HOLD_OPTIONS, "surplus_hold_from_battery": False},
+    )
+    assert h.tick() != "battery_hold_charging"
+
+
+def test_battery_hold_needs_a_battery_sensor(monkeypatch):
+    """Without a SOC sensor "above the low threshold" is vacuous: the hold stays off."""
+    options = {
+        k: v for k, v in _HOLD_OPTIONS.items() if k != "surplus_battery_soc_sensor_entity_id"
+    }
+    h = _charging_harness(monkeypatch, sensors={"sensor.grid": 800}, options=options)
+    assert h.tick() != "battery_hold_charging"
+
+
+def test_battery_hold_stops_at_the_low_threshold(monkeypatch):
+    from tuya_ev_charger.solar_surplus import FIXED_STOP_DELAY_S
+
+    h = _charging_harness(
+        monkeypatch,
+        sensors={"sensor.grid": 800, "sensor.soc": 100},
+        options=_HOLD_OPTIONS,
+    )
+    assert h.tick() == "battery_hold_charging"
+
+    h.hass.set("sensor.soc", 55)
+    assert h.tick() == "stop_delay_pending"
+    assert h.tick(FIXED_STOP_DELAY_S + 1) == "battery_soc_below_threshold"
+    assert ("enabled", False) in h.writes
+
+
+def test_battery_hold_follows_the_discharge_budget(monkeypatch):
+    """Car 2.3 kW, battery giving 2 kW, grid +300: the sun covers nothing, and a
+    1 kW budget pays for ~1 kW, below the 6 A minimum, so the surplus rules decide."""
+    options = {
+        **_HOLD_OPTIONS,
+        "surplus_battery_net_discharge_sensor_entity_id": "sensor.batt",
+        "surplus_allow_battery_discharge_for_ev": True,
+        "surplus_max_battery_discharge_for_ev_w": 1000,
+    }
+    h = _charging_harness(
+        monkeypatch,
+        sensors={"sensor.grid": 300, "sensor.soc": 100, "sensor.batt": 2000},
+        options=options,
+    )
+    assert h.tick() != "battery_hold_charging"
+
+    # A 4 kW budget pays for 2300 - 300 - 2000 + 4000 = 4000 W = 17 A.
+    h = _charging_harness(
+        monkeypatch,
+        sensors={"sensor.grid": 300, "sensor.soc": 100, "sensor.batt": 2000},
+        options={**options, "surplus_max_battery_discharge_for_ev_w": 4000},
+    )
+    assert h.tick() == "battery_hold_charging"
+    assert h.writes == [("current", 11)]
+    trace = h.controller._last_decision_trace
+    assert trace["battery_hold_ceiling_a"] == 17
+
+
+def test_battery_hold_is_off_while_the_budget_reading_is_missing(monkeypatch):
+    """An unmeasured battery is not drawn on without limit."""
+    options = {
+        **_HOLD_OPTIONS,
+        "surplus_battery_net_discharge_sensor_entity_id": "sensor.batt",
+        "surplus_allow_battery_discharge_for_ev": True,
+        "surplus_max_battery_discharge_for_ev_w": 4000,
+    }
+    h = _charging_harness(
+        monkeypatch,
+        sensors={"sensor.grid": 800, "sensor.soc": 100, "sensor.batt": "unavailable"},
+        options=options,
+    )
+    assert h.tick() != "battery_hold_charging"

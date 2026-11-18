@@ -33,6 +33,9 @@ class ConfigProblem(StrEnum):
     # at its default of 1 -- a suggestion only, never applied automatically
     # (#41: a false positive here would overshoot the protection caps).
     INSTALLATION_PHASES_LIKELY_THREE = "installation_phases_likely_three"
+    # Battery hold is on but there is no SOC sensor to know "above the low
+    # threshold", so the gate can never engage (#50).
+    HOLD_FROM_BATTERY_WITHOUT_SOC_SENSOR = "hold_from_battery_without_soc_sensor"
 
 
 @dataclass(slots=True, frozen=True)
@@ -48,6 +51,8 @@ class DiagnosisInputs:
     off_peak_windows_parsed: int = 0
     departure_time: str = ""
     departure_energy_kwh: int = 0
+    hold_from_battery: bool = False
+    battery_soc_sensor_entity_id: str = ""
 
 
 def static_problems(inputs: DiagnosisInputs) -> list[ConfigProblem]:
@@ -75,6 +80,11 @@ def static_problems(inputs: DiagnosisInputs) -> list[ConfigProblem]:
 
     if inputs.departure_time.strip() and inputs.departure_energy_kwh <= 0:
         problems.append(ConfigProblem.DEPARTURE_WITHOUT_ENERGY)
+
+    # Battery hold needs the SOC sensor to know the battery is above its floor;
+    # without one the gate is silently off (#50).
+    if inputs.hold_from_battery and not inputs.battery_soc_sensor_entity_id:
+        problems.append(ConfigProblem.HOLD_FROM_BATTERY_WITHOUT_SOC_SENSOR)
 
     return problems
 

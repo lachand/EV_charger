@@ -167,6 +167,7 @@
               "surplus_battery_net_discharge_sensor_entity_id": "Entite puissance decharge batterie nette (W) (optionnel)",
               "surplus_battery_net_discharge_sensor_inverted": "Inverser le signe capteur decharge batterie nette",
               "surplus_allow_battery_discharge_for_ev": "Autoriser la decharge batterie pour la voiture",
+              "surplus_hold_from_battery": "Maintenir le courant de charge depuis la batterie tant qu'elle est au-dessus du seuil bas",
               "surplus_max_battery_discharge_for_ev_w": "Puissance max decharge batterie autorisee (W)"
             }
           }
@@ -231,6 +232,7 @@
           "adjust_cooldown_active": "Attente avant de rechanger le courant",
           "protection_hold": "Courant maintenu : une limite de protection vient de le r\u00e9duire",
           "adjust_current": "Ajustement du courant au surplus",
+          "battery_hold_charging": "Courant maintenu depuis la batterie maison",
           "battery_floor_off_peak_charging": "Charge sur le reseau en heures creuses - batterie maison au plancher",
           "battery_floor_off_peak_start": "Batterie maison au plancher - demarrage d'une charge reseau en heures creuses",
           "battery_soc_below_threshold": "Attente : la batterie maison est trop basse",
@@ -460,6 +462,10 @@
     "grid_sensor_sign_inverted": {
       "title": "Le signe du capteur reseau semble inverse",
       "description": "La mesure reseau baisse systematiquement quand la voiture consomme davantage, soit l'inverse de ce que fait un compteur positif a l'import. En l'etat, la regulation surplus se poursuit elle-meme et le delestage calcule plus de marge que votre abonnement n'en a. Cochez **Inverser le signe du capteur reseau** dans les options. Si votre installation est reellement atypique et que la mesure est correcte, cette notice peut etre ignoree."
+    },
+    "hold_from_battery_without_soc_sensor": {
+      "title": "Le maintien depuis la batterie est actif sans capteur SOC",
+      "description": "L'option de maintien du courant depuis la batterie est activee mais aucun capteur SOC batterie n'est configure : \"au-dessus du seuil bas\" ne peut jamais etre determine et l'option ne fait rien. Reglez **Entite SOC batterie** dans les options de l'integration, ou desactivez l'option."
     },
     "installation_phases_likely_three": {
       "title": "Phases de l'installation peut-etre a positionner sur 3",

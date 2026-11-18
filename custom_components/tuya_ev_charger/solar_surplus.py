@@ -56,6 +56,7 @@ from .surplus_decision import (
     ForecastState,
     SurplusInputs,
     apply_forecast,
+    battery_hold_power_w,
     current_supported_by,
     raw_surplus_w,
 )
@@ -415,6 +416,9 @@ class SolarSurplusController:
         )
 
         battery_ready = self._inputs.is_battery_ready()
+        hold_from_battery, battery_hold_ceiling_a = self._battery_hold(
+            data, grid_power_w, available_currents
+        )
         available_surplus_w = 0.0
         max_supported_current = 0
         target_current: int | None = None
@@ -478,6 +482,8 @@ class SolarSurplusController:
             tariff_reason=tariff_reason,
             tariff_is_deadline=tariff_is_deadline,
             battery_ready=battery_ready,
+            hold_from_battery=hold_from_battery,
+            battery_hold_ceiling_a=battery_hold_ceiling_a,
             available_surplus_w=available_surplus_w,
             start_threshold_w=float(self._settings.start_threshold_w),
             stop_threshold_w=float(self._settings.stop_threshold_w),
@@ -494,6 +500,46 @@ class SolarSurplusController:
             stay_at_min_current=self._settings.stay_at_min_current,
             charge_in_off_peak=self._settings.charge_in_off_peak,
             session_limit_reason=self._session_limit_reason(now),
+        )
+
+    def _battery_hold(
+        self,
+        data: EVMetrics,
+        grid_power_w: float | None,
+        available_currents: tuple[int, ...],
+    ) -> tuple[bool, int | None]:
+        """Whether to hold the scheduled current from the battery, and up to what (#50).
+
+        Off without a battery SOC sensor: "above the low threshold" would be
+        vacuously true and the charge would never be allowed to stop. With a
+        net-discharge sensor the budget bounds the current, and a missing reading
+        for it switches the hold off for that cycle -- an unmeasured battery must
+        not be drawn on without limit -- leaving the ordinary surplus rules.
+        """
+        settings = self._settings
+        if not (
+            settings.mode_enabled
+            and settings.hold_from_battery
+            and settings.battery_soc_sensor_entity_id
+        ):
+            return False, None
+        if not settings.battery_net_discharge_sensor_entity_id:
+            return True, None
+
+        discharge_w = self._inputs.read_battery_net_discharge_w()
+        if grid_power_w is None or discharge_w is None:
+            return False, None
+        power_w = battery_hold_power_w(
+            grid_power_w=grid_power_w,
+            ev_power_w=ev_power_w(data),
+            battery_net_discharge_w=discharge_w,
+            discharge_budget_w=self._inputs.allowed_battery_discharge_w(),
+        )
+        return True, _current_supported_by_surplus(
+            available_currents,
+            power_w,
+            line_voltage(data),
+            settings.installation_phases,
         )
 
     def config_problems(self) -> list[str]:
@@ -515,6 +561,8 @@ class SolarSurplusController:
                 off_peak_windows_parsed=len(parse_windows(settings.off_peak_windows)),
                 departure_time=settings.departure_time,
                 departure_energy_kwh=settings.departure_energy_kwh,
+                hold_from_battery=settings.hold_from_battery,
+                battery_soc_sensor_entity_id=settings.battery_soc_sensor_entity_id,
             )
         )
         values = [problem.value for problem in problems]
@@ -557,6 +605,8 @@ class SolarSurplusController:
                 "start_threshold_w": round(context.start_threshold_w),
                 "stop_threshold_w": round(context.stop_threshold_w),
                 "battery_ready": context.battery_ready,
+                "hold_from_battery": context.hold_from_battery,
+                "battery_hold_ceiling_a": context.battery_hold_ceiling_a,
                 "surplus_mode_enabled": context.surplus_mode_enabled,
             },
         }
@@ -593,6 +643,10 @@ class SolarSurplusController:
                     "battery_ready": context.battery_ready,
                 }
             )
+            if context.hold_from_battery:
+                trace["hold_from_battery"] = True
+                if context.battery_hold_ceiling_a is not None:
+                    trace["battery_hold_ceiling_a"] = context.battery_hold_ceiling_a
             if context.protection_cap is not None:
                 trace["protection_cap_a"] = context.protection_cap
                 trace["protection_source"] = context.cap_source
