@@ -513,3 +513,14 @@ def test_the_surplus_stop_start_and_off_peak_options_default_and_clamp():
         ).restart_lock_min
         == 0
     )
+
+
+def test_hold_from_battery_defaults_off_and_is_read_from_the_options():
+    """#50: opt-in, so nobody sees the battery drawn on without having asked."""
+    import types
+
+    from tuya_ev_charger.surplus_settings import settings_from_entry
+
+    assert settings_from_entry(types.SimpleNamespace(options={})).hold_from_battery is False
+    chosen = settings_from_entry(types.SimpleNamespace(options={"surplus_hold_from_battery": True}))
+    assert chosen.hold_from_battery is True

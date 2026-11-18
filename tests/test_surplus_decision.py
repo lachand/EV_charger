@@ -301,3 +301,47 @@ def test_no_headroom_means_stop_not_minimum():
 
     headroom = headroom_for_car_w(grid_power_w=6500.0, ev_power_w=0.0, house_limit_w=6000.0)
     assert cap_to_available_power(LADDER, headroom) == 0
+
+
+def test_battery_hold_power_is_the_car_draw_less_what_the_battery_gives_plus_the_budget():
+    """#50: production minus the rest of the house, plus what the battery may add."""
+    from tuya_ev_charger.surplus_decision import battery_hold_power_w
+
+    # Car 4.6 kW, grid at zero, battery giving 3 kW: the sun covers 1.6 kW of it.
+    # With a 4 kW budget the car may reach 1.6 + 4 = 5.6 kW.
+    assert battery_hold_power_w(
+        grid_power_w=0.0,
+        ev_power_w=4600.0,
+        battery_net_discharge_w=3000.0,
+        discharge_budget_w=4000.0,
+    ) == pytest.approx(5600.0)
+
+
+def test_battery_hold_power_does_not_move_with_the_cars_own_current():
+    """The car and the battery rise together, so the answer stays put (no sawtooth)."""
+    from tuya_ev_charger.surplus_decision import battery_hold_power_w
+
+    low = battery_hold_power_w(
+        grid_power_w=0.0,
+        ev_power_w=2000.0,
+        battery_net_discharge_w=500.0,
+        discharge_budget_w=4000.0,
+    )
+    high = battery_hold_power_w(
+        grid_power_w=0.0,
+        ev_power_w=3500.0,
+        battery_net_discharge_w=2000.0,
+        discharge_budget_w=4000.0,
+    )
+    assert low == pytest.approx(high)
+
+
+def test_battery_hold_power_counts_a_grid_import_against_the_car():
+    from tuya_ev_charger.surplus_decision import battery_hold_power_w
+
+    assert battery_hold_power_w(
+        grid_power_w=500.0,
+        ev_power_w=4600.0,
+        battery_net_discharge_w=3000.0,
+        discharge_budget_w=4000.0,
+    ) == pytest.approx(5100.0)

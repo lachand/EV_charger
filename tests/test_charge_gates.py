@@ -1048,6 +1048,173 @@ def test_the_battery_floor_still_reports_its_own_reason_when_both_apply():
     assert verdict.reason is DecisionReason.BATTERY_FLOOR_OFF_PEAK_START
 
 
+# --- battery hold (#50) -------------------------------------------------------
+
+
+def _holding(**kwargs):
+    base = {
+        "hold_from_battery": True,
+        "battery_ready": True,
+        # The grid meter says "exporting nothing useful": plain surplus rules
+        # would throttle the car to the minimum.
+        "available_surplus_w": 0.0,
+        "max_supported_current": 0,
+        "target_current": 6,
+        "current_target": 20,
+    }
+    base.update(kwargs)
+    return _charging(**base)
+
+
+def test_battery_hold_is_inert_unless_asked_for():
+    """Opt-in pin: the default charge keeps following the surplus."""
+    from tuya_ev_charger.charge_gates import DecisionReason
+
+    verdict = _run(_holding(hold_from_battery=False))
+    assert verdict.reason is not DecisionReason.BATTERY_HOLD_CHARGING
+
+
+def test_battery_hold_keeps_the_current_while_the_surplus_says_throttle():
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    verdict = _run(_holding(current_target=32))
+    assert verdict.action is GateAction.HOLD
+    assert verdict.reason is DecisionReason.BATTERY_HOLD_CHARGING
+    assert verdict.decided_by == "battery_hold"
+
+
+def test_battery_hold_walks_up_to_the_ceiling_one_step_at_a_time():
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    verdict = _run(_holding(current_target=20))
+    assert verdict.action is GateAction.SET_CURRENT
+    assert verdict.reason is DecisionReason.BATTERY_HOLD_CHARGING
+    assert verdict.target_current == 21
+
+
+def test_battery_hold_is_bounded_by_the_protection_caps():
+    """The ladder arrives already narrowed, so the hold can never exceed a cap."""
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    verdict = _run(
+        _holding(current_target=16, available_currents=tuple(range(6, 17)), protection_cap=16)
+    )
+    assert verdict.action is GateAction.HOLD
+    assert verdict.reason is DecisionReason.BATTERY_HOLD_CHARGING
+
+
+def test_battery_hold_is_bounded_by_the_discharge_budget():
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    at_budget = _run(_holding(current_target=12, battery_hold_ceiling_a=12))
+    assert at_budget.action is GateAction.HOLD
+    assert at_budget.reason is DecisionReason.BATTERY_HOLD_CHARGING
+
+    below = _run(_holding(current_target=10, battery_hold_ceiling_a=12))
+    assert below.target_current == 11
+
+
+def test_battery_hold_comes_down_when_the_budget_shrinks():
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    verdict = _run(_holding(current_target=20, battery_hold_ceiling_a=12))
+    assert verdict.action is GateAction.SET_CURRENT
+    assert verdict.reason is DecisionReason.BATTERY_HOLD_CHARGING
+    assert verdict.target_current == 19, "a step down, with the down cooldown"
+
+    waiting = _run(
+        _holding(current_target=20, battery_hold_ceiling_a=12, adjust_down_cooldown_s=30.0),
+        _timers(last_decrease_action_ts=990.0),
+    )
+    assert waiting.reason is DecisionReason.ADJUST_COOLDOWN_ACTIVE
+
+
+def test_battery_hold_declines_when_the_budget_cannot_pay_for_the_minimum():
+    from tuya_ev_charger.charge_gates import DecisionReason
+
+    verdict = _run(_holding(battery_hold_ceiling_a=0))
+    assert verdict.reason is not DecisionReason.BATTERY_HOLD_CHARGING
+
+    below_ladder = _run(_holding(battery_hold_ceiling_a=5))
+    assert below_ladder.reason is not DecisionReason.BATTERY_HOLD_CHARGING
+
+
+def test_battery_hold_ends_at_the_low_threshold():
+    """`battery_ready` False hands over to the ordinary battery stop."""
+    from tuya_ev_charger.charge_gates import DecisionReason
+
+    verdict = _run(_holding(battery_ready=False))
+    assert verdict.reason is not DecisionReason.BATTERY_HOLD_CHARGING
+    assert verdict.decided_by == "charging"
+    assert verdict.reason is DecisionReason.STOP_DELAY_PENDING
+
+
+def test_battery_hold_hands_over_to_the_off_peak_fallback_at_the_floor():
+    from tuya_ev_charger.charge_gates import DecisionReason
+
+    verdict = _run(_holding(battery_ready=False, tariff_allowed=True))
+    assert verdict.reason is DecisionReason.BATTERY_FLOOR_OFF_PEAK_CHARGING
+
+
+def test_battery_hold_does_not_start_a_charge():
+    """Only a running charge is held; the start stays with surplus."""
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    verdict = _run(_ctx(hold_from_battery=True, battery_ready=True, available_surplus_w=0.0))
+    assert verdict.action is GateAction.IDLE
+    assert verdict.reason is DecisionReason.BELOW_START_THRESHOLD
+
+
+def test_battery_hold_yields_to_a_session_limit():
+    from tuya_ev_charger.charge_gates import DecisionReason
+
+    verdict = _run(_holding(session_limit_reason=DecisionReason.SESSION_LIMIT_ENERGY))
+    assert verdict.reason is not DecisionReason.BATTERY_HOLD_CHARGING
+
+
+def test_battery_hold_yields_to_a_pause_and_to_the_protection_reduce():
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    paused = _run(_holding(pause_active=True))
+    assert paused.reason is DecisionReason.SURPLUS_PAUSED_ACTIVE
+
+    reduced = _run(
+        _holding(
+            current_target=25,
+            available_currents=tuple(range(6, 17)),
+            protection_cap=16,
+            cap_source="load_limit",
+        )
+    )
+    assert reduced.action is GateAction.SET_CURRENT
+    assert reduced.reason is DecisionReason.LOAD_LIMIT_REDUCED
+    assert reduced.target_current == 16
+
+
+def test_battery_hold_ramp_waits_after_a_cap_reduced_the_current():
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+
+    verdict = _run(
+        _holding(current_target=10, protection_hold_s=60.0),
+        _timers(last_protection_reduce_ts=990.0),
+    )
+    assert verdict.action is GateAction.HOLD
+    assert verdict.reason is DecisionReason.PROTECTION_HOLD
+
+
+def test_the_battery_hold_sits_between_the_battery_floor_and_the_grid_check():
+    from tuya_ev_charger.charge_gates import GATES
+
+    names = [gate.__name__ for gate in GATES]
+    assert (
+        names.index("_gate_battery_floor_tariff_fallback")
+        < names.index("_gate_battery_hold")
+        < names.index("_gate_grid_sensor")
+    )
+    assert names.index("_gate_pause") < names.index("_gate_battery_hold")
+    assert names.index("_gate_protection_reduce") < names.index("_gate_battery_hold")
+
+
 # --- helper ---------------------------------------------------------------
 
 

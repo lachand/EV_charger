@@ -57,6 +57,27 @@ def raw_surplus_w(inputs: SurplusInputs, *, battery_ready: bool) -> float:
     return surplus
 
 
+def battery_hold_power_w(
+    *,
+    grid_power_w: float,
+    ev_power_w: float,
+    battery_net_discharge_w: float,
+    discharge_budget_w: float,
+) -> float:
+    """Power the car may draw when the battery is allowed to make up the rest.
+
+    ``ev - grid - discharge`` is production minus the rest of the house: whatever
+    the grid meter and the battery are covering is the car's draw less that
+    figure, and it does not move with the car's own current. Adding the discharge
+    budget gives the most the car can pull before the battery gives more than it
+    is allowed to (the same budget the surplus arithmetic subtracts from).
+
+    A battery that is charging counts as zero discharge, which understates the
+    production side: the answer errs towards less, never towards more.
+    """
+    return ev_power_w - grid_power_w - battery_net_discharge_w + discharge_budget_w
+
+
 @dataclass(slots=True, frozen=True)
 class ForecastState:
     """Rolling state of the forecast smoother, carried between evaluations."""

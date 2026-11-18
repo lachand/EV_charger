@@ -167,6 +167,7 @@
               "surplus_battery_net_discharge_sensor_entity_id": "Battery net discharge power entity (W) (optional)",
               "surplus_battery_net_discharge_sensor_inverted": "Invert net battery discharge sensor sign",
               "surplus_allow_battery_discharge_for_ev": "Allow battery discharge for EV charging",
+              "surplus_hold_from_battery": "Hold the charging current from the battery while it is above the low threshold",
               "surplus_max_battery_discharge_for_ev_w": "Max allowed battery discharge power for EV (W)"
             }
           }
@@ -231,6 +232,7 @@
           "adjust_cooldown_active": "Waiting before changing the current again",
           "protection_hold": "Holding the current: a protection limit just reduced it",
           "adjust_current": "Adjusting the current to the surplus",
+          "battery_hold_charging": "Holding the scheduled current from the house battery",
           "battery_floor_off_peak_charging": "Charging from the grid during off-peak hours \u2014 house battery is at its floor",
           "battery_floor_off_peak_start": "House battery at its floor \u2014 starting a grid charge inside the off-peak window",
           "battery_soc_below_threshold": "Waiting: the house battery is too low",
@@ -460,6 +462,10 @@
     "grid_sensor_sign_inverted": {
       "title": "The grid sensor's sign looks inverted",
       "description": "The grid reading consistently falls when the car draws more, which is the opposite of what an import-positive meter does. Left as is, surplus regulation chases its own tail and load balancing computes more headroom than your supply has. Tick **Invert grid sensor sign** in the integration's options. If your setup is genuinely unusual and the reading is correct, this notice can be ignored."
+    },
+    "hold_from_battery_without_soc_sensor": {
+      "title": "Battery hold is on but no battery SOC sensor is set",
+      "description": "\"Hold the charging current from the battery\" is enabled, but no battery SOC sensor is configured, so \"above the low threshold\" can never be known and the option does nothing. Set **Battery SOC sensor** in the integration's options, or turn the option off."
     },
     "installation_phases_likely_three": {
       "title": "Installation phases may need to be set to 3",
