@@ -36,6 +36,8 @@ class _Metrics:
         self.total_power = total_power_kw
         self.power_l1 = total_power_kw / 3.0  # as if only L1 were read
         self.current_target = current_target
+        self.do_charge = True
+        self.work_state_debug = "WORKING"
         self.phases = phases or {}
         l1 = self.phases.get("L1")
         self.voltage_l1 = l1.voltage if l1 else 0.0

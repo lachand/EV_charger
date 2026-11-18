@@ -810,6 +810,120 @@ def test_protection_cap_stops_when_even_the_minimum_will_not_fit(monkeypatch):
     assert ("enabled", False) in h.writes
 
 
+# The charger refreshes its power reading (DP 102) about once a minute, so a
+# session that has just started still reports 0 W while the grid meter already
+# includes the car. Each test below starts from a charger seen idle, because the
+# estimate only applies to a start this controller has watched happen.
+
+LOAD_LIMIT_OPTS = {"max_house_power_w": 6000}
+
+
+def _start_forced_charge(h, current_a):
+    """One idle evaluation that starts a forced charge, then the charger reports
+    the session with no power reading yet."""
+    asyncio.run(h.controller.async_force_charge_for(duration_s=3600, current_a=current_a))
+    h.tick()
+    assert ("enabled", True) in h.writes
+    h.coordinator.data = _metrics(charging=True, current_target=current_a, total_power_kw=0.0)
+
+
+def test_a_charge_start_is_not_cut_while_the_power_reading_lags(monkeypatch):
+    """The reported loop: 1159 W of house, a forced 16 A start, and 50 s later the
+    grid meter reads 4649 W while the charger still says 0 W. Counting the car as
+    household load left no headroom and stopped a charge that fits the limit."""
+    h = Harness(monkeypatch, options=LOAD_LIMIT_OPTS, sensors={"sensor.grid": 1159})
+    _start_forced_charge(h, 16)
+
+    h.hass.set("sensor.grid", 4649)
+    reason = h.tick(seconds=50)
+
+    assert reason != "load_limit_no_headroom"
+    assert ("enabled", False) not in h.writes
+    assert ("current", 6) not in h.writes
+
+
+def test_a_real_overload_still_stops_a_charge_that_just_started(monkeypatch):
+    """The estimate only removes the car: a house that exceeds the limit on its
+    own leaves no headroom whichever figure is used for the car."""
+    h = Harness(monkeypatch, options=LOAD_LIMIT_OPTS, sensors={"sensor.grid": 1159})
+    _start_forced_charge(h, 16)
+
+    h.hass.set("sensor.grid", 10500)
+
+    assert h.tick(seconds=50) == "load_limit_no_headroom"
+    assert ("enabled", False) in h.writes
+
+
+def test_the_measurement_rules_again_once_the_start_window_has_passed(monkeypatch):
+    """A charger still reporting 0 W long after the start is not lagging: the car
+    is not drawing, and the grid reading is all household load."""
+    h = Harness(monkeypatch, options=LOAD_LIMIT_OPTS, sensors={"sensor.grid": 1159})
+    _start_forced_charge(h, 16)
+
+    h.hass.set("sensor.grid", 4649)
+    assert h.tick(seconds=50) != "load_limit_no_headroom"
+
+    assert h.tick(seconds=91) == "load_limit_no_headroom"
+    assert ("enabled", False) in h.writes
+
+
+def test_the_estimate_keeps_the_setpoint_but_never_raises_it(monkeypatch):
+    """The grid meter lags too. Until it shows the car, removing the commanded
+    power from it under-states the house and would widen the cap. The estimate
+    may only keep the current that is already flowing."""
+    ladder = tuple(range(6, 33))
+    h = Harness(monkeypatch, options=LOAD_LIMIT_OPTS, sensors={"sensor.grid": 3000})
+    _start_forced_charge(h, 12)
+
+    # Grid still 3000 W, car not in it yet. Measured headroom 3000 W -> 13 A;
+    # estimated headroom 6000 - (3000 - 2760) = 5760 W -> 25 A. The measured cap
+    # already allows the setpoint, so it stands.
+    h.tick(seconds=10)
+    assert h.controller._caps.protection_cap(h.coordinator.data, ladder) == (13, "load_limit")
+
+    # The house climbs to 3500 W: measured 2500 W -> 10 A, estimated 5260 W ->
+    # 22 A. The 12 A setpoint is kept, and nothing above it is offered.
+    h.hass.set("sensor.grid", 3500)
+    h.tick(seconds=10)
+    assert h.controller._caps.protection_cap(h.coordinator.data, ladder) == (12, "load_limit")
+    assert [v for kind, v in h.writes if kind == "current"] == [12]
+
+
+def test_a_partial_first_power_reading_is_topped_up_to_the_setpoint(monkeypatch):
+    """The first reading after a start can catch the car mid-ramp (5.6 A seen
+    for a 16 A setpoint); it is no more the car's real draw than 0 W was."""
+    h = Harness(monkeypatch, options=LOAD_LIMIT_OPTS, sensors={"sensor.grid": 1159})
+    _start_forced_charge(h, 16)
+    h.coordinator.data = _metrics(charging=True, current_target=16, total_power_kw=1.288)
+
+    h.hass.set("sensor.grid", 4649)
+    reason = h.tick(seconds=50)
+
+    # Measured: 6000 - (4649 - 1288) = 2639 W -> 11 A, which would cut 16 A to 11 A.
+    assert reason != "load_limit_reduced"
+    assert [v for kind, v in h.writes if kind == "current"] == [16]
+
+
+def test_the_inverter_cap_does_not_cut_a_charge_start_either(monkeypatch):
+    """Same lag, same arithmetic, read against total load instead of the grid."""
+    h = Harness(
+        monkeypatch,
+        options={
+            "max_inverter_power_w": 6000,
+            "total_load_sensor_entity_id": "sensor.total_load",
+        },
+        sensors={"sensor.grid": 1159, "sensor.total_load": 1159},
+    )
+    _start_forced_charge(h, 16)
+
+    h.hass.set("sensor.grid", 4649)
+    h.hass.set("sensor.total_load", 4649)
+    reason = h.tick(seconds=50)
+
+    assert reason != "inverter_limit_no_headroom"
+    assert ("enabled", False) not in h.writes
+
+
 # --- three-phase installations (#41) ----------------------------------------
 
 
