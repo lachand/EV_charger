@@ -11,10 +11,19 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any
 
 from .const import (
+    FEYREE_DP_CURRENT_L1,
+    FEYREE_DP_CURRENT_L2,
+    FEYREE_DP_CURRENT_L3,
+    FEYREE_DP_SESSION_ENERGY,
+    FEYREE_DP_TEMPERATURE,
+    FEYREE_DP_VOLTAGE_L1,
+    FEYREE_DP_VOLTAGE_L2,
+    FEYREE_DP_VOLTAGE_L3,
     QCCDZ_DP_CONNECTION_STATE,
     QCCDZ_DP_CURRENT,
     QCCDZ_DP_POWER,
@@ -298,6 +307,118 @@ def _qccdz_do_charge(raw: Any) -> bool | None:
     """DP 35 is an enum; only "charge" means a session is allowed to run."""
     text = _coerce_optional_text(raw)
     return None if text is None else text.lower() == "charge"
+
+
+# Feyree firmwares (Tuya product id ebdm8ax35pgodi2s, #98) spell their DP 101
+# state with firmware-specific strings, misspellings included. Translated to
+# the DP 109 words the rest of the code already reasons about.
+FEYREE_STATUS_MAP: dict[str, str] = {
+    "no_connet": "IDLE",
+    "connect": "IDLEINS",
+    "charing": WORK_STATE_CHARGING,
+    "wait_rfid": "WAIT",
+    "wait_charing": "WAIT",
+    "finish": "STOP",
+    "error": "ERRORPAUSE",
+}
+
+
+def decode_feyree_metrics(dps: dict[str, Any], dp: DPProfile) -> EVMetrics:
+    """Decode a Feyree charger's scalar DPs into ``EVMetrics`` (#98).
+
+    Voltages and currents arrive per phase in tenths (DP 102-107); total power
+    comes in tenths of a kW (DP 109) but quantised, so per-phase power is
+    derived from V x A like the DP 102 path and summed. Session energy is in
+    tenths of a kWh (DP 112), temperature in tenths of a degree (DP 110).
+    DP 124 is a transient command enum that falls back to WaitOperation, so
+    the charge state comes from the DP 101 string; like the other firmwares,
+    current and power only count while the charger says it is charging.
+    """
+    raw_state = _coerce_optional_text(dps.get(dp.work_state_debug))
+    work_state_debug = (
+        FEYREE_STATUS_MAP.get(raw_state.lower(), "UNKNOWN") if raw_state else "UNKNOWN"
+    )
+    charging = work_state_debug == WORK_STATE_CHARGING
+    do_charge = _feyree_do_charge(dps.get(dp.do_charge))
+
+    phases: dict[str, PhaseMetrics] = {}
+    for name, voltage_dp, current_dp in (
+        ("L1", FEYREE_DP_VOLTAGE_L1, FEYREE_DP_CURRENT_L1),
+        ("L2", FEYREE_DP_VOLTAGE_L2, FEYREE_DP_CURRENT_L2),
+        ("L3", FEYREE_DP_VOLTAGE_L3, FEYREE_DP_CURRENT_L3),
+    ):
+        raw_voltage = _coerce_optional_float(dps.get(voltage_dp))
+        raw_current = _coerce_optional_float(dps.get(current_dp))
+        if raw_voltage is None and raw_current is None:
+            continue
+        voltage = (raw_voltage or 0.0) / 10.0
+        current = (raw_current or 0.0) / 10.0 if charging else 0.0
+        if name != "L1" and voltage == 0.0 and current == 0.0:
+            # Phase not wired on this model.
+            continue
+        power = round(voltage * current / 1000.0, 3)
+        phases[name] = PhaseMetrics(
+            voltage=voltage,
+            current=current,
+            power=power,
+            raw_power=power,
+        )
+    l1 = phases.get("L1")
+
+    energy = _coerce_optional_float(dps.get(FEYREE_DP_SESSION_ENERGY))
+    raw_temperature = _coerce_optional_float(dps.get(FEYREE_DP_TEMPERATURE))
+
+    return EVMetrics(
+        voltage_l1=l1.voltage if l1 else 0.0,
+        current_l1=l1.current if l1 else 0.0,
+        power_l1=l1.power if l1 else 0.0,
+        phases=phases,
+        total_power=round(sum(phase.power for phase in phases.values()), 3),
+        session_energy_kwh=round(energy / 10.0, 2) if energy is not None else None,
+        session_duration_s=None,
+        last_session_energy_kwh=None,
+        last_session_duration_s=None,
+        temperature=round(raw_temperature / 10.0, 1) if raw_temperature is not None else 0.0,
+        work_state=None,
+        work_state_debug=work_state_debug,
+        status=STATUS_MAP.get(work_state_debug),
+        plug_in_action=None,
+        do_charge=do_charge,
+        current_target=coerce_optional_int(dps.get(dp.current_target)),
+        max_current_cfg=_feyree_max_current(dps.get(dp.max_current_cfg)),
+        nfc_enabled=None,
+        downcounter=None,
+        selftest=None,
+        alarm=_qccdz_fault_text(dps.get(dp.alarm)),
+        adjust_current_options=None,
+        product_variant=None,
+        charger_info={},
+        schedule_enabled=False,
+        schedule_start=None,
+        schedule_end=None,
+    )
+
+
+def _feyree_do_charge(raw: Any) -> bool | None:
+    """DP 124 is a transient command enum; WaitOperation is its idle value."""
+    text = _coerce_optional_text(raw)
+    if text is None:
+        return None
+    lowered = text.lower()
+    if lowered == "opencharging":
+        return True
+    if lowered == "closecharging":
+        return False
+    return None
+
+
+def _feyree_max_current(raw: Any) -> int | None:
+    """DP 113 is a string like "Max16A"; the number is the hardware limit."""
+    text = _coerce_optional_text(raw)
+    if text is None:
+        return None
+    match = re.search(r"(\d+)", text)
+    return int(match.group(1)) if match else None
 
 
 def _qccdz_fault_text(raw_value: Any) -> str | None:
