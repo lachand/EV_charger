@@ -114,8 +114,19 @@ Reading this file alone should be enough to resume without re-auditing the repo.
   a `tuya_autodetect_test.py` before/after with the *same* local_key) — not a
   code fix, replied explaining the reauth banner will still fire on a long
   outage and that only a power-cycle clears it, nothing built (no blueprint,
-  by choice, for now). #35 and #39 still waiting on reporter data for the two
-  branches below.
+  by choice, for now). #39 still waiting on reporter data. **#35 is settled
+  (2026-11-12):** the `feat/updatedps-metrics-refresh` branch (UPDATEDPS nudge
+  for DP 102 on every poll) was tested on real hardware and the module ignores
+  it — readings stay frozen ~10 min unless the Tuya app holds a persistent
+  connection, and the vendor confirmed this is a platform log-quota limit on
+  firmware 7.x, so no firmware fix is coming (and pressing them was deliberately
+  stopped to avoid regressions on the smaller chargers). Control (start/stop,
+  setpoint) is unaffected. Documented in the README's Compatibility list with
+  the external-meter workaround (Shelly Pro EM etc.) for live telemetry and
+  surplus regulation. The only in-integration alternative would be a persistent
+  push listener (`XenonDevice.receive()` + heartbeat on the held socket, which
+  would lock out the app and needs its own slot management) — judged too heavy
+  for the benefit; kept as a possible future option, not planned.
 - **Roadmap correction (2026-09-14):** chasing "next concrete action: B3" found
   it already shipped — **B2 and B3 were both done in 2.15.0** (`eb14c62`,
   "the surplus decision explains itself, and can be asked in advance"; the

@@ -912,6 +912,14 @@ Confirmed working:
   `qccdz`, no DP 102) — pick the **`qccdz_v1`** profile (#46). Power, current,
   voltage, session energy, status, temperature, faults, on/off and setpoint are
   supported; the schedule, NFC and plug-in action are not mapped yet
+- dé EV Charger Wallbox 7.4 kW V2 (`deWB07B07BAU`, single-phase, firmware 7.x) —
+  start/stop and current setpoint work, but the Wi-Fi module only refreshes the
+  metrics DP (102) about every **10 minutes** unless the Tuya app is open
+  (#35; confirmed with the vendor as a Tuya platform log-quota limit, not
+  fixable in the integration's polling). The charger's own screen is live. For
+  live power/current/voltage — and for surplus regulation, which needs them —
+  point the grid/EV power sensor at an external meter (Shelly Pro EM, ESP32,
+  ...) instead of the charger's own readings
 
 If your charger reports a different DP layout, use `charger_profile_json` to
 supply a custom mapping, and please open an issue with a DP dump taken **while
