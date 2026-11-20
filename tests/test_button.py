@@ -28,7 +28,7 @@ class _Client:
         return self._reboot_ok
 
 
-def _button(cls, *, client=None):
+def _button(cls, *, client=None, controller=None):
     entity = cls.__new__(cls)
     refreshes: list[int] = []
 
@@ -36,7 +36,9 @@ def _button(cls, *, client=None):
         refreshes.append(1)
 
     entity.coordinator = types.SimpleNamespace(data=None, async_request_refresh=_refresh)
-    entity._runtime_data = types.SimpleNamespace(client=client or _Client())
+    entity._runtime_data = types.SimpleNamespace(
+        client=client or _Client(), solar_surplus_controller=controller
+    )
     entity.refreshes = refreshes
     return entity
 
@@ -74,3 +76,34 @@ def test_reboot_failure_raises_before_the_wait(monkeypatch):
     with pytest.raises(HomeAssistantError, match="reboot_failed"):
         asyncio.run(button.async_press())
     assert button.refreshes == []
+
+
+class _Controller:
+    def __init__(self):
+        self.rearmed = 0
+
+    def rearm_start_watch(self):
+        self.rearmed += 1
+
+
+@pytest.mark.parametrize("name", ["TuyaEVChargerReadyToChargeButton", "TuyaEVChargerRebootButton"])
+def test_both_presses_let_regulation_send_the_start_again(monkeypatch, name):
+    """A press is how a user wakes a car that ignored the start; regulation must
+    then be allowed to ask again, or the woken car has nothing to answer."""
+    from tuya_ev_charger import button
+
+    async def _no_wait(_seconds):
+        return None
+
+    monkeypatch.setattr(button.asyncio, "sleep", _no_wait)
+    controller = _Controller()
+    asyncio.run(_button(getattr(button, name), controller=controller).async_press())
+    assert controller.rearmed == 1
+
+
+def test_a_press_without_surplus_regulation_still_works():
+    from tuya_ev_charger.button import TuyaEVChargerReadyToChargeButton as B
+
+    client = _Client()
+    asyncio.run(_button(B, client=client, controller=None).async_press())
+    assert client.calls

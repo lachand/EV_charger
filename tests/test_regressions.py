@@ -1120,3 +1120,36 @@ def test_shutdown_writes_the_state(monkeypatch):
     asyncio.run(h.controller.async_shutdown())
     assert store.data is not None
     assert store.data["pause_until"] is not None
+
+
+# --- a car that ignores the start command (Stellantis e-CMP after a pause) ---
+
+
+def _asleep_metrics():
+    """A charger without DP 140, car plugged in but not drawing: `IDLEINS`."""
+    from test_surplus_state_machine import _metrics
+
+    metrics = _metrics(charging=False, current_target=16)
+    metrics.do_charge = None
+    metrics.work_state_debug = "IDLEINS"
+    metrics.status = "plugged_in"
+    return metrics
+
+
+def test_the_start_command_is_not_re_sent_forever_to_a_car_that_never_answers(monkeypatch):
+    """Released bug: such a charger never reads as charging, so every cycle
+    re-sent DP 140 = True -- and every write makes the charger beep -- for as
+    long as the forced charge lasted. It now stops once the delay has run."""
+    import asyncio
+
+    from test_surplus_state_machine import Harness
+    from tuya_ev_charger.solar_surplus import FIXED_START_ANSWER_TIMEOUT_S
+
+    h = Harness(monkeypatch, metrics=_asleep_metrics())
+    asyncio.run(h.controller.async_force_charge_for(3600, 16))
+
+    reasons = [h.tick(10) for _ in range(60)]
+
+    starts = h.writes.count(("enabled", True))
+    assert starts == FIXED_START_ANSWER_TIMEOUT_S // 10
+    assert reasons[-1] == "vehicle_not_responding"

@@ -1223,3 +1223,21 @@ def _fields(ctx):
     from dataclasses import fields
 
     return {f.name: getattr(ctx, f.name) for f in fields(ctx)}
+
+
+# --- an unanswered start ----------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("requested_since", "now", "expected"),
+    [
+        (None, 1000.0, False),  # nothing sent yet
+        (1000.0, 1089.0, False),  # still within the delay
+        (1000.0, 1090.0, True),  # the delay has run in full
+        (1000.0, 5000.0, True),
+    ],
+)
+def test_a_start_is_unanswered_only_once_the_delay_has_run(requested_since, now, expected):
+    from tuya_ev_charger.charge_gates import start_unanswered
+
+    assert start_unanswered(requested_since, now, 90.0) is expected

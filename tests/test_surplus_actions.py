@@ -615,3 +615,177 @@ def test_an_appliance_removed_from_the_table_keeps_a_stale_clock_until_it_is_obs
     c._caps.reserved_power_w()
 
     assert "switch.hob" in c._caps._reservations.announced_at
+
+
+# --- a start the car does not answer ---------------------------------------------------------
+
+
+def _watched(client=None):
+    """A controller whose first start command went out at t=100."""
+    c = _controller(client)
+    c._timers.start_requested_since = 100.0
+    return c
+
+
+def test_the_first_start_command_opens_the_watch():
+    c = _controller()
+
+    _run(c._async_start_charge(_verdict(target_current=None), _data(), 100.0))
+    _run(c._async_start_charge(_verdict(target_current=None), _data(), 130.0))
+
+    assert c._timers.start_requested_since == 100.0
+
+
+def test_a_refused_start_does_not_open_the_watch():
+    c = _controller(_Client(enable_ok=False))
+
+    _run(c._async_start_charge(_verdict(target_current=None), _data(), 100.0))
+
+    assert c._timers.start_requested_since is None
+
+
+def test_the_start_is_re_sent_until_the_delay_has_run():
+    from tuya_ev_charger.solar_surplus import FIXED_START_ANSWER_TIMEOUT_S
+
+    client = _Client()
+    c = _watched(client)
+
+    reason = _run(
+        c._async_start_charge(
+            _verdict(target_current=None), _data(), 100.0 + FIXED_START_ANSWER_TIMEOUT_S - 1
+        )
+    )
+
+    assert reason != "vehicle_not_responding"
+    assert client.calls == [("enabled", True)]
+
+
+def test_an_unanswered_start_is_no_longer_re_sent_but_the_current_still_is():
+    from tuya_ev_charger.charge_gates import DecisionReason
+    from tuya_ev_charger.solar_surplus import FIXED_START_ANSWER_TIMEOUT_S
+
+    client = _Client()
+    c = _watched(client)
+
+    reason = _run(
+        c._async_start_charge(
+            _verdict(target_current=16),
+            _data(current_target=10),
+            100.0 + FIXED_START_ANSWER_TIMEOUT_S,
+        )
+    )
+
+    assert reason == DecisionReason.VEHICLE_NOT_RESPONDING
+    assert client.calls == [("current", 16)]
+
+
+def test_an_unanswered_forced_charge_is_no_longer_re_sent():
+    from tuya_ev_charger.charge_gates import DecisionReason
+    from tuya_ev_charger.solar_surplus import FIXED_START_ANSWER_TIMEOUT_S
+
+    client = _Client()
+    c = _watched(client)
+
+    reason = _run(
+        c._async_force_charge_verdict(
+            _verdict(target_current=None), _data(), 100.0 + FIXED_START_ANSWER_TIMEOUT_S
+        )
+    )
+
+    assert reason == DecisionReason.VEHICLE_NOT_RESPONDING
+    assert client.calls == []
+
+
+def test_a_forced_charge_start_opens_the_watch():
+    c = _controller()
+
+    _run(c._async_force_charge_verdict(_verdict(target_current=None), _data(), 100.0))
+
+    assert c._timers.start_requested_since == 100.0
+
+
+def test_the_outcome_is_reported_with_the_decided_reason_in_the_trace():
+    from tuya_ev_charger.charge_gates import DecisionReason, GateAction
+    from tuya_ev_charger.solar_surplus import FIXED_START_ANSWER_TIMEOUT_S
+
+    c = _watched()
+    verdict = _verdict(action=GateAction.START_CHARGE, reason=DecisionReason.TARIFF_OFF_PEAK)
+
+    _run(c._async_apply(verdict, data=_data(), now=100.0 + FIXED_START_ANSWER_TIMEOUT_S))
+
+    assert c._last_decision_reason == "vehicle_not_responding"
+    assert c._last_decision_trace["decided_reason"] == "tariff_off_peak"
+
+
+def test_an_unanswered_start_is_logged_once_per_series(caplog):
+    c = _watched()
+
+    with caplog.at_level("DEBUG", logger="tuya_ev_charger.solar_surplus"):
+        for now in (190.0, 220.0, 250.0):
+            _run(c._async_start_charge(_verdict(target_current=None), _data(), now))
+        first = caplog.text.count("not re-sending")
+        c.rearm_start_watch()
+        c._timers.start_requested_since = 300.0
+        _run(c._async_start_charge(_verdict(target_current=None), _data(), 390.0))
+
+    assert first == 1
+    assert caplog.text.count("not re-sending") == 2
+
+
+def test_a_new_forced_charge_order_rearms_the_watch():
+    c = _watched()
+
+    _run(c.async_force_charge_for(600))
+
+    assert c._timers.start_requested_since is None
+
+
+def _asleep_harness(monkeypatch):
+    """A forced charge whose start the car has ignored past the delay."""
+    from test_regressions import _asleep_metrics
+    from test_surplus_state_machine import Harness
+
+    h = Harness(monkeypatch, metrics=_asleep_metrics())
+    _run(h.controller.async_force_charge_for(3600, 16))
+    for _ in range(12):
+        h.tick(10)
+    assert h.controller._last_decision_reason == "vehicle_not_responding"
+    return h
+
+
+def test_a_charge_seen_rearms_the_watch(monkeypatch):
+    from test_surplus_state_machine import _metrics
+
+    h = _asleep_harness(monkeypatch)
+    h.coordinator.data = _metrics(charging=True, current_target=16, total_power_kw=3.6)
+    h.tick(10)
+
+    assert h.controller._timers.start_requested_since is None
+
+
+def test_unplugging_rearms_the_watch(monkeypatch):
+    h = _asleep_harness(monkeypatch)
+    starts = h.writes.count(("enabled", True))
+    h.coordinator.data.status = None
+    h.tick(10)
+
+    # A new series: the start goes out again and the delay counts from now.
+    assert h.writes.count(("enabled", True)) == starts + 1
+    assert h.controller._timers.start_requested_since == h.now
+
+
+def test_the_surplus_path_stops_re_sending_too(monkeypatch):
+    """Surplus starts alternate with the start delay, so they reach the watch's
+    delay only because an idle cycle does not rearm it."""
+    from test_regressions import _asleep_metrics
+    from test_surplus_state_machine import Harness
+
+    h = Harness(monkeypatch, metrics=_asleep_metrics())
+    starts_at = []
+    for _ in range(40):
+        if h.tick(10) == "vehicle_not_responding" and not starts_at:
+            starts_at.append(h.writes.count(("enabled", True)))
+
+    assert starts_at, "the watch never ran its course on the surplus path"
+    assert starts_at[0] > 1
+    assert h.writes.count(("enabled", True)) == starts_at[0]

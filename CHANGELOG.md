@@ -7,6 +7,19 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## Unreleased
+
+- **The start command is no longer re-sent forever to a car that does not
+  answer.** On a charger without DP 140, a plugged-in car that does not draw
+  (asleep, e.g. a Stellantis e-CMP after a pause) never reads as charging, so
+  every cycle re-sent DP 140 = True and the charger beeped each time. After
+  90 s without a charge the start is no longer re-sent and
+  `sensor.surplus_last_decision_reason` reads `vehicle_not_responding`; the
+  charger stays authorised, so a car that wakes on its own still charges. A
+  charge seen, an unplug, a new forced charge or a press on *Reboot charger* /
+  *Ready to charge* allows a new series. See Troubleshooting in the README for
+  an automation that reboots the charger on this reason.
+
 ## 2.29.0-beta1
 
 Pre-release: HACS offers it only with beta versions enabled.
