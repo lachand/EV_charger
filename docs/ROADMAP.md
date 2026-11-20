@@ -123,10 +123,12 @@ Reading this file alone should be enough to resume without re-auditing the repo.
   stopped to avoid regressions on the smaller chargers). Control (start/stop,
   setpoint) is unaffected. Documented in the README's Compatibility list with
   the external-meter workaround (Shelly Pro EM etc.) for live telemetry and
-  surplus regulation. The only in-integration alternative would be a persistent
-  push listener (`XenonDevice.receive()` + heartbeat on the held socket, which
-  would lock out the app and needs its own slot management) — judged too heavy
-  for the benefit; kept as a possible future option, not planned.
+  surplus regulation. The one in-integration alternative — a persistent push
+  listener (`XenonDevice.receive()` + heartbeat on the held socket) — was built
+  as PR #104 (`d9dd7cc`) and **tested negative on hardware (2026-11-19,
+  @herve-elter)**: the module does not push DP reports to a local persistent
+  subscriber, the Tuya app's live effect is cloud-side. PR closed unmerged;
+  the branch is kept referenced in #35 only.
 - **Roadmap correction (2026-09-14):** chasing "next concrete action: B3" found
   it already shipped — **B2 and B3 were both done in 2.15.0** (`eb14c62`,
   "the surplus decision explains itself, and can be asked in advance"; the
