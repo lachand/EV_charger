@@ -32,6 +32,18 @@ async def async_setup_entry(
     )
 
 
+def _rearm_start_watch(runtime_data: TuyaEVChargerRuntimeData) -> None:
+    """Let regulation send the start command again after this press.
+
+    Both are what a user reaches for when a car ignored the start command (a
+    reboot interrupts the pilot signal, which wakes some cars); without this the
+    controller would stay silent and the woken car would have no start to answer.
+    """
+    controller = runtime_data.solar_surplus_controller
+    if controller is not None:
+        controller.rearm_start_watch()
+
+
 class TuyaEVChargerReadyToChargeButton(TuyaEVChargerEntity, ButtonEntity):
     """Puts the charger back into "ready to charge" (operating state 200).
 
@@ -48,6 +60,7 @@ class TuyaEVChargerReadyToChargeButton(TuyaEVChargerEntity, ButtonEntity):
         self._attr_unique_id = f"{runtime_data.client.device_id}_ready_to_charge"
 
     async def async_press(self) -> None:
+        _rearm_start_watch(self._runtime_data)
         if not await self._runtime_data.client.async_set_work_state(WORK_STATE_READY_TO_CHARGE):
             raise charger_error("ready_to_charge_failed")
         await self.coordinator.async_request_refresh()
@@ -66,6 +79,7 @@ class TuyaEVChargerRebootButton(TuyaEVChargerEntity, ButtonEntity):
         self._attr_unique_id = f"{runtime_data.client.device_id}_reboot_charger"
 
     async def async_press(self) -> None:
+        _rearm_start_watch(self._runtime_data)
         success = await self._runtime_data.client.async_reboot()
         if not success:
             raise charger_error("reboot_failed")

@@ -142,6 +142,9 @@ class DecisionReason(StrEnum):
     FAILED_SET_STARTUP_CURRENT = "failed_set_startup_current"
     FAILED_START_CHARGE = "failed_start_charge"
     FAILED_SET_CURRENT = "failed_set_current"
+    # The charger took the start command but the car never began to draw, and
+    # the command is no longer re-sent (each write makes the charger beep).
+    VEHICLE_NOT_RESPONDING = "vehicle_not_responding"
 
 
 @dataclass(slots=True)
@@ -161,6 +164,9 @@ class TimerState:
     last_protection_reduce_ts: float | None = None
     # When surplus regulation last stopped the charge; None if it never has.
     last_surplus_stop_ts: float | None = None
+    # First start command of a series the car has not answered yet; None once a
+    # charge is seen, the car is unplugged, or the user asks again.
+    start_requested_since: float | None = None
 
     def copy(self) -> TimerState:
         """A detached copy, for asking what *would* happen.
@@ -892,6 +898,17 @@ def battery_hysteresis(soc: float, *, high: float, low: float, enabled: bool | N
     if not enabled and soc >= high:
         return True
     return enabled
+
+
+def start_unanswered(requested_since: float | None, now: float, timeout_s: float) -> bool:
+    """Whether the car has ignored the start command for long enough to stop asking.
+
+    A charger that does not report DP 140 only shows a charge once the car draws,
+    so a sleeping car keeps the controller asking every cycle, and every ask
+    makes the charger beep. The last command leaves the charger authorised: a car
+    that wakes up on its own still charges without being asked again.
+    """
+    return requested_since is not None and now - requested_since >= timeout_s
 
 
 # --- the order -------------------------------------------------------------

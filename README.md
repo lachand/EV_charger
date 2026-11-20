@@ -900,6 +900,44 @@ Common outcomes:
 A Tuya charger accepts **only one local connection at a time**. If Home
 Assistant cannot connect, make sure no other integration or app is holding it.
 
+### The car does not resume after a pause
+
+Some cars go to sleep once a charge has been paused for a few minutes and then
+ignore the charger's start command — reported on Stellantis e-CMP cars (Peugeot
+e-208 / e-2008, Opel Corsa-e). The charger shows the car plugged in, not charging. On a
+charger that does not report DP 140, the integration used to re-send the start
+every cycle, and the charger beeped on every attempt.
+
+The start is now re-sent for 90 s at most. After that,
+`sensor.surplus_last_decision_reason` reads **`vehicle_not_responding`** and the
+command is left alone: the charger stays authorised, so a car that wakes up on
+its own (unlocked, say) starts charging without help. A charge, an unplug, a new
+forced charge or a press on *Reboot charger* / *Ready to charge* starts a new
+90 s series.
+
+What wakes such a car is an interruption of the pilot signal, which a charger
+reboot provides. An automation can do it on that reason:
+
+```yaml
+alias: EV - wake the car with a charger reboot
+mode: single
+triggers:
+  - trigger: state
+    entity_id: sensor.<charger>_surplus_last_decision_reason
+    to: vehicle_not_responding
+actions:
+  - action: button.press
+    target:
+      entity_id: button.<charger>_reboot_charger
+  # At most one reboot every 30 min: if the car still does not answer, it
+  # needs a hand, not more reboots.
+  - delay: "00:30:00"
+```
+
+Caveats: a reboot resets the charger's own energy counter, and this recovery
+has been validated on a single charger/car pair (`depow_v2`, single-phase,
+Peugeot e-2008). Try it while you can watch the car before relying on it.
+
 ---
 
 ## Compatibility

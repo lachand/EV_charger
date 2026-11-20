@@ -28,6 +28,7 @@ from .charge_gates import (
     TimerState,
     Verdict,
     evaluate,
+    start_unanswered,
 )
 from .charge_planner import (
     ChargeWindow,
@@ -79,6 +80,12 @@ FIXED_MAX_SESSION_END_TIME = ""
 FIXED_FORECAST_WEIGHT_PCT = 35
 FIXED_FORECAST_SMOOTHING_S = 180
 FIXED_FORECAST_DROP_GUARD_W = 500
+# How long the start command is re-sent while the car does not begin to draw.
+# Measured on a depow_v2: a start answers in 3 s, 18 s after a charger reboot;
+# a Stellantis e-CMP is reported to take 20-30 s after a pilot interruption.
+# 90 s clears all three and is about ten attempts at the surplus start rhythm;
+# beyond that the car is asleep and every further write is only a beep.
+FIXED_START_ANSWER_TIMEOUT_S = 90
 
 
 @dataclass(slots=True, frozen=True)
@@ -129,6 +136,7 @@ class SolarSurplusController:
         # The regulation's memory between cycles, owned by the pure layer so the
         # delays and cooldowns can be exercised without Home Assistant.
         self._timers = TimerState()
+        self._start_unanswered_logged = False
 
         self._force_charge_until_ts: float | None = None
         self._force_charge_current_a: int | None = None
@@ -287,6 +295,8 @@ class SolarSurplusController:
         clamped_duration = max(0, int(duration_s))
         self._force_charge_until_ts = now + clamped_duration if clamped_duration else None
         self._force_charge_current_a = current_a
+        # A new order is a new attempt: the user may just have woken the car.
+        self.rearm_start_watch()
         self._schedule_save()
         self._set_decision("force_charge_requested" if clamped_duration else "force_charge_cleared")
         self._notify_state_listeners()
@@ -300,6 +310,15 @@ class SolarSurplusController:
         self._set_decision("surplus_paused" if clamped_duration else "surplus_pause_cleared")
         self._notify_state_listeners()
         self._schedule_evaluation("pause_service")
+
+    def rearm_start_watch(self) -> None:
+        """Allow the start command to be sent again for a new series.
+
+        Called when something outside regulation may have changed the car's
+        answer: a charger reboot, a "ready to charge" press, a new forced charge.
+        """
+        self._timers.start_requested_since = None
+        self._start_unanswered_logged = False
 
     async def async_profile_assistant_report(self) -> dict[str, Any]:
         return await profile_assistant_report(self._client)
@@ -384,6 +403,10 @@ class SolarSurplusController:
         self._update_session_energy(now, data, charging, grid_power_for_energy)
 
         context = self._build_gate_context(now, data, charging)
+        # Not re-armed on an IDLE verdict: the surplus path alternates a start
+        # with a start-delay wait, so the watch would never run its course.
+        if context.is_charging or not context.vehicle_connected:
+            self.rearm_start_watch()
         if context.grid_power_w is not None:
             self._grid_sign.observe(ev_power_w=ev_power_w(data), grid_power_w=context.grid_power_w)
         # A phase counts when it carries current: a single-phase wallbox can still
@@ -711,8 +734,11 @@ class SolarSurplusController:
         ):
             return DecisionReason.FAILED_SET_STARTUP_CURRENT
 
+        if self._start_unanswered(now):
+            return DecisionReason.VEHICLE_NOT_RESPONDING
         if not await self._client.async_set_charge_enabled(True):
             return DecisionReason.FAILED_START_CHARGE
+        self._note_start_sent(now)
 
         self._timers.last_increase_action_ts = now
         self._timers.last_decrease_action_ts = now
@@ -753,8 +779,11 @@ class SolarSurplusController:
             reason = DecisionReason.FORCE_CHARGE_ADJUST_CURRENT
 
         if data is not None and not is_charging(data):
+            if self._start_unanswered(now):
+                return DecisionReason.VEHICLE_NOT_RESPONDING
             if not await self._client.async_set_charge_enabled(True):
                 return DecisionReason.FORCE_CHARGE_FAILED_START
+            self._note_start_sent(now)
             self._start_session(now)
             await self._coordinator.async_request_refresh()
             return DecisionReason.FORCE_CHARGE_START
@@ -762,6 +791,26 @@ class SolarSurplusController:
         if not self._session_active:
             self._start_session(now)
         return reason
+
+    def _start_unanswered(self, now: float) -> bool:
+        if not start_unanswered(
+            self._timers.start_requested_since, now, FIXED_START_ANSWER_TIMEOUT_S
+        ):
+            return False
+        # Logged once per series: the surplus path alternates this outcome with
+        # the start-delay wait, so the previous reason cannot tell a new series.
+        if not self._start_unanswered_logged:
+            self._start_unanswered_logged = True
+            LOGGER.debug(
+                "No charge %ss after the start command on %s; not re-sending it",
+                FIXED_START_ANSWER_TIMEOUT_S,
+                self._entry.title,
+            )
+        return True
+
+    def _note_start_sent(self, now: float) -> None:
+        if self._timers.start_requested_since is None:
+            self._timers.start_requested_since = now
 
     def _session_limit_reason(self, now: float) -> DecisionReason | None:
         if not self._session_active:
