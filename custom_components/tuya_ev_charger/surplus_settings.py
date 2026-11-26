@@ -15,6 +15,7 @@ from homeassistant.config_entries import ConfigEntry
 
 from .const import (
     CONF_CAP_ONLY_REGULATION,
+    CONF_CAP_ONLY_START_AT_MAX_CURRENT,
     CONF_CRITICAL_PEAK_SENSOR_ENTITY_ID,
     CONF_CRITICAL_PEAK_SENSOR_INVERTED,
     CONF_DEPARTURE_ENERGY_KWH,
@@ -53,6 +54,7 @@ from .const import (
     CONF_SURPLUS_STOP_THRESHOLD_W,
     CONF_TOTAL_LOAD_SENSOR_ENTITY_ID,
     DEFAULT_CAP_ONLY_REGULATION,
+    DEFAULT_CAP_ONLY_START_AT_MAX_CURRENT,
     DEFAULT_CRITICAL_PEAK_SENSOR_ENTITY_ID,
     DEFAULT_CRITICAL_PEAK_SENSOR_INVERTED,
     DEFAULT_DEPARTURE_ENERGY_KWH,
@@ -116,6 +118,7 @@ class SolarSurplusSettings:
     max_house_power_w: int
     max_inverter_power_w: int
     cap_only_regulation: bool
+    cap_only_start_at_max_current: bool
     total_load_sensor_entity_id: str
     # How many phases the charger is wired on -- one setpoint applies to
     # every phase, so this scales every watts<->amps conversion (#41).
@@ -277,6 +280,11 @@ def settings_from_entry(entry: ConfigEntry) -> SolarSurplusSettings:
             options,
             CONF_CAP_ONLY_REGULATION,
             DEFAULT_CAP_ONLY_REGULATION,
+        ),
+        cap_only_start_at_max_current=option_bool(
+            options,
+            CONF_CAP_ONLY_START_AT_MAX_CURRENT,
+            DEFAULT_CAP_ONLY_START_AT_MAX_CURRENT,
         ),
         installation_phases=_option_installation_phases(
             options,

@@ -161,6 +161,8 @@ class TimerState:
     last_protection_reduce_ts: float | None = None
     # When surplus regulation last stopped the charge; None if it never has.
     last_surplus_stop_ts: float | None = None
+    # One initial jump per connection; later recovery still uses the ramp.
+    cap_only_started: bool = False
 
     def copy(self) -> TimerState:
         """A detached copy, for asking what *would* happen.
@@ -191,6 +193,9 @@ class GateContext:
     surplus_mode_enabled: bool = False
     # Surplus mode off: aim for the highest current the protection caps allow.
     cap_only_regulation: bool = False
+    cap_only_start_at_max_current: bool = False
+    # Installation minimum, used only while a confirmed unplugged charger is idle.
+    standby_current: int | None = None
     vehicle_connected: bool = False
     grid_sensor_configured: bool = False
     grid_power_w: float | None = None
@@ -272,6 +277,38 @@ Gate = Callable[[GateContext, TimerState], Verdict | None]
 # --- individual gates ------------------------------------------------------
 #
 # Order is the list at the bottom of this module. Each returns None to defer.
+
+
+def _gate_cap_only_unplugged(ctx: GateContext, timers: TimerState) -> Verdict | None:
+    """Park at the installation minimum, independently of changing house load.
+
+    With no vehicle drawing power this must precede the protection ladder: even
+    zero headroom should leave the same standby setpoint, not chase the meter.
+    """
+    if (
+        ctx.surplus_mode_enabled
+        or not ctx.cap_only_regulation
+        or not ctx.cap_only_start_at_max_current
+        or ctx.vehicle_connected
+        or ctx.is_charging
+        or ctx.force_charge_active
+    ):
+        return None
+    timers.cap_only_started = False
+    if (
+        ctx.standby_current is not None
+        and ctx.current_target is not None
+        and ctx.current_target != ctx.standby_current
+    ):
+        return Verdict(
+            action=GateAction.SET_CURRENT,
+            reason=DecisionReason.CAP_ONLY_WAITING_FOR_VEHICLE,
+            target_current=ctx.standby_current,
+        )
+    return Verdict(
+        action=GateAction.IDLE,
+        reason=DecisionReason.CAP_ONLY_WAITING_FOR_VEHICLE,
+    )
 
 
 def _gate_no_currents(ctx: GateContext, timers: TimerState) -> Verdict | None:
@@ -359,6 +396,8 @@ def _gate_protection_reduce(ctx: GateContext, timers: TimerState) -> Verdict | N
     if ctx.current_target is None or ctx.current_target <= ctx.protection_cap:
         return None
     timers.last_protection_reduce_ts = ctx.now
+    if ctx.cap_only_regulation and not ctx.surplus_mode_enabled:
+        timers.cap_only_started = True
     return Verdict(
         action=GateAction.SET_CURRENT,
         reason=DecisionReason(f"{ctx.cap_source}_reduced"),
@@ -450,12 +489,29 @@ def _gate_cap_only(ctx: GateContext, timers: TimerState) -> Verdict | None:
                 action=GateAction.IDLE,
                 reason=DecisionReason.CAP_ONLY_WAITING_FOR_VEHICLE,
             )
+        timers.cap_only_started = True
+        target = (
+            ctx.max_current
+            if ctx.cap_only_start_at_max_current and not _protection_hold_active(ctx, timers)
+            else ctx.min_current
+        )
         return Verdict(
             action=GateAction.START_CHARGE,
             reason=DecisionReason.CAP_ONLY_START,
-            target_current=ctx.min_current,
+            target_current=target,
             regulation_active=True,
         )
+
+    if ctx.cap_only_start_at_max_current and not timers.cap_only_started:
+        timers.cap_only_started = True
+        # The charger may have started itself before HA observed the plug-in.
+        if ctx.current_target != ctx.max_current and not _protection_hold_active(ctx, timers):
+            return Verdict(
+                action=GateAction.SET_CURRENT,
+                reason=DecisionReason.CAP_ONLY_REGULATING,
+                target_current=ctx.max_current,
+                regulation_active=True,
+            )
 
     current = (
         ctx.current_target if ctx.current_target in ctx.available_currents else ctx.min_current
@@ -914,6 +970,7 @@ def battery_hysteresis(soc: float, *, high: float, low: float, enabled: bool | N
 #     battery is *above* its floor, so the two never compete, and it must come
 #     before the surplus branch whose grid-meter arithmetic it replaces.
 GATES: tuple[Gate, ...] = (
+    _gate_cap_only_unplugged,
     _gate_no_currents,
     _gate_external_charge_blocked,
     _gate_force_charge,

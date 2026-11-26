@@ -1509,3 +1509,90 @@ def test_battery_hold_is_off_while_the_budget_reading_is_missing(monkeypatch):
         options=options,
     )
     assert h.tick() != "battery_hold_charging"
+
+
+@pytest.mark.parametrize("grid_power,expected_current", [(500, 16), (3400, 9)])
+def test_cap_only_fast_start_parks_once_and_starts_at_measured_headroom(
+    monkeypatch, grid_power, expected_current
+):
+    h = Harness(
+        monkeypatch,
+        options={
+            "surplus_mode_enabled": False,
+            "cap_only_regulation": True,
+            "cap_only_start_at_max_current": True,
+            "max_house_power_w": 5500,
+        },
+        sensors={"sensor.grid": grid_power},
+        metrics=_metrics(current_target=16, max_current=16),
+    )
+    assert h.tick() == "cap_only_waiting_for_vehicle"
+    assert h.writes == [("current", 6)]
+    h.coordinator.data.current_target = 6
+    # Even without any remaining headroom, standby does not chase the meter.
+    h.hass.set("sensor.grid", 6000)
+    h.tick(seconds=10)
+    h.tick(seconds=10)
+    assert h.writes == [("current", 6)]
+
+    h.hass.set("sensor.grid", grid_power)
+    h.coordinator.data.status = "plugged_in"
+    h.coordinator.data.work_state_debug = "IDLEINS"
+    assert h.tick() == "cap_only_start"
+    assert h.writes == [("current", 6), ("current", expected_current), ("enabled", True)]
+
+    h.coordinator.data = _metrics(
+        charging=True,
+        current_target=expected_current,
+        total_power_kw=expected_current * 0.23,
+        max_current=16,
+    )
+    h.tick(seconds=10)
+    assert h.writes[-1] == ("enabled", True)
+
+
+def test_cap_only_fast_start_setting_defaults_to_off(monkeypatch):
+    h = Harness(monkeypatch)
+    assert h.controller._settings.cap_only_start_at_max_current is False
+
+
+def test_cap_only_fast_start_can_restart_after_a_full_protection_stop(monkeypatch):
+    h = Harness(
+        monkeypatch,
+        options={
+            "surplus_mode_enabled": False,
+            "cap_only_regulation": True,
+            "cap_only_start_at_max_current": True,
+            "max_house_power_w": 5500,
+        },
+        sensors={"sensor.grid": 500},
+        metrics=_metrics(current_target=6, max_current=16),
+    )
+    h.coordinator.data.status = "plugged_in"
+    h.coordinator.data.work_state_debug = "IDLEINS"
+    assert h.tick() == "cap_only_start"
+    h.coordinator.data = _metrics(
+        charging=True, current_target=16, total_power_kw=3.68, max_current=16
+    )
+    h.hass.set("sensor.grid", 10000)
+    assert h.tick(seconds=10) == "load_limit_no_headroom"
+    assert h.writes[-1] == ("enabled", False)
+
+    h.coordinator.data = _metrics(current_target=16, max_current=16)
+    h.coordinator.data.status = "paused"
+    h.coordinator.data.work_state_debug = "PAUSE"
+    h.hass.set("sensor.grid", 3400)
+    assert h.tick(seconds=10) == "load_limit_reduced"
+    assert h.writes[-1] == ("current", 9)
+    h.coordinator.data.current_target = 9
+    # The existing 60-second hold keeps the immediate restart at the minimum.
+    assert h.tick(seconds=1) == "cap_only_start"
+    assert h.writes[-2:] == [("current", 6), ("enabled", True)]
+
+    h.coordinator.data = _metrics(current_target=6, max_current=16)
+    h.hass.set("sensor.grid", 500)
+    assert h.tick(seconds=10) == "cap_only_waiting_for_vehicle"
+    h.coordinator.data.status = "plugged_in"
+    h.coordinator.data.work_state_debug = "IDLEINS"
+    assert h.tick(seconds=60) == "cap_only_start"
+    assert h.writes[-2:] == [("current", 16), ("enabled", True)]

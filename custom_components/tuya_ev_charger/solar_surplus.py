@@ -405,6 +405,11 @@ class SolarSurplusController:
         ordering to be remembered.
         """
         available_currents = allowed_currents(data, self._entry.options)
+        standby_current = (
+            min(available_currents)
+            if available_currents and data.status in {"idle", "sleep"}
+            else None
+        )
         protection_cap, cap_source = self._caps.protection_cap(data, available_currents)
         if protection_cap is not None:
             available_currents = tuple(
@@ -471,6 +476,8 @@ class SolarSurplusController:
             cap_source=cap_source,
             surplus_mode_enabled=self._settings.mode_enabled,
             cap_only_regulation=self._settings.cap_only_regulation,
+            cap_only_start_at_max_current=self._settings.cap_only_start_at_max_current,
+            standby_current=standby_current,
             vehicle_connected=evcc_status(data.status, data.total_power) != "A",
             grid_sensor_configured=bool(self._settings.grid_sensor_entity_id),
             grid_power_w=grid_power_w,

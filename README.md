@@ -313,6 +313,21 @@ It needs at least one limit with a working sensor: without a reading nothing is
 regulated and the last setpoint is kept. A pause, a tariff window and the external
 sensor keep priority over it, and with surplus mode on it has no effect.
 
+Enable **Start charging at the highest current allowed by the protection limits**
+under **Protection limits** to start directly at the available ceiling instead
+of ramping up from the minimum. This optional setting is off by default and only
+applies with **Regulate on the protection limits alone** enabled and surplus
+mode off. For example, a 16 A charger starts at 16 A when there is room, or 9 A
+when the house leaves that much headroom. This also handles a charger that starts
+itself before Home Assistant observes the connection.
+
+While unplugged, it parks the setpoint at the installation minimum (normally
+6 A) once, then leaves it alone as household load changes. That reset can produce
+one beep. It sends no start command without a vehicle. While charging, reductions
+still take effect immediately and subsequent increases retain the existing ramp
+and protection hold. A restart during the protection hold starts at the minimum.
+Without a usable protection reading, it keeps the existing connected setpoint.
+
 ### Reacting before the meter moves
 
 The caveat above — a cap is only as fast as its sensor — has an answer for the

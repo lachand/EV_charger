@@ -108,11 +108,15 @@
             "data": {
               "max_house_power_w": "Maxim\u00e1ln\u00ed v\u00fdkon domu pro vyva\u017eov\u00e1n\u00ed z\u00e1t\u011b\u017ee (W, 0 = vypnuto)",
               "cap_only_regulation": "Regulovat pouze podle ochrann\u00fdch limit\u016f (re\u017eim p\u0159ebytku vypnut): stoupat zp\u011bt na nejvy\u0161\u0161\u00ed proud, kter\u00fd limity dovoluj\u00ed",
-              "max_inverter_power_w": "Limit celkového měřeného výkonu (W, 0 = vypnuto) – výstup střídače nebo fáze nabíječky; vyžaduje senzor níže",
-              "total_load_sensor_entity_id": "Senzor celkového výkonu – výstup střídače nebo fáze nabíječky, včetně nabíjení auta (ne elektroměr sítě)",
+              "cap_only_start_at_max_current": "Zah\u00e1jit nab\u00edjen\u00ed nejvy\u0161\u0161\u00edm dostupn\u00fdm proudem",
+              "max_inverter_power_w": "Limit celkov\u00e9ho m\u011b\u0159en\u00e9ho v\u00fdkonu (W, 0 = vypnuto) \u2013 v\u00fdstup st\u0159\u00edda\u010de nebo f\u00e1ze nab\u00edje\u010dky; vy\u017eaduje senzor n\u00ed\u017ee",
+              "total_load_sensor_entity_id": "Senzor celkov\u00e9ho v\u00fdkonu \u2013 v\u00fdstup st\u0159\u00edda\u010de nebo f\u00e1ze nab\u00edje\u010dky, v\u010detn\u011b nab\u00edjen\u00ed auta (ne elektrom\u011br s\u00edt\u011b)",
               "external_charge_allowed_sensor_entity_id": "Extern\u00ed senzor povolen\u00ed nab\u00edjen\u00ed (binary_sensor/input_boolean, voliteln\u00e9) \u2013 nap\u0159. stav on-grid st\u0159\u00edda\u010de; p\u0159i \u201ene\u201c zcela blokuje nab\u00edjen\u00ed",
               "external_charge_allowed_sensor_inverted": "Invertovat extern\u00ed senzor povolen\u00ed nab\u00edjen\u00ed (za\u0161krtn\u011bte, pokud \u201eon\u201c znamen\u00e1 blokov\u00e1no, nap\u0159. indik\u00e1tor off-grid)",
               "load_reservations": "Entity ohla\u0161uj\u00edc\u00ed velkou z\u00e1t\u011b\u017e (nap\u0159. switch.hob: 3000, switch.oven: 2500)"
+            },
+            "data_description": {
+              "cap_only_start_at_max_current": "Zah\u00e1j\u00ed nab\u00edjen\u00ed nejvy\u0161\u0161\u00edm proudem povolen\u00fdm ochrann\u00fdmi limity nam\u00edsto postupn\u00e9ho zvy\u0161ov\u00e1n\u00ed od minima. Kdy\u017e vozidlo nen\u00ed p\u0159ipojeno, ponech\u00e1 minim\u00e1ln\u00ed proud bez opakovan\u00fdch \u00faprav. Vy\u017eaduje regulaci pouze podle ochrann\u00fdch limit\u016f s vypnut\u00fdm re\u017eimem p\u0159ebytk\u016f."
             }
           },
           "vehicles": {
@@ -135,9 +139,9 @@
               "departure_energy_kwh": "Energie pot\u0159ebn\u00e1 do odjezdu (kWh, 0 = vypnuto)",
               "off_peak_price": "Cena n\u00edzk\u00e9ho tarifu za kWh (0 = bez sledov\u00e1n\u00ed n\u00e1klad\u016f)",
               "peak_price": "Cena \u0161pi\u010dky za kWh (0 = bez sledov\u00e1n\u00ed n\u00e1klad\u016f)",
-              "price_sensor_entity_id": "Senzor aktuální ceny (za kWh, volitelné) - např. senzor dynamického tarifu; po nastavení nahrazuje obě pevné ceny",
-              "self_consumption_split": "Rozdělit energii relace mezi síť, solár a domácí baterii (používá senzor sítě; vypnuto = vše se počítá jako síť)",
-              "self_consumption_price": "Cena vlastní spotřeby za kWh (solár nebo domácí baterie; výchozí 0, nebo výkupní cena)"
+              "price_sensor_entity_id": "Senzor aktu\u00e1ln\u00ed ceny (za kWh, voliteln\u00e9) - nap\u0159. senzor dynamick\u00e9ho tarifu; po nastaven\u00ed nahrazuje ob\u011b pevn\u00e9 ceny",
+              "self_consumption_split": "Rozd\u011blit energii relace mezi s\u00ed\u0165, sol\u00e1r a dom\u00e1c\u00ed baterii (pou\u017e\u00edv\u00e1 senzor s\u00edt\u011b; vypnuto = v\u0161e se po\u010d\u00edt\u00e1 jako s\u00ed\u0165)",
+              "self_consumption_price": "Cena vlastn\u00ed spot\u0159eby za kWh (sol\u00e1r nebo dom\u00e1c\u00ed baterie; v\u00fdchoz\u00ed 0, nebo v\u00fdkupn\u00ed cena)"
             }
           },
           "surplus": {
@@ -264,7 +268,7 @@
           "missing_grid_sensor": "Nen\u00ed nakonfigurov\u00e1n senzor s\u00ed\u0165ov\u00e9ho v\u00fdkonu",
           "cap_only_regulating": "Regulace pouze podle ochrann\u00fdch limit\u016f",
           "cap_only_start": "Spu\u0161t\u011bn\u00ed: ochrann\u00e9 limity nech\u00e1vaj\u00ed rezervu",
-          "cap_only_waiting_for_vehicle": "Čeká se na připojení vozidla",
+          "cap_only_waiting_for_vehicle": "\u010cek\u00e1 se na p\u0159ipojen\u00ed vozidla",
           "mode_disabled": "Re\u017eim p\u0159ebytku je vypnut\u00fd",
           "no_allowed_currents": "Nab\u00edje\u010dka nenab\u00edz\u00ed \u017e\u00e1dn\u00fd pou\u017eiteln\u00fd proud",
           "no_coordinator_data": "Zat\u00edm \u017e\u00e1dn\u00e1 data z nab\u00edje\u010dky",
@@ -352,7 +356,7 @@
         "name": "N\u00e1klady posledn\u00ed relace"
       },
       "current_session_cost": {
-        "name": "Náklady aktuální relace"
+        "name": "N\u00e1klady aktu\u00e1ln\u00ed relace"
       },
       "session_count": {
         "name": "Zaznamenan\u00e9 relace"
@@ -444,8 +448,8 @@
       "description": "Je nastaven maxim\u00e1ln\u00ed v\u00fdkon domu, ale nen\u00ed nakonfigurov\u00e1n senzor s\u00ed\u0165ov\u00e9ho v\u00fdkonu, tak\u017ee vyva\u017eov\u00e1n\u00ed z\u00e1t\u011b\u017ee se nikdy nespust\u00ed a hlavn\u00ed jisti\u010d nen\u00ed chr\u00e1n\u011bn. Nastavte **Senzor s\u00ed\u0165ov\u00e9ho v\u00fdkonu** v mo\u017enostech integrace, nebo nastavte maximum zp\u011bt na 0 pro vypnut\u00ed vyva\u017eov\u00e1n\u00ed z\u00e1t\u011b\u017ee."
     },
     "inverter_limit_without_sensor": {
-      "title": "Pro limit měřeného výkonu chybí senzor",
-      "description": "Je nastaven limit celkového měřeného výkonu, ale není nakonfigurován senzor celkového výkonu, takže se limit neuplatní. Měřte výstup střídače nebo fázi nabíječky včetně nabíjení auta, nikoli údaj z elektroměru: baterie hybridního střídače může zátěž před elektroměrem skrýt. Nastavte **Senzor celkového výkonu**, nebo limit vraťte na 0."
+      "title": "Pro limit m\u011b\u0159en\u00e9ho v\u00fdkonu chyb\u00ed senzor",
+      "description": "Je nastaven limit celkov\u00e9ho m\u011b\u0159en\u00e9ho v\u00fdkonu, ale nen\u00ed nakonfigurov\u00e1n senzor celkov\u00e9ho v\u00fdkonu, tak\u017ee se limit neuplatn\u00ed. M\u011b\u0159te v\u00fdstup st\u0159\u00edda\u010de nebo f\u00e1zi nab\u00edje\u010dky v\u010detn\u011b nab\u00edjen\u00ed auta, nikoli \u00fadaj z elektrom\u011bru: baterie hybridn\u00edho st\u0159\u00edda\u010de m\u016f\u017ee z\u00e1t\u011b\u017e p\u0159ed elektrom\u011brem skr\u00fdt. Nastavte **Senzor celkov\u00e9ho v\u00fdkonu**, nebo limit vra\u0165te na 0."
     },
     "surplus_without_sensor": {
       "title": "Re\u017eim p\u0159ebytku nem\u00e1 senzor s\u00edt\u011b",

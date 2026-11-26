@@ -524,3 +524,13 @@ def test_hold_from_battery_defaults_off_and_is_read_from_the_options():
     assert settings_from_entry(types.SimpleNamespace(options={})).hold_from_battery is False
     chosen = settings_from_entry(types.SimpleNamespace(options={"surplus_hold_from_battery": True}))
     assert chosen.hold_from_battery is True
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_cap_only_fast_start_option_survives_the_options_form(enabled):
+    from tuya_ev_charger.surplus_settings import settings_from_entry
+
+    result = _submit(_flow(), {"protection": {"cap_only_start_at_max_current": enabled}})
+    assert result["data"]["cap_only_start_at_max_current"] is enabled
+    settings = settings_from_entry(types.SimpleNamespace(options=result["data"]))
+    assert settings.cap_only_start_at_max_current is enabled

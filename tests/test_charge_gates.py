@@ -58,12 +58,13 @@ def test_the_gate_order_is_asserted_directly():
 
     names = [gate.__name__ for gate in GATES]
     assert names.index("_gate_force_charge") < names.index("_gate_protection_reduce")
-    # Nothing may decide before the "is there any current at all" check.
-    assert names[0] == "_gate_no_currents"
+    # Parking an unplugged charger does not consume any of the power budget.
+    assert names[0] == "_gate_cap_only_unplugged"
+    assert names[1] == "_gate_no_currents"
     # The idle branch is the fallback, so it must be last.
     assert names[-1] == "_gate_start"
     # The external safety veto must win over even a force-charge request.
-    assert names[1] == "_gate_external_charge_blocked"
+    assert names[2] == "_gate_external_charge_blocked"
     assert names.index("_gate_external_charge_blocked") < names.index("_gate_force_charge")
     # The battery-floor/off-peak fallback is the no-solar tier: it must not
     # need a grid sensor, but must still lose to an explicit pause.
@@ -1223,3 +1224,106 @@ def _fields(ctx):
     from dataclasses import fields
 
     return {f.name: getattr(ctx, f.name) for f in fields(ctx)}
+
+
+@pytest.mark.parametrize("ceiling", [6, 9, 13, 16])
+def test_cap_only_fast_start_uses_the_available_ceiling(ceiling):
+    verdict = _run(
+        _cap_only(
+            cap_only_start_at_max_current=True,
+            vehicle_connected=True,
+            available_currents=tuple(range(6, ceiling + 1)),
+            protection_cap=ceiling,
+        )
+    )
+    assert verdict.action.value == "start_charge"
+    assert verdict.target_current == ceiling
+
+
+@pytest.mark.parametrize("protection_cap", [None, 0, 9, 16])
+def test_cap_only_standby_does_not_follow_the_protection_cap(protection_cap):
+    timers = _timers(cap_only_started=True)
+    context = _cap_only(
+        cap_only_start_at_max_current=True,
+        current_target=16,
+        standby_current=6,
+        protection_cap=protection_cap,
+        available_currents=() if protection_cap == 0 else tuple(range(6, 17)),
+    )
+    verdict = _run(context, timers)
+    assert verdict.action.value == "set_current"
+    assert verdict.target_current == 6
+    assert not verdict.regulation_active
+    assert not timers.cap_only_started
+
+    from dataclasses import replace
+
+    settled = _run(replace(context, current_target=6), timers)
+    assert settled.action.value == "idle"
+    assert settled.target_current is None
+
+
+@pytest.mark.parametrize("current_target,standby_current", [(None, 6), (16, None), (6, 6)])
+def test_cap_only_standby_does_not_write_without_a_known_change(current_target, standby_current):
+    verdict = _run(
+        _cap_only(
+            cap_only_start_at_max_current=True,
+            current_target=current_target,
+            standby_current=standby_current,
+        )
+    )
+    assert verdict.action.value == "idle"
+
+
+def test_cap_only_fast_start_handles_a_charger_that_started_itself():
+    from dataclasses import replace
+
+    timers = _timers()
+    context = _cap_only(
+        cap_only_start_at_max_current=True,
+        vehicle_connected=True,
+        is_charging=True,
+        current_target=6,
+    )
+    assert _run(context, timers).target_current == 16
+    assert _run(replace(context, current_target=16), timers).action.value == "hold"
+
+    # After the initial jump, protection reduction and recovery still use the hold and ramp.
+    reduced = _run(
+        replace(context, current_target=16, protection_cap=9, available_currents=(6, 7, 8, 9)),
+        timers,
+    )
+    assert reduced.target_current == 9
+    assert reduced.reason.value == "load_limit_reduced"
+    recovery = _run(replace(context, current_target=9), timers)
+    assert recovery.target_current == 11
+
+
+def test_cap_only_fast_restart_respects_a_recent_protection_hold():
+    verdict = _run(
+        _cap_only(
+            cap_only_start_at_max_current=True,
+            vehicle_connected=True,
+            protection_hold_s=60,
+        ),
+        _timers(last_protection_reduce_ts=990),
+    )
+    assert verdict.action.value == "start_charge"
+    assert verdict.target_current == 6
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"available_currents": (), "protection_cap": 0},
+        {"protection_cap": None},
+        {"external_charge_allowed": False},
+        {"pause_active": True},
+        {"tariff_allowed": False},
+    ],
+)
+def test_cap_only_fast_start_obeys_existing_blocks(overrides):
+    verdict = _run(
+        _cap_only(cap_only_start_at_max_current=True, vehicle_connected=True, **overrides)
+    )
+    assert verdict.action.value != "start_charge"
