@@ -789,3 +789,171 @@ def test_the_surplus_path_stops_re_sending_too(monkeypatch):
     assert starts_at, "the watch never ran its course on the surplus path"
     assert starts_at[0] > 1
     assert h.writes.count(("enabled", True)) == starts_at[0]
+
+
+# --- the watch must not outlive the series it was opened for --------------------------------
+
+
+def _starts(h):
+    return h.writes.count(("enabled", True))
+
+
+def _ticks(h, count=12, seconds=10):
+    for _ in range(count):
+        h.tick(seconds)
+
+
+def _sleeping_car_harness(monkeypatch, **kwargs):
+    from test_regressions import _asleep_metrics
+    from test_surplus_state_machine import Harness
+
+    return Harness(monkeypatch, metrics=_asleep_metrics(), **kwargs)
+
+
+def test_surplus_returning_hours_after_one_unanswered_start_sends_it_again(monkeypatch):
+    h = _sleeping_car_harness(monkeypatch)
+    while not _starts(h):
+        h.tick(10)
+
+    h.hass.set("sensor.grid", -100)  # a cloud, right after the only start
+    h.tick(10)
+    h.tick(7200)
+    before = _starts(h)
+
+    h.hass.set("sensor.grid", -3000)
+    _ticks(h, count=6)
+
+    assert _starts(h) > before
+
+
+def test_the_next_off_peak_window_sends_the_start_again(monkeypatch):
+    from datetime import datetime
+
+    from tuya_ev_charger import solar_surplus
+
+    clock = {"now": datetime(2024, 1, 1, 23, 0)}
+    monkeypatch.setattr(solar_surplus.dt_util, "now", lambda: clock["now"])
+    h = _sleeping_car_harness(
+        monkeypatch,
+        options={"surplus_mode_enabled": False, "off_peak_windows": "22:00-06:00"},
+    )
+    _ticks(h)  # night one: the car never answers
+    assert _starts(h)
+
+    clock["now"] = datetime(2024, 1, 2, 8, 0)
+    h.tick(9 * 3600)
+    before = _starts(h)
+
+    clock["now"] = datetime(2024, 1, 2, 23, 0)
+    h.tick(15 * 3600)
+
+    assert _starts(h) > before
+
+
+def test_surplus_after_an_expired_forced_charge_sends_the_start_again(monkeypatch):
+    h = _sleeping_car_harness(monkeypatch, sensors={"sensor.grid": -100})
+    _run(h.controller.async_force_charge_for(600, 16))
+    _ticks(h)
+    assert _starts(h)
+
+    h.tick(7200)  # the order has long expired, and there is no surplus
+    before = _starts(h)
+
+    h.hass.set("sensor.grid", -3000)
+    _ticks(h, count=6)
+
+    assert _starts(h) > before
+
+
+# --- the watch assumes the last start still stands ------------------------------------------
+
+
+def _forced_charge_past_the_delay(monkeypatch):
+    h = _sleeping_car_harness(monkeypatch)
+    _run(h.controller.async_force_charge_for(3600, 16))
+    _ticks(h)
+    return h
+
+
+def test_the_start_is_sent_again_after_the_charge_session_switch_turned_it_off(monkeypatch):
+    from test_switch import _switch
+    from tuya_ev_charger.switch import TuyaEVChargerChargeSessionSwitch
+
+    h = _forced_charge_past_the_delay(monkeypatch)
+    switch = _switch(
+        TuyaEVChargerChargeSessionSwitch,
+        data=h.coordinator.data,
+        client=h.client,
+        controller=h.controller,
+    )
+    _run(switch.async_turn_off())
+    assert h.writes[-1] == ("enabled", False)
+    before = _starts(h)
+
+    _ticks(h, count=3)
+
+    assert _starts(h) > before
+
+
+def test_the_slowest_poll_does_not_read_as_giving_up(monkeypatch):
+    from tuya_ev_charger.polling import MAX_INTERVAL_S
+
+    h = _forced_charge_past_the_delay(monkeypatch)
+    _run(h.controller.async_force_charge_for(86400, 16))
+    _ticks(h)
+    before = _starts(h)
+
+    _ticks(h, count=10, seconds=MAX_INTERVAL_S)
+
+    assert _starts(h) == before
+
+
+def test_slow_polling_does_not_reopen_the_surplus_series(monkeypatch):
+    """The surplus path then wants a start only every other poll."""
+    from tuya_ev_charger.polling import MAX_INTERVAL_S
+
+    h = _sleeping_car_harness(monkeypatch)
+    _ticks(h, count=4, seconds=MAX_INTERVAL_S)
+    before = _starts(h)
+    assert before
+
+    _ticks(h, count=20, seconds=MAX_INTERVAL_S)
+
+    assert _starts(h) == before
+
+
+# --- the reason holds while the series is expired -----------------------------------------
+
+
+def test_the_surplus_reason_holds_once_the_start_goes_unanswered(monkeypatch):
+    """The start delay keeps running in between. Reporting it would flick the
+    sensor back and forth, re-firing every automation set on this reason."""
+    h = _sleeping_car_harness(monkeypatch)
+    _ticks(h, count=20)
+    assert h.controller._last_decision_reason == "vehicle_not_responding"
+
+    reasons = {h.tick(10) for _ in range(60)}
+
+    assert reasons == {"vehicle_not_responding"}
+
+
+def test_a_held_reason_keeps_the_start_delay_in_the_trace(monkeypatch):
+    h = _sleeping_car_harness(monkeypatch)
+    _ticks(h, count=20)
+
+    decided = set()
+    for _ in range(8):
+        h.tick(10)
+        decided.add(h.controller._last_decision_trace.get("decided_reason"))
+
+    assert "start_delay_pending" in decided
+
+
+def test_a_rearm_shows_the_start_delay_again(monkeypatch):
+    h = _sleeping_car_harness(monkeypatch)
+    _ticks(h, count=20)
+
+    h.controller.rearm_start_watch()
+    reasons = [h.tick(10) for _ in range(4)]
+
+    assert "start_delay_pending" in reasons

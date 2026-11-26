@@ -119,6 +119,11 @@ class TuyaEVChargerChargeSessionSwitch(TuyaEVChargerEntity, SwitchEntity):
         data = self.coordinator.data
         if data is not None and data.do_charge is not None and data.do_charge == enabled:
             return
+        # The last start no longer stands once the user writes the DP, so
+        # regulation must be allowed to send it again.
+        controller = self._runtime_data.solar_surplus_controller
+        if controller is not None:
+            controller.rearm_start_watch()
         if not await self._runtime_data.client.async_set_charge_enabled(enabled):
             raise charger_error("charge_start_failed" if enabled else "charge_stop_failed")
         self._pending_charge = enabled

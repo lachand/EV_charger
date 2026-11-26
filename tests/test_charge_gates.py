@@ -1241,3 +1241,17 @@ def test_a_start_is_unanswered_only_once_the_delay_has_run(requested_since, now,
     from tuya_ev_charger.charge_gates import start_unanswered
 
     assert start_unanswered(requested_since, now, 90.0) is expected
+
+
+@pytest.mark.parametrize(
+    ("last_wanted", "now", "expected"),
+    [
+        (None, 1000.0, False),  # never wanted yet
+        (1000.0, 1600.0, False),  # the gap itself is still the same series
+        (1000.0, 1601.0, True),
+    ],
+)
+def test_a_start_series_lapses_only_past_the_gap(last_wanted, now, expected):
+    from tuya_ev_charger.charge_gates import start_series_lapsed
+
+    assert start_series_lapsed(last_wanted, now, 600.0) is expected

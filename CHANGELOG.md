@@ -16,9 +16,11 @@ published normally** and HACS offers them without enabling beta versions.
   90 s without a charge the start is no longer re-sent and
   `sensor.surplus_last_decision_reason` reads `vehicle_not_responding`; the
   charger stays authorised, so a car that wakes on its own still charges. A
-  charge seen, an unplug, a new forced charge or a press on *Reboot charger* /
-  *Ready to charge* allows a new series. See Troubleshooting in the README for
-  an automation that reboots the charger on this reason.
+  charge seen, an unplug, a new forced charge, a write from the charge session
+  switch, a press on *Reboot charger* / *Ready to charge*, or 10 min without
+  regulation wanting a start allows a new series. The reason holds, on the surplus
+  path too, until a new series. See Troubleshooting in the README for
+  automations that reboot the charger once on this reason.
 
 ## 2.29.0-beta1
 

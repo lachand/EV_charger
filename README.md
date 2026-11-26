@@ -911,12 +911,18 @@ every cycle, and the charger beeped on every attempt.
 The start is now re-sent for 90 s at most. After that,
 `sensor.surplus_last_decision_reason` reads **`vehicle_not_responding`** and the
 command is left alone: the charger stays authorised, so a car that wakes up on
-its own (unlocked, say) starts charging without help. A charge, an unplug, a new
-forced charge or a press on *Reboot charger* / *Ready to charge* starts a new
-90 s series.
+its own (unlocked, say) starts charging without help. A new 90 s series starts
+after a charge, an unplug, a new forced charge, a write from the charge session
+switch, a press on *Reboot charger* / *Ready to charge*, or once regulation has
+not wanted a start for 10 min (a long cloud, the next off-peak window).
 
 What wakes such a car is an interruption of the pilot signal, which a charger
-reboot provides. An automation can do it on that reason:
+reboot provides. Two automations can do it on that reason, **once** until the
+car has charged or been unplugged: a car that is full, or at its charge limit,
+does not answer either, and must not get the charger rebooted again and again.
+
+First create a toggle helper (*Settings > Devices & services > Helpers*) with
+the entity ID `input_boolean.<charger>_wake_reboot_done`. Then reboot once:
 
 ```yaml
 alias: EV - wake the car with a charger reboot
@@ -925,18 +931,56 @@ triggers:
   - trigger: state
     entity_id: sensor.<charger>_surplus_last_decision_reason
     to: vehicle_not_responding
+conditions:
+  - condition: state
+    entity_id: input_boolean.<charger>_wake_reboot_done
+    state: "off"
 actions:
+  # Set first, so that a failed press does not leave the way open for a loop.
+  - action: input_boolean.turn_on
+    target:
+      entity_id: input_boolean.<charger>_wake_reboot_done
   - action: button.press
     target:
       entity_id: button.<charger>_reboot_charger
-  # At most one reboot every 30 min: if the car still does not answer, it
-  # needs a hand, not more reboots.
+  # With `mode: single`, at most one reboot every 30 min, even if the toggle is
+  # cleared by mistake.
   - delay: "00:30:00"
 ```
 
-Caveats: a reboot resets the charger's own energy counter, and this recovery
-has been validated on a single charger/car pair (`depow_v2`, single-phase,
-Peugeot e-2008). Try it while you can watch the car before relying on it.
+And allow the next reboot once the car charges, or has been gone for 5 min:
+
+```yaml
+alias: EV - allow the next wake-up reboot
+mode: single
+triggers:
+  - trigger: state
+    entity_id: sensor.<charger>_evcc_status
+    to: "C"
+  # Held, so that a passing "A" (no vehicle) does not reopen the loop.
+  - trigger: state
+    entity_id: sensor.<charger>_evcc_status
+    to: "A"
+    for: "00:05:00"
+actions:
+  - action: input_boolean.turn_off
+    target:
+      entity_id: input_boolean.<charger>_wake_reboot_done
+```
+
+`sensor.<charger>_evcc_status` is a diagnostic entity. An unplug shorter than
+5 min with no charge afterwards leaves the toggle on; turn it off by hand. A
+car plugged in again and not answering within 30 min of a reboot gets none: that
+trigger is dropped during the delay, and the steady reason does not raise it
+again. Reboot by hand.
+
+Caveats: a reboot resets the charger's own energy counter, and the recovery by
+reboot has been observed on a single charger/car pair (`depow_v2`,
+single-phase, Peugeot e-2008). These automations have not been run on that
+hardware, and what `evcc_status` reads while a car sleeps or the charger reboots
+has not been recorded: an `A` lasting 5 min with the car still plugged in clears
+the toggle by mistake, and if it recurs after every reboot only the delay limits
+them, to one every 30 min. Try it while you can watch the car before relying on it.
 
 ---
 

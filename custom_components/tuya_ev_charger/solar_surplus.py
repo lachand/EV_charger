@@ -28,6 +28,7 @@ from .charge_gates import (
     TimerState,
     Verdict,
     evaluate,
+    start_series_lapsed,
     start_unanswered,
 )
 from .charge_planner import (
@@ -86,6 +87,10 @@ FIXED_FORECAST_DROP_GUARD_W = 500
 # 90 s clears all three and is about ten attempts at the surplus start rhythm;
 # beyond that the car is asleep and every further write is only a beep.
 FIXED_START_ANSWER_TIMEOUT_S = 90
+# How long regulation must stop wanting a start before the next one opens a new
+# series. It has to exceed the slowest poll (`polling.MAX_INTERVAL_S`, 300 s), or
+# a slow poll would read as giving up and the start would be re-sent forever.
+FIXED_START_SERIES_GAP_S = 600
 
 
 @dataclass(slots=True, frozen=True)
@@ -652,7 +657,7 @@ class SolarSurplusController:
             "action": str(verdict.action),
         }
         if reason is not verdict.reason:
-            # The write failed, so the reported reason is not the decided one.
+            # A failed or withheld write: the reported reason is not the decided one.
             trace["decided_reason"] = str(verdict.reason)
         if verdict.target_current is not None:
             trace["target_current_a"] = verdict.target_current
@@ -690,6 +695,13 @@ class SolarSurplusController:
         impossible to write to twice in one cycle.
         """
         reason: DecisionReason = verdict.reason
+
+        # The surplus path serves the start delay again before every retry. Once
+        # the start has gone unanswered, reporting that wait would flick the
+        # reason back and forth and re-fire every automation set on it. The
+        # check also counts the wait as wanting a start.
+        if reason is DecisionReason.START_DELAY_PENDING and self._start_unanswered(now):
+            reason = DecisionReason.VEHICLE_NOT_RESPONDING
 
         if verdict.action is GateAction.FORCE_CHARGE:
             reason = await self._async_force_charge_verdict(verdict, data, now)
@@ -792,7 +804,13 @@ class SolarSurplusController:
             self._start_session(now)
         return reason
 
+    def _note_start_wanted(self, now: float) -> None:
+        if start_series_lapsed(self._timers.start_last_wanted_ts, now, FIXED_START_SERIES_GAP_S):
+            self.rearm_start_watch()
+        self._timers.start_last_wanted_ts = now
+
     def _start_unanswered(self, now: float) -> bool:
+        self._note_start_wanted(now)
         if not start_unanswered(
             self._timers.start_requested_since, now, FIXED_START_ANSWER_TIMEOUT_S
         ):
