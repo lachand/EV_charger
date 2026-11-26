@@ -12,6 +12,22 @@ Reading this file alone should be enough to resume without re-auditing the repo.
 ## Resume here
 
 - **Current version:** 2.26.2
+- **Charge denied after a reboot (unreleased):** seen on a `depow_v2` unit: DP
+  109 `IDLEINS` and DP 140 false while the car drew, DP 102 still updating.
+  `charging_evidence.py` now believes the energy counter after two rises and
+  holds that for 10 min past the last one; an accepted charge command or a new
+  DP 109 state drops the evidence, and a reading older than the hold is no
+  baseline. Known limits: a frozen DP 102 current with an unchanged state widens
+  the protection caps for up to 10 min (not letting a rebuilt reading widen a
+  cap was left until a dump shows DP 102's behaviour); below about 0.6 kW the
+  guard never arms. Ruled out: partial updates (every
+  poll is a full `status()`), stale state after reconnect (one connection per
+  call) and a guard on the reboot button (the status it would test was the wrong
+  value). `qccdz`, `feyree` and `custom_json` are left alone: no case seen.
+  **To confirm at the next occurrence:** a raw dump of DP 101/102/104/109/140
+  (is DP 102 L1 the real current? what is the DP 104 `v:400` alarm?), and
+  whether a stop is obeyed — DP 140 already reads false, so the read-back cannot
+  tell.
 - **2.26.2**: follow-up to #41, two points raised before replying to the
   reporter. (1) "Triphase isn't 220V" — verified false concern, French
   triphase is 3×230V phase-to-neutral, same nominal as single-phase; but
@@ -164,7 +180,7 @@ Reading this file alone should be enough to resume without re-auditing the repo.
   one from a sensor. `quality_scale.yaml` is now an internal checklist, not a
   tier claim (the manifest no longer declares one); it has no `todo` left
   (config-flow coverage is 100%).
-- **Suite:** 1199 tests, 99% line coverage (measured; unreleased work). CI green on all four jobs; `ruff format --check` now
+- **Suite:** 1425 tests, 98% line coverage (measured; unreleased work). CI green on all four jobs; `ruff format --check` now
   enforced.
 - **Hardware (2.24.0 pass, charger at 192.168.1.236, fw 1.9.7, no DP 140):**
   `async_set_charge_enabled(False/True)` round-trips — `WORKING → PAUSE/204`,

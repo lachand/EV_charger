@@ -7,6 +7,23 @@ The 2.x line was published as pre-releases while it stabilised, which meant HACS
 installed 1.0.4 on the stable channel. **From 2.11.1 onward, releases are
 published normally** and HACS offers them without enabling beta versions.
 
+## Unreleased
+
+- **A charge the charger denies is now seen (`depow_v2` and `generic_v1`).** After a
+  reboot, a charger was seen reporting "plugged in" with DP 140 false while the
+  car was charging: current and power read 0, the house-power limit counted the
+  car as household load and ramped it down, and a stop was ignored because the
+  charge was believed already stopped. When the session energy rises twice while
+  the charger says it is not charging, the status, charge switch, current and
+  power now follow the energy counter, and a warning is logged. A start or stop
+  sent by the integration, or a new state from the charger, makes the counter
+  prove the charge again. **Limits:** if the charge ends while the charger stays
+  in the very same state, it keeps reading as charging for up to 10 minutes; if
+  the firmware also freezes the last current reading, the house and inverter
+  limits can allow too much during that time. A charge below about 0.6 kW is
+  never detected. Unit-tested only: not reproduced on hardware, and whether the
+  charger obeys a stop in that state is unknown.
+
 ## 2.29.0-beta1
 
 Pre-release: HACS offers it only with beta versions enabled.

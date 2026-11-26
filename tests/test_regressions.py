@@ -1120,3 +1120,43 @@ def test_shutdown_writes_the_state(monkeypatch):
     asyncio.run(h.controller.async_shutdown())
     assert store.data is not None
     assert store.data["pause_until"] is not None
+
+
+# --- a charge the charger denies after a reboot (2.29.0-beta1) --------------
+
+
+def test_a_charge_reported_as_plugged_in_after_a_reboot_is_seen(monkeypatch):
+    """DP 109 IDLEINS and DP 140 false while the car draws: only DP 102 told the
+    truth. Read as 0 W, the house-power limit counted the car as household load."""
+    import asyncio
+
+    from test_surplus_state_machine import Harness
+    from tuya_ev_charger import tuya_ev_charger as client_module
+    from tuya_ev_charger.tuya_ev_charger import TuyaEVChargerClient
+
+    energy = iter((0, 1, 2))
+
+    class _RebootedCharger(_FakeDevice):
+        def status(self):
+            metrics = {"L1": [2300, 60, 14], "e": next(energy)}
+            return {"dps": {"109": "IDLEINS", "140": False, "102": json.dumps(metrics)}}
+
+    monkeypatch.setattr(client_module.tinytuya, "Device", _RebootedCharger)
+    client = TuyaEVChargerClient("id", "192.0.2.1", "key", "3.4")
+
+    async def _three_polls():
+        await client.async_connect()
+        return [await client.async_get_metrics() for _ in range(3)]
+
+    metrics = asyncio.run(_three_polls())[-1]
+
+    assert metrics.status == "charging"
+    assert metrics.do_charge is True
+    assert metrics.total_power == pytest.approx(1.38)
+
+    # 3880 W on the meter, 1380 W of it the car: 6 A fits under a 4000 W limit,
+    # but only if the car is removed from the household load.
+    harness = Harness(
+        monkeypatch, options={"max_house_power_w": 4000}, sensors={"sensor.grid": 3880}
+    )
+    assert harness.controller._caps.load_limit_current(metrics, (6, 10, 16)) == 6

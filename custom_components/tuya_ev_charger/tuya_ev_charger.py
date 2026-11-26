@@ -18,9 +18,12 @@ from .charger_metrics import (
     decode_qccdz_metrics,
     values_match,
 )
+from .charging_evidence import ChargingEvidence
 from .const import (
     ALLOWED_CURRENTS,
+    CHARGER_PROFILE_DEPOW_V2,
     CHARGER_PROFILE_FEYREE_V1,
+    CHARGER_PROFILE_GENERIC_V1,
     CHARGER_PROFILE_QCCDZ_V1,
     DEFAULT_CHARGER_PROFILE,
     DEFAULT_CHARGER_PROFILE_JSON,
@@ -72,6 +75,7 @@ class TuyaEVChargerClient:
         # charger's own limit, so the user's setting stands in for it. 0 = default.
         self._max_current_a = max_current_a
         self._qccdz_session = QccdzSessionClock()
+        self._charging_evidence = ChargingEvidence()
         self._device_id = device_id
         self._host = host
         self._local_key = local_key
@@ -282,6 +286,12 @@ class TuyaEVChargerClient:
         return await self._async_send_command(self._dp.current_target, amperage)
 
     async def async_set_charge_enabled(self, enabled: bool) -> bool:
+        accepted = await self._async_write_charge_enabled(enabled)
+        if accepted:
+            self._charging_evidence.reset()
+        return accepted
+
+    async def _async_write_charge_enabled(self, enabled: bool) -> bool:
         if self._dp_profile == CHARGER_PROFILE_QCCDZ_V1:
             # DP 35 is an enum, and DP 18 off does not stop a running session.
             return await self._async_send_command(
@@ -340,7 +350,13 @@ class TuyaEVChargerClient:
             return self._qccdz_session.apply(metrics, dps, time.time())
         if self._dp_profile == CHARGER_PROFILE_FEYREE_V1:
             return decode_feyree_metrics(dps, self._dp)
-        return decode_metrics(dps, self._dp)
+        metrics = decode_metrics(dps, self._dp)
+        # Only the built-in DP 102 layouts: qccdz and feyree have their own state
+        # DPs, a custom mapping may point anywhere, no such case was seen on any
+        # of them, and nobody here can test them.
+        if self._dp_profile in (CHARGER_PROFILE_DEPOW_V2, CHARGER_PROFILE_GENERIC_V1):
+            return self._charging_evidence.apply(metrics, dps, self._dp, time.time())
+        return metrics
 
     async def async_set_schedule(self, enabled: bool, start: str, end: str) -> bool:
         payload = json.dumps(
