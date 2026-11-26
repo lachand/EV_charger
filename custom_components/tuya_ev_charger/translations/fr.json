@@ -284,7 +284,8 @@
           "tariff_critical_peak": "Attente - tarif de pointe critique",
           "tariff_off_peak": "Charge en heures creuses",
           "tariff_unrestricted": "Aucune restriction tarifaire",
-          "tariff_waiting_for_off_peak": "Attente des heures creuses"
+          "tariff_waiting_for_off_peak": "Attente des heures creuses",
+          "vehicle_not_responding": "Le vehicule ne repond pas a la demande de charge ; plus de relance"
         }
       },
       "surplus_raw_w": {

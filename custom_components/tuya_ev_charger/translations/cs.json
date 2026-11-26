@@ -284,7 +284,8 @@
           "tariff_critical_peak": "\u010cek\u00e1n\u00ed \u2014 kritick\u00e9 \u0161pi\u010dkov\u00e9 ceny",
           "tariff_off_peak": "Nab\u00edjen\u00ed v dob\u011b n\u00edzk\u00e9ho tarifu",
           "tariff_unrestricted": "Bez omezen\u00ed tarifu",
-          "tariff_waiting_for_off_peak": "\u010cek\u00e1n\u00ed na n\u00edzk\u00fd tarif"
+          "tariff_waiting_for_off_peak": "\u010cek\u00e1n\u00ed na n\u00edzk\u00fd tarif",
+          "vehicle_not_responding": "Vozidlo nereaguje na p\u0159\u00edkaz ke spu\u0161t\u011bn\u00ed; u\u017e se neopakuje"
         }
       },
       "surplus_raw_w": {

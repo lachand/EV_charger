@@ -284,7 +284,8 @@
           "tariff_critical_peak": "Waiting - critical peak pricing",
           "tariff_off_peak": "Charging during off-peak hours",
           "tariff_unrestricted": "No tariff restriction",
-          "tariff_waiting_for_off_peak": "Waiting for off-peak hours"
+          "tariff_waiting_for_off_peak": "Waiting for off-peak hours",
+          "vehicle_not_responding": "The car did not answer the start command; no longer re-sent"
         }
       },
       "surplus_raw_w": {
