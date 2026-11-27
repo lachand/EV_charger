@@ -12,6 +12,7 @@ import tinytuya
 
 from .charger_metrics import (
     PLUG_IN_ACTION_MAP,
+    QCCDZ_PLUG_IN_ACTION_OPTIONS,
     EVMetrics,
     decode_feyree_metrics,
     decode_metrics,
@@ -307,6 +308,11 @@ class TuyaEVChargerClient:
         to hold a session rather than driving the current below the 6 A the
         IEC 61851 pilot signal defines.
         """
+        if self._dp_profile == CHARGER_PROFILE_QCCDZ_V1:
+            # DP 36 auto_start_enabled is a plain bool.
+            if action not in QCCDZ_PLUG_IN_ACTION_OPTIONS:
+                raise ValueError(f"Unsupported plug-in action '{action}'.")
+            return await self._async_send_command(self._dp.plug_in_action, action == "charge")
         for raw_value, name in PLUG_IN_ACTION_MAP.items():
             if name == action:
                 return await self._async_send_command(self._dp.plug_in_action, raw_value)

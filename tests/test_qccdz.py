@@ -331,3 +331,32 @@ def _decode_with(ceiling):
     from tuya_ev_charger.charger_metrics import decode_qccdz_metrics
 
     return decode_qccdz_metrics(CHARGING, _profile(), ceiling)
+
+
+@pytest.mark.parametrize(("raw", "expected"), [(True, "charge"), (False, "idle")])
+def test_auto_start_reads_as_the_plug_in_action(raw, expected):
+    # DP 36 auto_start_enabled: off, the car waits for DP 35 instead of starting on plug-in.
+    assert _decode({**CHARGING, "36": raw}).plug_in_action == expected
+
+
+def test_no_plug_in_action_without_dp_36():
+    dps = {k: v for k, v in CHARGING.items() if k != "36"}
+
+    assert _decode(dps).plug_in_action is None
+
+
+@pytest.mark.parametrize(("action", "raw"), [("charge", True), ("idle", False)])
+def test_the_plug_in_action_writes_auto_start(action, raw):
+    # The client reads DP 36 back after writing, so the fake charger already holds it.
+    client = _client({**CHARGING, "36": raw})
+
+    assert asyncio.run(client.async_set_plug_in_action(action)) is True
+    assert client._device.set_calls == [("36", raw)]
+
+
+def test_prompt_is_refused_on_qccdz():
+    client = _client(CHARGING)
+
+    with pytest.raises(ValueError):
+        asyncio.run(client.async_set_plug_in_action("prompt"))
+    assert client._device.set_calls == []

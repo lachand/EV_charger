@@ -7,10 +7,11 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TuyaEVChargerRuntimeData
-from .charger_metrics import PLUG_IN_ACTION_OPTIONS
+from .charger_metrics import PLUG_IN_ACTION_OPTIONS, QCCDZ_PLUG_IN_ACTION_OPTIONS
 from .const import (
     CARD_ROLE_INDEX,
     CARD_ROLE_SURPLUS_PROFILE,
+    CHARGER_PROFILE_QCCDZ_V1,
     CONF_SURPLUS_PROFILE,
     CONF_VEHICLES,
     DEFAULT_SURPLUS_PROFILE,
@@ -44,7 +45,7 @@ async def async_setup_entry(
 
 
 class TuyaEVChargerPlugInActionSelect(TuyaEVChargerEntity, SelectEntity):
-    """What the charger does when a cable is plugged in (DP 154)."""
+    """What the charger does when a cable is plugged in (DP 154, DP 36 on qccdz)."""
 
     _attr_translation_key = "plug_in_action"
     _attr_entity_category = EntityCategory.CONFIG
@@ -53,6 +54,8 @@ class TuyaEVChargerPlugInActionSelect(TuyaEVChargerEntity, SelectEntity):
     def __init__(self, entry: ConfigEntry, runtime_data: TuyaEVChargerRuntimeData) -> None:
         super().__init__(entry=entry, runtime_data=runtime_data)
         self._attr_unique_id = f"{runtime_data.client.device_id}_plug_in_action"
+        if runtime_data.client.dp_profile == CHARGER_PROFILE_QCCDZ_V1:
+            self._attr_options = list(QCCDZ_PLUG_IN_ACTION_OPTIONS)
 
     @property
     def available(self) -> bool:
