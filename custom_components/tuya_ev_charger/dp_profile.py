@@ -44,6 +44,7 @@ from .const import (
     FEYREE_DP_FAULT,
     FEYREE_DP_MAX_CURRENT_CFG,
     FEYREE_DP_STATUS,
+    QCCDZ_DP_AUTO_START,
     QCCDZ_DP_CHARGE_DISCHARGE,
     QCCDZ_DP_CURRENT_TARGET,
     QCCDZ_DP_EVSE_STATE,
@@ -138,7 +139,7 @@ DP_PROFILE_MAP: dict[str, DPProfile] = {
         product_variant="",
         dp_num="",
         reboot="",
-        plug_in_action="",
+        plug_in_action=QCCDZ_DP_AUTO_START,
         schedule="",
     ),
     # Feyree portable chargers: scalar per-phase DPs, decoded by

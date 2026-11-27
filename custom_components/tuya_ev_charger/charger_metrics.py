@@ -70,6 +70,7 @@ STATUS_OPTIONS: tuple[str, ...] = tuple(dict.fromkeys(STATUS_MAP.values()))
 # clean way to stop a car auto-starting a charge.
 PLUG_IN_ACTION_MAP: dict[int, str] = {0: "prompt", 1: "charge", 2: "idle"}
 PLUG_IN_ACTION_OPTIONS: tuple[str, ...] = tuple(PLUG_IN_ACTION_MAP.values())
+QCCDZ_PLUG_IN_ACTION_OPTIONS: tuple[str, ...] = ("charge", "idle")
 
 # IEC 61851 status letters, the vocabulary evcc consumes: A = no vehicle,
 # B = connected but not charging, C = charging.
@@ -286,7 +287,7 @@ def decode_qccdz_metrics(
         work_state=None,
         work_state_debug=work_state_debug,
         status=STATUS_MAP.get(work_state_debug),
-        plug_in_action=None,
+        plug_in_action=_qccdz_plug_in_action(dps.get(dp.plug_in_action)),
         do_charge=do_charge,
         current_target=coerce_optional_int(dps.get(dp.current_target)),
         max_current_cfg=max_current_a,
@@ -301,6 +302,14 @@ def decode_qccdz_metrics(
         schedule_start=None,
         schedule_end=None,
     )
+
+
+def _qccdz_plug_in_action(raw: Any) -> str | None:
+    """DP 36 ``auto_start_enabled`` is a bool: no "prompt" on these firmwares."""
+    auto_start = coerce_optional_bool(raw)
+    if auto_start is None:
+        return None
+    return "charge" if auto_start else "idle"
 
 
 def _qccdz_do_charge(raw: Any) -> bool | None:

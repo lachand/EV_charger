@@ -68,7 +68,7 @@ class _Controller:
 
 def _runtime(**overrides):
     base = {
-        "client": types.SimpleNamespace(device_id=DEVICE_ID),
+        "client": types.SimpleNamespace(device_id=DEVICE_ID, dp_profile="depow_v2"),
         "coordinator": types.SimpleNamespace(data=None, connection_health={}),
         "solar_surplus_controller": None,
         "vehicle_tracker": None,
@@ -453,7 +453,9 @@ def test_unique_ids_come_from_the_device_id_not_from_the_address_or_the_mac():
     before.data = {"host": "192.168.1.10", "mac": "aa:aa:aa:aa:aa:aa", "device_id": DEVICE_ID}
     after = _entry({"vehicles": "Zoe"}, _runtime())
     after.data = {"host": "10.9.9.9", "mac": "bb:bb:bb:bb:bb:bb", "device_id": DEVICE_ID}
-    moved_runtime = _runtime(client=types.SimpleNamespace(device_id=DEVICE_ID, host="10.9.9.9"))
+    moved_runtime = _runtime(
+        client=types.SimpleNamespace(device_id=DEVICE_ID, host="10.9.9.9", dp_profile="depow_v2")
+    )
     after.runtime_data = moved_runtime
 
     assert _ids(before) == _ids(after)
@@ -461,7 +463,8 @@ def test_unique_ids_come_from_the_device_id_not_from_the_address_or_the_mac():
 
 def test_a_different_device_id_gives_a_different_set_of_ids():
     other = _entry(
-        {"vehicles": "Zoe"}, _runtime(client=types.SimpleNamespace(device_id="bf_other"))
+        {"vehicles": "Zoe"},
+        _runtime(client=types.SimpleNamespace(device_id="bf_other", dp_profile="depow_v2")),
     )
 
     assert _ids(_entry({"vehicles": "Zoe"}, _runtime())).isdisjoint(_ids(other))

@@ -495,6 +495,7 @@ QCCDZ_DP_SYSTEM_VERSION = "23"
 QCCDZ_DP_TEMPERATURE = "24"  # degrees C
 QCCDZ_DP_SESSION_ENERGY = "25"  # charge_energy_once, 0.01 kWh
 QCCDZ_DP_CHARGE_DISCHARGE = "35"  # charge / discharge / disabled: the app's start/stop
+QCCDZ_DP_AUTO_START = "36"  # auto_start_enabled: start charging as soon as the car is plugged in
 QCCDZ_DP_EVSE_STATE = "38"
 QCCDZ_DP_SESSION_START = "54"  # charge_start_moment, Unix timestamp as a string
 QCCDZ_DP_POWER = "48"  # charge_power, 0.1 kW
